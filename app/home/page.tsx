@@ -23,10 +23,10 @@ export default function HomePage() {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 min-h-[400px] flex flex-col items-center justify-center">
       <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-        <LayoutDashboard size={32} className="text-slate-400" />
+        <LayoutDashboard size={32} className="text-slate-600" />
       </div>
       <h1 className="text-3xl font-bold text-slate-800">Dashboard</h1>
-      <p className="text-slate-500 mt-2">Bem-vindo ao dashboard {user.branchId}</p>
+      <p className="text-slate-600 mt-2">Bem-vindo ao dashboard {user.branchId}</p>
     </div>
   );
 }

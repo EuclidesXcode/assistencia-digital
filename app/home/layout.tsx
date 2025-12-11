@@ -114,7 +114,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 truncate">{user?.name}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.branchId}</p>
+                <p className="text-xs text-slate-600 truncate">{user?.branchId}</p>
               </div>
             )}
           </div>
@@ -136,11 +136,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
               <Menu size={20} />
             </button>
             <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-primary-500/20">
-              <Search size={16} className="text-slate-400 mr-2" />
+              <Search size={16} className="text-slate-600 mr-2" />
               <input
                 type="text"
                 placeholder="Buscar..."
-                className="bg-transparent border-none focus:outline-none text-sm text-slate-700 w-48 placeholder-slate-400"
+                className="bg-transparent border-none focus:outline-none text-sm text-slate-700 w-48 placeholder:text-slate-600"
               />
             </div>
           </div>
@@ -192,7 +192,7 @@ const SidebarItem = ({ icon: Icon, label, active, isOpen, href, onNavigate }: Si
 
   const inner = (
     <>
-      <Icon size={24} className={`${active ? 'text-primary-600' : 'text-slate-400'} flex-shrink-0`} />
+      <Icon size={24} className={`${active ? 'text-primary-600' : 'text-slate-600'} flex-shrink-0`} />
       {isOpen && <span>{label}</span>}
     </>
   );

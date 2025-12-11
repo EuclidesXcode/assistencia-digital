@@ -43,7 +43,7 @@ export default function RecebimentoPage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold text-slate-800">RECEBIMENTO DE PRODUTO</h2>
-            <p className="text-sm text-slate-500 mt-1">Fluxo guiado de <strong>4 etapas</strong> — LPN, Vistoria Revenda, SAT e Recebimento do Produto.</p>
+            <p className="text-sm text-slate-600 mt-1">Fluxo guiado de <strong>4 etapas</strong> — LPN, Vistoria Revenda, SAT e Recebimento do Produto.</p>
 
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-2 px-2 py-1 bg-slate-50 rounded-full text-slate-600">1 • LPN</span>
@@ -63,7 +63,7 @@ export default function RecebimentoPage() {
         <header className="flex flex-col gap-4 mb-4">
           <div className="min-w-0">
             <h3 className="text-sm text-slate-600">PRODUTOS AGUARDANDO ELABORAÇÃO DE ORÇAMENTO</h3>
-            <p className="text-xs text-slate-400">Produtos analisados, pendentes de elaboração de orçamento.</p>
+            <p className="text-xs text-slate-600">Produtos analisados, pendentes de elaboração de orçamento.</p>
           </div>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -103,15 +103,15 @@ export default function RecebimentoPage() {
               {registros.map((r, idx) => (
                 <tr key={r.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-primary-50 transition-colors`}>
                   <td className="p-3"><input type="checkbox" checked={!!selected[r.id]} onChange={() => toggle(r.id)} /></td>
-                  <td className="p-3">{r.data}</td>
-                  <td className="p-3">{r.analisadoPor}</td>
-                  <td className="p-3 font-mono">{r.id}</td>
-                  <td className="p-3">{r.codigoNF}</td>
-                  <td className="p-3">{r.modeloFabricante}</td>
-                  <td className="p-3">{r.ean}</td>
-                  <td className="p-3">{r.nf}</td>
+                  <td className="p-3 text-slate-700">{r.data}</td>
+                  <td className="p-3 text-slate-700">{r.analisadoPor}</td>
+                  <td className="p-3 font-mono text-slate-700">{r.id}</td>
+                  <td className="p-3 text-slate-700">{r.codigoNF}</td>
+                  <td className="p-3 text-slate-700">{r.modeloFabricante}</td>
+                  <td className="p-3 text-slate-700">{r.ean}</td>
+                  <td className="p-3 text-slate-700">{r.nf}</td>
                   <td className="p-3"><span className="inline-block bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-medium">PENDENTE</span></td>
-                  <td className="p-3">-</td>
+                  <td className="p-3 text-slate-700">-</td>
                 </tr>
               ))}
             </tbody>
@@ -148,37 +148,37 @@ export default function RecebimentoPage() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="font-mono text-sm font-semibold text-slate-900">{r.id}</span>
+                    <span className="font-mono text-sm font-semibold" style={{ color: '#6b7280' }}>{r.id}</span>
                     <span className="inline-block bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-medium flex-shrink-0">PENDENTE</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <span className="text-slate-500 text-xs block mb-1">DATA RECEB.</span>
-                      <span className="text-slate-900 font-medium">{r.data}</span>
+                      <span className="text-slate-600 text-xs block mb-1">DATA RECEB.</span>
+                      <span className="font-medium" style={{ color: '#6b7280' }}>{r.data}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 text-xs block mb-1">ANALISADO POR</span>
-                      <span className="text-slate-900 font-medium">{r.analisadoPor}</span>
+                      <span className="text-slate-600 text-xs block mb-1">ANALISADO POR</span>
+                      <span className="font-medium" style={{ color: '#6b7280' }}>{r.analisadoPor}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 text-xs block mb-1">CÓDIGO NF</span>
-                      <span className="text-slate-900 font-medium">{r.codigoNF}</span>
+                      <span className="text-slate-600 text-xs block mb-1">CÓDIGO NF</span>
+                      <span className="font-medium" style={{ color: '#6b7280' }}>{r.codigoNF}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 text-xs block mb-1">NF</span>
-                      <span className="text-slate-900 font-medium">{r.nf}</span>
+                      <span className="text-slate-600 text-xs block mb-1">NF</span>
+                      <span className="font-medium" style={{ color: '#6b7280' }}>{r.nf}</span>
                     </div>
                   </div>
 
                   <div className="mt-3 pt-3 border-t border-slate-100">
-                    <span className="text-slate-500 text-xs block mb-1">MODELO FABRICANTE</span>
-                    <span className="text-slate-900 font-medium text-sm break-words">{r.modeloFabricante}</span>
+                    <span className="text-slate-600 text-xs block mb-1">MODELO FABRICANTE</span>
+                    <span className="font-medium text-sm break-words" style={{ color: '#6b7280' }}>{r.modeloFabricante}</span>
                   </div>
 
                   <div className="mt-3">
-                    <span className="text-slate-500 text-xs block mb-1">EAN / GTIN</span>
-                    <span className="text-slate-900 font-medium text-sm font-mono">{r.ean}</span>
+                    <span className="text-slate-600 text-xs block mb-1">EAN / GTIN</span>
+                    <span className="font-medium text-sm font-mono" style={{ color: '#6b7280' }}>{r.ean}</span>
                   </div>
                 </div>
               </div>

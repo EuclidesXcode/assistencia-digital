@@ -134,7 +134,7 @@ export default function NotificacoesPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold text-slate-800">Notificações</h1>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-600">
                         {unreadCount > 0 ? `Você tem ${unreadCount} notificação${unreadCount > 1 ? 'ões' : ''} não lida${unreadCount > 1 ? 's' : ''}` : 'Todas as notificações foram lidas'}
                     </p>
                 </div>
@@ -154,8 +154,8 @@ export default function NotificacoesPage() {
                     <div
                         key={notification.id}
                         className={`bg-white rounded-lg border transition-all ${notification.read
-                                ? 'border-slate-200'
-                                : 'border-primary-200 bg-primary-50/30'
+                            ? 'border-slate-200'
+                            : 'border-primary-200 bg-primary-50/30'
                             }`}
                     >
                         <div className="p-4">
@@ -168,15 +168,15 @@ export default function NotificacoesPage() {
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-start justify-between gap-3 mb-1">
-                                        <h3 className={`font-semibold text-slate-900 ${!notification.read && 'font-bold'}`}>
+                                        <h3 className={`font-semibold ${!notification.read && 'font-bold'}`} style={{ color: '#6b7280' }}>
                                             {notification.title}
                                         </h3>
                                         {!notification.read && (
                                             <span className="flex-shrink-0 w-2 h-2 bg-primary-600 rounded-full mt-2"></span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-slate-600 mb-2">{notification.message}</p>
-                                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                                    <p className="text-sm mb-2" style={{ color: '#6b7280' }}>{notification.message}</p>
+                                    <div className="flex items-center gap-3 text-xs text-slate-600">
                                         <div className="flex items-center gap-1">
                                             <Clock className="w-3 h-3" />
                                             {notification.timestamp}
@@ -204,10 +204,10 @@ export default function NotificacoesPage() {
             {notifications.length === 0 && (
                 <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
                     <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 className="w-8 h-8 text-slate-400" />
+                        <CheckCircle2 className="w-8 h-8 text-slate-600" />
                     </div>
                     <h3 className="text-lg font-semibold text-slate-900 mb-2">Nenhuma notificação</h3>
-                    <p className="text-sm text-slate-500">Você está em dia! Não há notificações no momento.</p>
+                    <p className="text-sm text-slate-600">Você está em dia! Não há notificações no momento.</p>
                 </div>
             )}
         </div>
