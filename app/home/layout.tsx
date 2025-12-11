@@ -98,7 +98,6 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
         <nav className="p-4 space-y-2">
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={pathname === '/home'} isOpen={sidebarOpen} href="/home" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={Bell} label="Notificações" active={pathname === '/home/notificacoes'} isOpen={sidebarOpen} href="/home/notificacoes" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
