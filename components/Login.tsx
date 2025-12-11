@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Building2, Mail, Lock, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -43,7 +44,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         email: formData.email,
         branchId: formData.branchId
       };
-      
+
       setStatus(LoginStatus.SUCCESS);
       onLogin(mockUser);
     }, 1500);
@@ -58,12 +59,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       </div>
 
       <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100">
-        
+
         {/* Left Side - Hero/Branding */}
         <div className="w-full md:w-1/2 bg-slate-900 p-8 md:p-12 flex flex-col justify-between text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-slate-900 opacity-90"></div>
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
-          
+
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-primary-200 mb-2">
               <LayoutDashboard size={24} />
@@ -132,22 +133,22 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               )}
 
               <div className="pt-2">
-                <Button 
-                  type="submit" 
-                  className="w-full group" 
+                <Button
+                  type="submit"
+                  className="w-full group"
                   isLoading={status === LoginStatus.LOADING}
                 >
                   Login
                   {status !== LoginStatus.LOADING && (
-                     <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   )}
                 </Button>
               </div>
 
               <div className="text-center mt-4">
-                <a href="#" className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors">
+                <Link href="/esqueci-senha" className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors">
                   Esqueceu sua senha?
-                </a>
+                </Link>
               </div>
             </form>
           </div>
