@@ -13,7 +13,9 @@ import {
   DollarSign,
   FileText,
   Truck,
-  ClipboardCheck
+  ClipboardCheck,
+  Users,
+  Settings
 } from 'lucide-react';
 import { User } from '@/types';
 
@@ -23,6 +25,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const [user, setUser] = useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -31,7 +34,20 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       router.push('/');
       return;
     }
-    setUser(JSON.parse(userData));
+    const currentUser = JSON.parse(userData);
+    setUser(currentUser);
+
+    // Load unread notifications count
+    const loadUnreadCount = async () => {
+      try {
+        const { NotificationService } = await import('@/backend/services/notificationService');
+        const count = await NotificationService.getUnreadCount(currentUser);
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('Error loading unread count:', error);
+      }
+    };
+    loadUnreadCount();
 
     // Initialize sidebar state based on viewport width (open on md and above)
     const initOpen = window.innerWidth >= 768;
@@ -96,29 +112,61 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           )}
         </div>
 
+
+
         <nav className="p-4 space-y-2">
+          {/* Dashboard - always visible */}
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={pathname === '/home'} isOpen={sidebarOpen} href="/home" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+
+          {/* Cadastro - only if user has 'cadastro' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('cadastro')) && (
+            <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* Orçamentos - only if user has 'orcamentos' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('orcamentos')) && (
+            <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* NF-e (XML) - only if user has 'nfe' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('nfe')) && (
+            <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* Recebimento - only if user has 'recebimento' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('recebimento')) && (
+            <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* Pré-análise - only if user has 'pre-analise' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('pre-analise')) && (
+            <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* Usuários - only for Administrators */}
+          {user?.role === 'Administrador' && (
+            <SidebarItem icon={Users} label="Usuários" active={pathname === '/home/usuarios'} isOpen={sidebarOpen} href="/home/usuarios" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
         </nav>
 
         {/* User profile snippet at bottom of sidebar */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-slate-100 bg-white">
+        <Link href="/home/configuracoes" className="absolute bottom-0 w-full p-4 border-t border-slate-100 bg-white hover:bg-slate-50 transition-colors">
           <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
-            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
-              {user?.name?.charAt(0) ?? 'U'}
+            <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm flex-shrink-0 overflow-hidden">
+              {user?.photoUrl ? (
+                <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0) ?? 'U'
+              )}
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate">{user?.name}</p>
-                <p className="text-xs text-slate-600 truncate">{user?.branchId}</p>
+                <p className="text-sm font-medium text-slate-800 truncate">{user?.name ?? 'Usuário'}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.role ?? 'Usuário'}</p>
               </div>
             )}
           </div>
-        </div>
+        </Link>
       </aside>
 
       {/* Main Content */}
@@ -146,9 +194,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/home/notificacoes" className="relative p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+            <Link href="/home/notificacoes" className="relative p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors group">
+              <Bell size={20} className={unreadCount > 0 ? 'animate-bell-shake' : ''} />
+              {unreadCount > 0 && (
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white animate-pulse"></span>
+              )}
             </Link>
             <div className="h-6 w-px bg-slate-200"></div>
             <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 
 interface Registro {
@@ -14,17 +14,25 @@ interface Registro {
 }
 
 export default function OrcamentosPage() {
-  const [registros, setRegistros] = useState<Registro[]>([
-    { id: "A1234567", data: "25/09/2025", analisadoPor: "EDUARDO", codigoNF: "5313546", modeloFabricante: "50UT8050PSA.BWZJ LZ", ean: "7893299951862", nf: "000123" },
-    { id: "B7654321", data: "26/09/2025", analisadoPor: "FERNANDA", codigoNF: "5331250", modeloFabricante: "PTV32M9GACGB V.A", ean: "7899466423456", nf: "000456" },
-    { id: "C9876543", data: "27/09/2025", analisadoPor: "JOÃO", codigoNF: "5412801", modeloFabricante: "65A6N", ean: "7891234567890", nf: "000789" },
-    { id: "D1122334", data: "28/09/2025", analisadoPor: "CARLA", codigoNF: "5412805", modeloFabricante: "55QNED80SRA.AWZFLSZ", ean: "7893299951999", nf: "000990" },
-    { id: "E5566778", data: "29/09/2025", analisadoPor: "MARCOS", codigoNF: "5412333", modeloFabricante: "PTV50VA4REGB V.A", ean: "7899466423999", nf: "001010" },
-    { id: "F9988776", data: "30/09/2025", analisadoPor: "ANA", codigoNF: "5412555", modeloFabricante: "T65A6N", ean: "7891234567999", nf: "001050" },
-  ]);
-
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [marcaFilter, setMarcaFilter] = useState<string>("TODAS");
+
+  useEffect(() => {
+    const loadRegistros = async () => {
+      try {
+        const { OrcamentoService } = await import('@/backend/services/orcamentoService');
+        const data = await OrcamentoService.getRegistros();
+        setRegistros(data);
+      } catch (error) {
+        console.error('Error loading orçamentos:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadRegistros();
+  }, []);
 
   const toggle = (id: string) => {
     setSelected((s) => ({ ...s, [id]: !s[id] }));
@@ -37,39 +45,37 @@ export default function OrcamentosPage() {
   };
 
   const abrirPecasPendentes = () => {
-    alert(`Peças pendentes de orçamento (${registros.length})`);
+    alert(`${registros.length} peças pendentes de orçamento`);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">PRODUTOS AGUARDANDO ELABORAÇÃO DE ORÇAMENTO</h1>
-          <p className="text-sm text-slate-600">Produtos analisados, pendentes de elaboração de orçamento.</p>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <div className="text-sm text-slate-600">TOTAL <strong className="text-slate-800">{registros.length}</strong> REGISTROS</div>
-            <div className="text-sm text-slate-600">FILTRO <strong className="text-slate-800">{registros.length}</strong> VISÍVEIS</div>
-            <label className="text-sm flex items-center gap-2">
-              MARCA:
-              <select value={marcaFilter} onChange={(e) => setMarcaFilter(e.target.value)} className="border border-slate-200 rounded px-2 py-1 text-sm">
-                <option>TODAS</option>
-                <option>LG</option>
-                <option>PHILCO</option>
-                <option>HISENSE</option>
-              </select>
-            </label>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button onClick={abrirPecasPendentes} className="bg-white border border-primary-600 text-primary-600 px-3 py-1.5 rounded-full text-sm hover:bg-primary-50 transition-colors">PEÇAS PENDENTES DE ORÇAMENTO ({registros.length})</button>
-            <button onClick={imprimir} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md text-sm hover:bg-slate-200 transition-colors">IMPRIMIR</button>
-          </div>
-        </div>
-      </header>
-
+    <div className="space-y-6 min-w-0">
       <section className="bg-white rounded-lg border border-slate-200 p-4">
+        <header className="flex flex-col gap-4 mb-4">
+          <div className="min-w-0">
+            <h3 className="text-sm text-slate-600">PRODUTOS AGUARDANDO ELABORAÇÃO DE ORÇAMENTO</h3>
+            <p className="text-xs text-slate-600">Produtos analisados, pendentes de elaboração de orçamento.</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="text-sm text-slate-600">TOTAL <strong className="text-slate-800">{registros.length}</strong> REGISTROS</div>
+              <div className="text-sm text-slate-600">FILTRO <strong className="text-slate-800">{registros.length}</strong> VISÍVEIS</div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={abrirPecasPendentes} className="bg-white border border-primary-600 text-primary-600 px-3 py-1.5 rounded-full text-sm hover:bg-primary-50 transition-colors">PEÇAS PENDENTES DE ORÇAMENTO ({registros.length})</button>
+              <button onClick={imprimir} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md text-sm hover:bg-slate-200 transition-colors">IMPRIMIR</button>
+            </div>
+          </div>
+        </header>
+
         {/* Desktop Table View */}
         <div className="hidden lg:block overflow-auto">
           <table className="w-full text-sm">
@@ -81,7 +87,7 @@ export default function OrcamentosPage() {
                   registros.forEach(r => map[r.id] = checked);
                   setSelected(map);
                 }} checked={allSelectedCount === registros.length && registros.length > 0} /></th>
-                <th className="p-3 text-left">DATA RECEB.</th>
+                <th className="p-3 text-left">DATA ANÁLISE</th>
                 <th className="p-3 text-left">ANALISADO POR</th>
                 <th className="p-3 text-left">ID PRODUTO</th>
                 <th className="p-3 text-left">CÓDIGO NF</th>
@@ -103,7 +109,7 @@ export default function OrcamentosPage() {
                   <td className="p-3 text-slate-700">{r.modeloFabricante}</td>
                   <td className="p-3 text-slate-700">{r.ean}</td>
                   <td className="p-3 text-slate-700">{r.nf}</td>
-                  <td className="p-3"><span className="inline-block bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-medium">PENDENTE</span></td>
+                  <td className="p-3"><span className="inline-block bg-yellow-100 text-yellow-600 px-3 py-1 rounded-full text-xs font-medium">PENDENTE</span></td>
                   <td className="p-3 text-slate-700">-</td>
                 </tr>
               ))}
@@ -142,12 +148,12 @@ export default function OrcamentosPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="font-mono text-sm font-semibold" style={{ color: '#6b7280' }}>{r.id}</span>
-                    <span className="inline-block bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-medium flex-shrink-0">PENDENTE</span>
+                    <span className="inline-block bg-yellow-100 text-yellow-600 px-3 py-1 rounded-full text-xs font-medium flex-shrink-0">PENDENTE</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <span className="text-slate-600 text-xs block mb-1">DATA RECEB.</span>
+                      <span className="text-slate-600 text-xs block mb-1">DATA ANÁLISE</span>
                       <span className="font-medium" style={{ color: '#6b7280' }}>{r.data}</span>
                     </div>
                     <div>

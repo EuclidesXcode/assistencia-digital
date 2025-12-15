@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 
 interface Nota {
@@ -12,23 +12,34 @@ interface Nota {
 }
 
 export default function NFeXmlPage() {
-  const [notas, setNotas] = useState<Nota[]>([
-    { chave: 'ABCD1234EFGH5678', numero: '000123', emissao: '01/12/2025', itens: 3, status: 'PENDENTE' },
-    { chave: 'XYZT9876UVWX5432', numero: '000124', emissao: '02/12/2025', itens: 2, status: 'PARCIAL' },
-    { chave: 'MNOP4567QRST8901', numero: '000125', emissao: '03/12/2025', itens: 1, status: 'CONFERIDA' },
-  ]);
+  const [notas, setNotas] = useState<Nota[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [usuario] = useState("eduardo");
 
-  const carregarMock = () => {
-    const n: Nota = {
-      chave: Math.random().toString(36).slice(2, 18).toUpperCase(),
-      numero: String(100000 + notas.length + 1),
-      emissao: "10/12/2025",
-      itens: Math.floor(Math.random() * 5) + 1,
-      status: ["PENDENTE", "PARCIAL", "DIVERGENTE", "CONFERIDA"][Math.floor(Math.random() * 4)] as Nota["status"]
+  useEffect(() => {
+    const loadNotas = async () => {
+      try {
+        const { NfeService } = await import('@/backend/services/nfeService');
+        const data = await NfeService.getNotas();
+        setNotas(data);
+      } catch (error) {
+        console.error('Error loading notas:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-    setNotas((s) => [n, ...s]);
+    loadNotas();
+  }, []);
+
+  const carregarMock = async () => {
+    try {
+      const { NfeService } = await import('@/backend/services/nfeService');
+      const newNota = await NfeService.carregarXml();
+      setNotas((s) => [newNota, ...s]);
+    } catch (error) {
+      console.error('Error loading XML:', error);
+    }
   };
 
   const filtered = useMemo(() => {
@@ -45,6 +56,14 @@ export default function NFeXmlPage() {
   }), [notas]);
 
   const destinoCount = stats.pendentes; // demo: pendentes destinam à pré-análise
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 min-w-0">

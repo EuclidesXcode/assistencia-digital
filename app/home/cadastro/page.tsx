@@ -46,13 +46,30 @@ export default function CadastroPage() {
     return Object.keys(err).length === 0;
   };
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!validar()) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      alert('Preencha todos os campos obrigatórios');
       return;
     }
-    console.log("Salvar produto:", { ...form, modelos, itens });
-    alert("Salvar (demo) — ver console");
+
+    try {
+      const { ProductService } = await import('@/backend/services/productService');
+
+      const productData = {
+        codigo: form.codigo,
+        ean: form.ean,
+        modeloRef: form.modeloRef,
+        modelosFabricante: modelos,
+        acessorios: itens
+      };
+
+      await ProductService.createProduct(productData);
+      alert('Produto salvo com sucesso!');
+      limpar();
+    } catch (error) {
+      console.error('Error saving product:', error);
+      alert('Erro ao salvar produto');
+    }
   };
 
   return (

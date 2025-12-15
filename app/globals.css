@@ -35,3 +35,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Bell shake animation for notifications */
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: rotate(-10deg); }
+  20%, 40%, 60%, 80% { transform: rotate(10deg); }
+}
+
+.animate-bell-shake {
+  animation: bell-shake 2s ease-in-out infinite;
+  transform-origin: top center;
+}
+

@@ -38,11 +38,56 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         return;
       }
 
-      // Mock successful login
+      // Mock users database
+      const mockUsers = [
+        {
+          email: 'admin@empresa.com',
+          password: 'admin123',
+          branchId: 'MATRIZ',
+          name: 'Administrador',
+          role: 'Administrador',
+          permissions: ['admin', 'cadastro', 'orcamentos', 'nfe', 'recebimento', 'pre-analise']
+        },
+        {
+          email: 'eduardo@empresa.com',
+          password: '123456',
+          branchId: 'MATRIZ',
+          name: 'Eduardo Silva',
+          role: 'Atendente',
+          permissions: ['cadastro', 'orcamentos']
+        },
+        {
+          email: 'fernanda@empresa.com',
+          password: '123456',
+          branchId: 'FILIAL01',
+          name: 'Fernanda Costa',
+          role: 'Atendente',
+          permissions: ['cadastro', 'orcamentos']
+        }
+      ];
+
+      // Find user
+      const user = mockUsers.find(u =>
+        u.email.toLowerCase() === formData.email.toLowerCase() &&
+        u.password === formData.password &&
+        u.branchId.toLowerCase() === formData.branchId.toLowerCase()
+      );
+
+      if (!user) {
+        setError('Credenciais inválidas. Verifique email, senha e matriz.');
+        setStatus(LoginStatus.ERROR);
+        return;
+      }
+
+      // Successful login
       const mockUser: User = {
-        name: 'Administrador',
-        email: formData.email,
-        branchId: formData.branchId
+        name: user.name,
+        email: user.email,
+        branchId: user.branchId,
+        role: user.role,
+        permissions: user.role === 'Administrador'
+          ? ['admin', 'cadastro', 'orcamentos', 'nfe', 'recebimento', 'pre-analise']
+          : mockUsers.find(u => u.email === formData.email)?.permissions || []
       };
 
       setStatus(LoginStatus.SUCCESS);
