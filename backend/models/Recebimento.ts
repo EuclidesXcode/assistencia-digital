@@ -22,3 +22,12 @@ export interface UpdateRecebimentoDTO {
   status?: 'aguardando' | 'em_processo' | 'concluido';
   analisadoPor?: string;
 }
+export interface RecebimentoRegistro {
+  id: string;
+  data: string;
+  analisadoPor: string;
+  codigoNF: string;
+  modeloFabricante: string;
+  ean: string;
+  nf: string;
+}

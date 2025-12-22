@@ -29,3 +29,12 @@ export interface PreAnaliseResult {
   motivo?: string;
   dataAnalise: string;
 }
+export interface PreAnaliseProduto {
+  id: string;
+  data: string;
+  recebidoPor: string;
+  codigoNF: string;
+  modeloRef: string;
+  gtin: string;
+  nfReceb: string;
+}

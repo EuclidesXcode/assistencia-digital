@@ -23,3 +23,10 @@ export interface ProcessNfeResponse {
   status: 'processada' | 'erro';
   message?: string;
 }
+export interface Nota {
+  chave: string;
+  numero: string;
+  emissao: string;
+  itens: number;
+  status: 'PENDENTE' | 'PARCIAL' | 'DIVERGENTE' | 'CONFERIDA';
+}

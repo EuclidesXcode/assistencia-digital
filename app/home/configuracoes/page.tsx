@@ -51,6 +51,7 @@ export default function ConfiguracoesPage() {
     };
 
     const handleSaveProfile = () => {
+        if (!user) return;
         const updatedUser = { ...user, ...formData };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         setUser(updatedUser);

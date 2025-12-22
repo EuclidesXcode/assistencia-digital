@@ -22,3 +22,12 @@ export interface UpdateOrcamentoDTO {
   status?: 'pendente' | 'em_analise' | 'concluido';
   analisadoPor?: string;
 }
+export interface OrcamentoRegistro {
+  id: string;
+  data: string;
+  analisadoPor: string;
+  codigoNF: string;
+  modeloFabricante: string;
+  ean: string;
+  nf: string;
+}

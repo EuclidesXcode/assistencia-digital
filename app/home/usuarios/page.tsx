@@ -52,6 +52,7 @@ export default function UsuariosPage() {
 
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
     const [atividades, setAtividades] = useState<Record<string, AtividadeUsuario[]>>({});
+    const [stats, setStats] = useState({ total: 0, ativos: 0, inativos: 0, atividadesHoje: 0 });
     const [loading, setLoading] = useState(true);
 
     // Load users on mount
@@ -59,8 +60,12 @@ export default function UsuariosPage() {
         const loadUsers = async () => {
             try {
                 const { UserManagementService } = await import('@/backend/services/userManagementService');
-                const users = await UserManagementService.getUsuarios();
+                const [users, statistics] = await Promise.all([
+                    UserManagementService.getUsuarios(),
+                    UserManagementService.getStats()
+                ]);
                 setUsuarios(users);
+                setStats(statistics);
             } catch (error) {
                 console.error('Error loading users:', error);
             } finally {
@@ -238,7 +243,7 @@ export default function UsuariosPage() {
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-slate-200">
                     <div className="text-xs text-slate-600 mb-1">ATIVIDADES HOJE</div>
-                    <div className="text-2xl font-bold text-blue-600">{atividades.length}</div>
+                    <div className="text-2xl font-bold text-blue-600">{stats.atividadesHoje}</div>
                 </div>
             </div>
 

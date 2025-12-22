@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard,
   Package,
   DollarSign,
   Truck,
@@ -13,36 +12,18 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
-  Lock
+  Lock,
+  PieChart
 } from 'lucide-react';
 import { User } from '@/types';
 import { hasPermission } from '@/lib/permissions';
-
-interface DashboardStats {
-  orcamentosPendentes: number;
-  recebimentosAguardando: number;
-  preAnalisesEmAndamento: number;
-  nfeProcessadas: number;
-}
-
-interface RecentActivity {
-  id: string;
-  type: 'orcamento' | 'produto' | 'recebimento' | 'nfe' | 'pre-analise' | 'cadastro';
-  title: string;
-  timestamp: string;
-  link: string;
-  permission: string;
-}
+import { DashboardData, RevenueChartData, StatusDistributionData } from '@/backend/models/Dashboard';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { RevenueChart, StatusChart } from '@/components/dashboard/DashboardCharts';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState<DashboardStats>({
-    orcamentosPendentes: 0,
-    recebimentosAguardando: 0,
-    preAnalisesEmAndamento: 0,
-    nfeProcessadas: 0
-  });
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,13 +38,9 @@ export default function HomePage() {
       setUser(currentUser);
 
       try {
-        // Import DashboardService dynamically
         const { DashboardService } = await import('@/backend/services/dashboardService');
-
-        // Load dashboard data
         const dashboardData = await DashboardService.getDashboardData(currentUser);
-        setStats(dashboardData.stats);
-        setRecentActivities(dashboardData.recentActivities);
+        setData(dashboardData);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -82,118 +59,30 @@ export default function HomePage() {
     );
   }
 
-  const getActivityIcon = (type: RecentActivity['type']) => {
+  const getActivityIcon = (type: any) => {
     switch (type) {
-      case 'orcamento':
-        return <DollarSign className="w-4 h-4" />;
-      case 'produto':
-        return <Package className="w-4 h-4" />;
-      case 'recebimento':
-        return <Truck className="w-4 h-4" />;
-      case 'nfe':
-        return <FileText className="w-4 h-4" />;
-      case 'pre-analise':
-        return <CheckCircle2 className="w-4 h-4" />;
-      case 'cadastro':
-        return <Package className="w-4 h-4" />;
+      case 'orcamento': return <DollarSign className="w-4 h-4" />;
+      case 'produto': return <Package className="w-4 h-4" />;
+      case 'recebimento': return <Truck className="w-4 h-4" />;
+      case 'nfe': return <FileText className="w-4 h-4" />;
+      case 'pre-analise': return <CheckCircle2 className="w-4 h-4" />;
+      case 'cadastro': return <Package className="w-4 h-4" />;
+      default: return <Package className="w-4 h-4" />;
     }
   };
 
-  const getActivityColor = (type: RecentActivity['type']) => {
+  const getActivityColor = (type: any) => {
     switch (type) {
-      case 'orcamento':
-        return 'bg-blue-100 text-blue-600';
-      case 'produto':
-        return 'bg-green-100 text-green-600';
-      case 'recebimento':
-        return 'bg-purple-100 text-purple-600';
-      case 'nfe':
-        return 'bg-indigo-100 text-indigo-600';
-      case 'pre-analise':
-        return 'bg-emerald-100 text-emerald-600';
-      case 'cadastro':
-        return 'bg-green-100 text-green-600';
+      case 'orcamento': return 'bg-blue-100 text-blue-600';
+      case 'produto': return 'bg-green-100 text-green-600';
+      case 'recebimento': return 'bg-purple-100 text-purple-600';
+      case 'nfe': return 'bg-indigo-100 text-indigo-600';
+      case 'pre-analise': return 'bg-emerald-100 text-emerald-600';
+      default: return 'bg-gray-100 text-gray-600';
     }
   };
 
-  // Filter activities based on permissions
-  const filteredActivities = recentActivities.filter(activity =>
-    hasPermission(user, activity.permission)
-  );
-
-  // Dashboard card component with permission check
-  const DashboardCard = ({
-    href,
-    permission,
-    icon: Icon,
-    iconBg,
-    iconColor,
-    borderColor,
-    value,
-    label,
-    actionColor
-  }: {
-    href: string;
-    permission: string;
-    icon: any;
-    iconBg: string;
-    iconColor: string;
-    borderColor: string;
-    value: number;
-    label: string;
-    actionColor: string;
-  }) => {
-    const hasAccess = hasPermission(user, permission);
-
-    if (!hasAccess) {
-      return (
-        <div className="relative">
-          <div className="bg-slate-50 rounded-lg border border-slate-200 p-6 opacity-60 cursor-not-allowed">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-12 h-12 ${iconBg} rounded-lg flex items-center justify-center`}>
-                <Icon className={`w-6 h-6 ${iconColor}`} />
-              </div>
-              <Lock className="w-5 h-5 text-slate-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-400">{value}</h3>
-            <p className="text-sm text-slate-400 mt-1">{label}</p>
-            <div className="mt-3 flex items-center text-xs text-slate-400 font-medium">
-              Sem permissão
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <Link href={href} className="group">
-        <div className={`bg-white rounded-lg border border-slate-200 p-6 hover:shadow-lg transition-all hover:${borderColor}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 ${iconBg} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
-              <Icon className={`w-6 h-6 ${iconColor}`} />
-            </div>
-            <TrendingUp className={`w-5 h-5 ${iconColor}`} />
-          </div>
-          <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
-          <p className="text-sm text-slate-600 mt-1">{label}</p>
-          <div className={`mt-3 flex items-center text-xs ${actionColor} font-medium`}>
-            Ver todos <ArrowRight className="w-3 h-3 ml-1" />
-          </div>
-        </div>
-      </Link>
-    );
-  };
-
-  // Quick action component with permission check
-  const QuickAction = ({ href, permission, icon: Icon, iconBg, iconColor, title, subtitle }: {
-    href: string;
-    permission: string;
-    icon: any;
-    iconBg: string;
-    iconColor: string;
-    title: string;
-    subtitle: string;
-  }) => {
+  const QuickAction = ({ href, permission, icon: Icon, iconBg, iconColor, title, subtitle }: any) => {
     const hasAccess = hasPermission(user, permission);
 
     if (!hasAccess) {
@@ -233,87 +122,92 @@ export default function HomePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-slate-600 mt-1">Bem-vindo de volta, {user.name}! Matriz: {user.branchId}</p>
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard de Controle</h1>
+          <p className="text-slate-600 mt-1">Visão geral da operação - {user.branches?.branch_name || user.branchId}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-600">
-            {new Date().toLocaleDateString('pt-BR', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
+          <span className="text-sm text-slate-600 bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </span>
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <DashboardCard
-          href="/home/orcamentos"
-          permission="orcamentos"
+        <StatCard
+          title="Orçamentos Pendentes"
+          value={data?.stats.orcamentosPendentes || 0}
           icon={DollarSign}
-          iconBg="bg-blue-100"
-          iconColor="text-blue-600"
-          borderColor="border-blue-300"
-          value={stats.orcamentosPendentes}
-          label="Orçamentos Pendentes"
-          actionColor="text-blue-600"
+          color="blue"
+          trend="+12%"
+          trendUp={true}
         />
-
-        <DashboardCard
-          href="/home/recebimento"
-          permission="recebimento"
+        <StatCard
+          title="Aguardando Recebimento"
+          value={data?.stats.recebimentosAguardando || 0}
           icon={Truck}
-          iconBg="bg-purple-100"
-          iconColor="text-purple-600"
-          borderColor="border-purple-300"
-          value={stats.recebimentosAguardando}
-          label="Recebimentos Aguardando"
-          actionColor="text-purple-600"
+          color="purple"
+          trend="-5%"
+          trendUp={false}
         />
-
-        <DashboardCard
-          href="/home/pre-analise"
-          permission="pre-analise"
+        <StatCard
+          title="Pré-Análises"
+          value={data?.stats.preAnalisesEmAndamento || 0}
           icon={CheckCircle2}
-          iconBg="bg-green-100"
-          iconColor="text-green-600"
-          borderColor="border-green-300"
-          value={stats.preAnalisesEmAndamento}
-          label="Pré-análises em Andamento"
-          actionColor="text-green-600"
+          color="green"
+          trend="+8%"
+          trendUp={true}
         />
-
-        <DashboardCard
-          href="/home/nfe-xml"
-          permission="nfe"
+        <StatCard
+          title="NF-e Processadas"
+          value={data?.stats.nfeProcessadas || 0}
           icon={FileText}
-          iconBg="bg-indigo-100"
-          iconColor="text-indigo-600"
-          borderColor="border-indigo-300"
-          value={stats.nfeProcessadas}
-          label="NF-e Processadas Hoje"
-          actionColor="text-indigo-600"
+          color="indigo"
         />
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              Receita Mensal (Estimada)
+            </h3>
+          </div>
+          <div className="h-64">
+            {data?.revenueChart && <RevenueChart data={data.revenueChart} />}
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-purple-600" />
+              Status dos Serviços
+            </h3>
+          </div>
+          <div className="h-64 flex justify-center">
+            {data?.statusDistribution && <StatusChart data={data.statusDistribution} />}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Atividades Recentes */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-6">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-slate-800">Atividades Recentes</h2>
+            <h2 className="text-lg font-bold text-slate-800">Atividades Recentes</h2>
             <Link href="/home/notificacoes" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
               Ver todas
             </Link>
           </div>
 
           <div className="space-y-4">
-            {filteredActivities.length === 0 ? (
+            {data?.recentActivities.length === 0 ? (
               <p className="text-center text-slate-500 py-8">Nenhuma atividade disponível</p>
             ) : (
-              filteredActivities.map((activity) => (
+              data?.recentActivities.map((activity) => (
                 <Link
                   key={activity.id}
                   href={activity.link}
@@ -339,8 +233,8 @@ export default function HomePage() {
         </div>
 
         {/* Ações Rápidas */}
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-6">Ações Rápidas</h2>
+        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-800 mb-6">Ações Rápidas</h2>
 
           <div className="space-y-3">
             <QuickAction
@@ -383,21 +277,6 @@ export default function HomePage() {
               subtitle="Iniciar processo"
             />
           </div>
-
-          {/* Alertas */}
-          {hasPermission(user, 'orcamentos') && (
-            <div className="mt-6 pt-6 border-t border-slate-200">
-              <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-yellow-800">Atenção</p>
-                  <p className="text-xs text-yellow-700 mt-1">
-                    5 orçamentos próximos do prazo limite
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

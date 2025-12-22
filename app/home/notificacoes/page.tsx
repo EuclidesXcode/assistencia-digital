@@ -45,7 +45,7 @@ export default function NotificacoesPage() {
 
             try {
                 const { NotificationService } = await import('@/backend/services/notificationService');
-                const userNotifications = await NotificationService.getNotifications(currentUser);
+                const userNotifications = await NotificationService.getNotifications(currentUser as any);
                 setNotifications(userNotifications);
             } catch (error) {
                 console.error('Error loading notifications:', error);
@@ -83,7 +83,7 @@ export default function NotificacoesPage() {
         if (!user) return;
         try {
             const { NotificationService } = await import('@/backend/services/notificationService');
-            await NotificationService.markAllAsRead(user);
+            await NotificationService.markAllAsRead(user as any);
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         } catch (error) {
             console.error('Error marking all notifications as read:', error);

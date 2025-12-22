@@ -1,6 +1,6 @@
-import { Registro } from '../models/Orcamento';
+import { OrcamentoRegistro } from '../models/Orcamento';
 
-export const mockOrcamentos: Registro[] = [
+export const mockOrcamentos: OrcamentoRegistro[] = [
     { id: "A1234567", data: "25/09/2025", analisadoPor: "EDUARDO", codigoNF: "5313546", modeloFabricante: "50UT8050PSA.BWZJ LZ", ean: "7893299951862", nf: "000123" },
     { id: "B7654321", data: "26/09/2025", analisadoPor: "FERNANDA", codigoNF: "5331250", modeloFabricante: "PTV32M9GACGB V.A", ean: "7899466423456", nf: "000456" },
     { id: "C9876543", data: "27/09/2025", analisadoPor: "JOÃO", codigoNF: "5412801", modeloFabricante: "65A6N", ean: "7891234567890", nf: "000789" },

@@ -6,17 +6,17 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   icon?: LucideIcon;
 }
 
-export const Input: React.FC<InputProps> = ({ 
-  label, 
-  icon: Icon, 
+export const Input: React.FC<InputProps> = ({
+  label,
+  icon: Icon,
   id,
   className = '',
-  ...props 
+  ...props
 }) => {
   return (
     <div className="w-full">
-      <label 
-        htmlFor={id} 
+      <label
+        htmlFor={id}
         className="block text-sm font-medium text-slate-700 mb-1.5"
       >
         {label}
@@ -37,6 +37,7 @@ export const Input: React.FC<InputProps> = ({
             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
             transition-all
             placeholder:text-slate-400
+            text-slate-600
             ${className}
           `}
           {...props}

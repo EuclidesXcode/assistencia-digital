@@ -1,19 +1,19 @@
-import { Produto } from '../models/PreAnalise';
+import { PreAnaliseProduto } from '../models/PreAnalise';
 import { mockPendentes, mockResultados } from '../data/mockPreAnalise';
 
 export class PreAnaliseService {
-    static async getPendentes(): Promise<Produto[]> {
+    static async getPendentes(): Promise<PreAnaliseProduto[]> {
         // Simulate API delay
         await new Promise(resolve => setTimeout(resolve, 300));
         return mockPendentes;
     }
 
-    static async getResultados(): Promise<Produto[]> {
+    static async getResultados(): Promise<PreAnaliseProduto[]> {
         await new Promise(resolve => setTimeout(resolve, 300));
         return mockResultados;
     }
 
-    static async efetuarPreAnalise(produtoId: string): Promise<Produto> {
+    static async efetuarPreAnalise(produtoId: string): Promise<PreAnaliseProduto> {
         await new Promise(resolve => setTimeout(resolve, 500));
 
         const index = mockPendentes.findIndex(p => p.id === produtoId);

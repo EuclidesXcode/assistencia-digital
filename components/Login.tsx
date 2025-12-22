@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Building2, Mail, Lock, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { Input } from './Input';
+import { supabase } from '@/lib/supabase';
+import { createAuditLog } from '@/lib/audit';
 import { Button } from './Button';
 import { LoginStatus, User } from '@/types';
 
@@ -26,73 +28,101 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     if (error) setError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Login attempt started for:', formData.email);
     setStatus(LoginStatus.LOADING);
 
-    // Simulate API call
-    setTimeout(() => {
-      if (!formData.branchId || !formData.email || !formData.password) {
-        setError('Por favor, preencha todos os campos.');
+    if (!formData.email || !formData.password) {
+      console.log('Validation failed: Missing email or password');
+      setError('Por favor, preencha email e senha.');
+      setStatus(LoginStatus.ERROR);
+      return;
+    }
+
+    try {
+      // Authenticate with Supabase
+      console.log('Calling supabase.auth.signInWithPassword...');
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      console.log('Auth response:', {
+        success: !authError,
+        user: authData?.user?.id,
+        error: authError
+      });
+
+      if (authError) {
+        console.error('Supabase auth error:', authError);
+        setError('Falha no login. Verifique suas credenciais.');
         setStatus(LoginStatus.ERROR);
         return;
       }
 
-      // Mock users database
-      const mockUsers = [
-        {
-          email: 'admin@empresa.com',
-          password: 'admin123',
-          branchId: 'MATRIZ',
-          name: 'Administrador',
-          role: 'Administrador',
-          permissions: ['admin', 'cadastro', 'orcamentos', 'nfe', 'recebimento', 'pre-analise']
-        },
-        {
-          email: 'eduardo@empresa.com',
-          password: '123456',
-          branchId: 'MATRIZ',
-          name: 'Eduardo Silva',
-          role: 'Atendente',
-          permissions: ['cadastro', 'orcamentos']
-        },
-        {
-          email: 'fernanda@empresa.com',
-          password: '123456',
-          branchId: 'FILIAL01',
-          name: 'Fernanda Costa',
-          role: 'Atendente',
-          permissions: ['cadastro', 'orcamentos']
+      if (authData.user) {
+        console.log('Auth successful, fetching profile for user:', authData.user.id);
+
+        // Fetch Profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*, branches(branch_name, branch_code)')
+          .eq('id', authData.user.id)
+          .single();
+
+        console.log('Profile fetch response:', {
+          found: !!profile,
+          error: profileError
+        });
+
+        if (profileError || !profile) {
+          console.error('Profile fetch error:', profileError);
+          setError('Erro ao carregar perfil do usuário.');
+          setStatus(LoginStatus.ERROR);
+          await supabase.auth.signOut();
+          return;
         }
-      ];
 
-      // Find user
-      const user = mockUsers.find(u =>
-        u.email.toLowerCase() === formData.email.toLowerCase() &&
-        u.password === formData.password &&
-        u.branchId.toLowerCase() === formData.branchId.toLowerCase()
-      );
+        if (!profile.is_active) {
+          console.warn('User is inactive');
+          setError('Usuário inativo. Contate o administrador.');
+          setStatus(LoginStatus.ERROR);
+          await supabase.auth.signOut();
+          return;
+        }
 
-      if (!user) {
-        setError('Credenciais inválidas. Verifique email, senha e matriz.');
-        setStatus(LoginStatus.ERROR);
-        return;
+        // Construct User object
+        const user: User = {
+          id: authData.user.id,
+          name: profile.full_name,
+          email: profile.email,
+          branchId: profile.branch_id, // Or profile.branches?.branch_code
+          role: profile.role,
+          permissions: profile.permissions || [],
+          active: profile.is_active,
+          createdAt: new Date(profile.created_at),
+          updatedAt: new Date(profile.updated_at),
+          lastLogin: new Date()
+        };
+
+        // Log successful login
+        console.log('Login successful, logging audit and redirecting...');
+        await createAuditLog({
+          userId: user.id || '',
+          action: 'LOGIN',
+          resource: 'auth',
+          details: { method: 'email_password' }
+        });
+
+        setStatus(LoginStatus.SUCCESS);
+        onLogin(user);
       }
-
-      // Successful login
-      const mockUser: User = {
-        name: user.name,
-        email: user.email,
-        branchId: user.branchId,
-        role: user.role,
-        permissions: user.role === 'Administrador'
-          ? ['admin', 'cadastro', 'orcamentos', 'nfe', 'recebimento', 'pre-analise']
-          : mockUsers.find(u => u.email === formData.email)?.permissions || []
-      };
-
-      setStatus(LoginStatus.SUCCESS);
-      onLogin(mockUser);
-    }, 1500);
+    } catch (err) {
+      console.error('Unexpected login error:', err);
+      setError('Erro inesperado. Tente novamente.');
+      setStatus(LoginStatus.ERROR);
+    }
   };
 
   return (
@@ -113,18 +143,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-primary-200 mb-2">
               <LayoutDashboard size={24} />
-              <span className="font-semibold tracking-wide">LOREM IPSUM</span>
+              <span className="font-semibold tracking-wide">Gromit Control</span>
             </div>
             <h1 className="text-4xl font-bold leading-tight mb-4">
-              Lorem ipsum dolor sit amet consectetur.
+              A assistência técnica no rumo certo
             </h1>
             <p className="text-slate-300 text-lg">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+              Não é apenas um sistema de ordens de serviço ou posto autorizado. É uma ferramenta de gestão, visão e controle, que vai além do óbvio, orienta decisões e corrige falhas muitas vezes ignoradas, resolvendo o problema de forma sistemática.
             </p>
           </div>
 
           <div className="relative z-10 mt-8 md:mt-0">
-            <p className="text-sm text-slate-400">© 2025 Lorem Ipsum</p>
+            <p className="text-sm text-slate-400">© 2025 Gromit Control</p>
           </div>
         </div>
 
@@ -140,8 +170,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <Input
                 id="branchId"
                 name="branchId"
-                label="Matriz"
-                placeholder="Digite a matriz"
+                label="Matriz ou Filial"
+                placeholder="Digite a Matriz ou Filial"
                 type="text"
                 icon={Building2}
                 value={formData.branchId}

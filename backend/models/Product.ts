@@ -19,3 +19,15 @@ export interface UpdateProductDTO {
   ean?: string;
   status?: 'ativo' | 'inativo';
 }
+export interface ProductFormData {
+  modeloFabricante?: string;
+  ean: string;
+  codigo?: string;
+  modeloRef?: string;
+  modelosFabricante?: string[];
+  acessorios?: string[];
+  marca?: string;
+  categoria?: string;
+  modelo?: string;
+  descricao?: string;
+}

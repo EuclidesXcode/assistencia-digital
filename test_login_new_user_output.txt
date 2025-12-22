@@ -1,0 +1,127 @@
+yarn run v1.22.22
+$ jest backend/tests/login.test.ts
+  console.log
+    [dotenv@17.2.3] injecting env (0) from .env.local -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+
+      at _log (node_modules/dotenv/lib/main.js:142:11)
+
+  console.log
+    SignUp success: 8ddfae95-34c0-4d49-91ac-973c6a1bfcdc
+
+      at Object.<anonymous> (backend/tests/login.test.ts:26:21)
+
+  console.error
+    New User Login failed: Email not confirmed
+
+      33 |
+      34 |             if (loginError) {
+    > 35 |                 console.error('New User Login failed:', loginError.message);
+         |                         ^
+      36 |             } else {
+      37 |                 console.log('New User Login success:', loginData.user?.email);
+      38 |             }
+
+      at Object.<anonymous> (backend/tests/login.test.ts:35:25)
+
+  console.error
+    Login failed: Database error querying schema
+
+      54 |
+      55 |         if (error) {
+    > 56 |             console.error('Login failed:', error.message);
+         |                     ^
+      57 |         }
+      58 |
+      59 |         expect(error).toBeNull();
+
+      at Object.<anonymous> (backend/tests/login.test.ts:56:21)
+
+FAIL backend/tests/login.test.ts
+  Admin Login Verification
+    ✕ should sign up a new user (2209 ms)
+    ✕ should successfully login as the seeded admin user (80 ms)
+    ✕ should retrieve the admin profile with correct branch (88 ms)
+
+  ● Admin Login Verification › should sign up a new user
+
+    expect(received).toBeNull()
+
+    Received: [AuthApiError: Email not confirmed]
+
+      37 |                 console.log('New User Login success:', loginData.user?.email);
+      38 |             }
+    > 39 |             expect(loginError).toBeNull();
+         |                                ^
+      40 |         }
+      41 |         expect(error).toBeNull();
+      42 |     });
+
+      at Object.<anonymous> (backend/tests/login.test.ts:39:32)
+
+  ● Admin Login Verification › should successfully login as the seeded admin user
+
+    expect(received).toBeNull()
+
+    Received: [AuthApiError: Database error querying schema]
+
+      57 |         }
+      58 |
+    > 59 |         expect(error).toBeNull();
+         |                       ^
+      60 |         expect(data.session).toBeDefined();
+      61 |         expect(data.user).toBeDefined();
+      62 |         expect(data.user?.email).toBe(email);
+
+      at Object.<anonymous> (backend/tests/login.test.ts:59:23)
+
+  ● Admin Login Verification › should retrieve the admin profile with correct branch
+
+    expect(received).toBeNull()
+
+    Received: {"code": "PGRST116", "details": "The result contains 0 rows", "hint": null, "message": "Cannot coerce the result to a single JSON object"}
+
+      72 |             .single();
+      73 |
+    > 74 |         expect(error).toBeNull();
+         |                       ^
+      75 |         expect(profile).toBeDefined();
+      76 |         expect(profile.role).toBe('admin');
+      77 |         expect(profile.branches?.branch_code).toBe('0001');
+
+      at Object.<anonymous> (backend/tests/login.test.ts:74:23)
+
+---------------------------|---------|----------|---------|---------|-------------------
+File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+---------------------------|---------|----------|---------|---------|-------------------
+All files                  |       0 |        0 |       0 |       0 |                   
+ backend/services          |       0 |        0 |       0 |       0 |                   
+  addressService.ts        |       0 |        0 |       0 |       0 | 2-69              
+  authService.ts           |       0 |        0 |       0 |       0 | 4-122             
+  branchService.ts         |       0 |        0 |       0 |       0 | 2-74              
+  clientService.ts         |       0 |        0 |       0 |       0 | 2-80              
+  companyService.ts        |       0 |        0 |       0 |       0 | 2-67              
+  dashboardService.ts      |       0 |        0 |       0 |       0 | 4-53              
+  entityService.ts         |       0 |        0 |       0 |       0 | 2-69              
+  nfeService.ts            |       0 |      100 |       0 |       0 | 2-34              
+  notificationService.ts   |       0 |        0 |       0 |       0 | 4-72              
+  orcamentoService.ts      |       0 |        0 |       0 |       0 | 2-17              
+  ownerService.ts          |       0 |        0 |       0 |       0 | 2-63              
+  personService.ts         |       0 |        0 |       0 |       0 | 2-68              
+  preAnaliseService.ts     |       0 |        0 |       0 |       0 | 2-28              
+  productService.ts        |       0 |        0 |       0 |       0 | 3-20              
+  recebimentoService.ts    |       0 |      100 |       0 |       0 | 2-14              
+  userManagementService.ts |       0 |        0 |       0 |       0 | 2-145             
+ lib                       |       0 |        0 |       0 |       0 |                   
+  audit.ts                 |       0 |        0 |       0 |       0 | 2-40              
+  image.ts                 |       0 |        0 |       0 |       0 | 9-80              
+  permissions.ts           |       0 |        0 |       0 |       0 | 2-25              
+  storage.ts               |       0 |        0 |       0 |       0 | 2-43              
+  supabase.ts              |       0 |        0 |     100 |       0 | 2-19              
+---------------------------|---------|----------|---------|---------|-------------------
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 total
+Snapshots:   0 total
+Time:        3.6 s
+Ran all test suites matching backend/tests/login.test.ts.
+error Command failed with exit code 1.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

@@ -1,8 +1,8 @@
-import { Registro } from '../models/Recebimento';
+import { RecebimentoRegistro } from '../models/Recebimento';
 import { mockRecebimentos } from '../data/mockRecebimentos';
 
 export class RecebimentoService {
-    static async getRegistros(): Promise<Registro[]> {
+    static async getRegistros(): Promise<RecebimentoRegistro[]> {
         // Simulate API delay
         await new Promise(resolve => setTimeout(resolve, 300));
         return mockRecebimentos;

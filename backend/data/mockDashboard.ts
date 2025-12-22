@@ -51,3 +51,14 @@ export const mockRecentActivities: RecentActivity[] = [
         permission: 'pre-analise'
     }
 ];
+
+export const mockRevenueChart = {
+    labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+    values: [12000, 15000, 11000, 18000, 22000, 25000]
+};
+
+export const mockStatusDistribution = {
+    labels: ['Em Análise', 'Aguardando Peça', 'Aprovado', 'Concluído'],
+    values: [8, 3, 5, 12],
+    colors: ['#F59E0B', '#EF4444', '#10B981', '#3B82F6']
+};
