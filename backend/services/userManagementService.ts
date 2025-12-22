@@ -71,9 +71,49 @@ export class UserManagementService {
      * For now, we stub this or assume the user handles it via Auth UI.
      */
     static async createUsuario(data: CreateUsuarioDTO): Promise<Usuario> {
-        // Placeholder: In a real implementation, call a Next.js API route that uses Service Role
-        // to supabase.auth.admin.createUser()
-        throw new Error('Create User must be done via Auth Signup or Admin API');
+        try {
+            console.log('UserManagementService.createUsuario: Starting creation...', { email: data.email });
+
+            // Prepare payload with default password if not provided
+            const payload = {
+                ...data,
+                password: data.password || 'Mudar123!'
+            };
+
+            // Validation (basic)
+            if (!payload.email) throw new Error('Email é obrigatório');
+            if (!payload.password) throw new Error('Senha é obrigatória');
+
+            const response = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            console.log('UserManagementService.createUsuario: Response status', response.status);
+
+            const text = await response.text();
+            console.log('UserManagementService.createUsuario: Raw response', text.substring(0, 200)); // Log first 200 chars
+
+            if (!response.ok) {
+                let errorMessage = 'Falha ao criar usuário via API';
+                try {
+                    const err = JSON.parse(text);
+                    errorMessage = err.error || errorMessage;
+                } catch (e) {
+                    console.warn('Could not parse error JSON', e);
+                    errorMessage += `: ${text}`;
+                }
+                throw new Error(errorMessage);
+            }
+
+            return JSON.parse(text);
+        } catch (error: any) {
+            console.error('UserManagementService.createUsuario: Error', error);
+            throw error;
+        }
     }
 
     /**

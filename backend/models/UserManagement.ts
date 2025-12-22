@@ -27,6 +27,7 @@ export interface CreateUsuarioDTO {
     filial: string;
     cargo: string;
     permissoes: string[];
+    password?: string;
 }
 
 export interface UpdatePermissoesDTO {

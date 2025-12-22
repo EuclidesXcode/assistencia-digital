@@ -1,16 +1,23 @@
+import { supabase } from '@/lib/supabase';
 import { RecebimentoRegistro } from '../models/Recebimento';
-import { mockRecebimentos } from '../data/mockRecebimentos';
 
 export class RecebimentoService {
     static async getRegistros(): Promise<RecebimentoRegistro[]> {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return mockRecebimentos;
+        const { data, error } = await supabase.from('recebimentos').select('*');
+        if (error) {
+            console.error('Error fetching receipts:', error);
+            return [];
+        }
+        return data || [];
     }
 
     static async efetuarRecebimento(ids: string[]): Promise<void> {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // In a real implementation, this would process the selected items
-        console.log('Recebimento efetuado para IDs:', ids);
+        if (!ids.length) return;
+
+        // Example update - adjust based on real table schema
+        await supabase
+            .from('recebimentos')
+            .update({ status: 'recebido', data_recebimento: new Date() })
+            .in('id', ids);
     }
 }

@@ -15,7 +15,15 @@ export default function NFeXmlPage() {
   const [notas, setNotas] = useState<Nota[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [usuario] = useState("eduardo");
+  const [usuario, setUsuario] = useState("");
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUsuario(user.full_name || user.email?.split('@')[0] || "Usuário");
+    }
+  }, []);
 
   useEffect(() => {
     const loadNotas = async () => {
@@ -32,13 +40,15 @@ export default function NFeXmlPage() {
     loadNotas();
   }, []);
 
-  const carregarMock = async () => {
+  const carregarMock = async (file?: File) => {
     try {
       const { NfeService } = await import('@/backend/services/nfeService');
-      const newNota = await NfeService.carregarXml();
+      // @ts-ignore
+      const newNota = await NfeService.carregarXml(file);
       setNotas((s) => [newNota, ...s]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading XML:', error);
+      alert(error.message || 'Erro ao carregar XML');
     }
   };
 
@@ -73,7 +83,22 @@ export default function NFeXmlPage() {
           <p className="text-sm text-slate-600">Notas pendentes, conferência, OCR e pré-análise</p>
         </div>
         <div className="flex flex-col lg:flex-row lg:flex-nowrap items-stretch lg:items-center gap-2 w-full lg:w-auto">
-          <button onClick={carregarMock} className="bg-blue-600 text-white px-3 py-2 rounded-md w-full lg:w-auto">CARREGAR XML(S)</button>
+          <input
+            type="file"
+            id="xmlInput"
+            multiple
+            accept=".xml"
+            className="hidden"
+            onChange={async (e) => {
+              if (e.target.files) {
+                const files = Array.from(e.target.files);
+                for (const file of files) {
+                  await carregarMock(file);
+                }
+              }
+            }}
+          />
+          <button onClick={() => document.getElementById('xmlInput')?.click()} className="bg-blue-600 text-white px-3 py-2 rounded-md w-full lg:w-auto">CARREGAR XML(S)</button>
           <input placeholder="Buscar por chave, N.º NF, código ou descrição" value={query} onChange={(e) => setQuery(e.target.value)} className="border border-slate-200 rounded-full px-3 py-2 w-full lg:w-40 text-sm placeholder:text-slate-600" />
           <div className="text-sm flex items-center gap-2 w-full lg:w-auto justify-end">
             <div className="hidden lg:flex items-center gap-3">

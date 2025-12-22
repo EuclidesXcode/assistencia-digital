@@ -1,19 +1,28 @@
+import { supabase } from '@/lib/supabase';
 import { OrcamentoRegistro } from '../models/Orcamento';
-import { mockOrcamentos } from '../data/mockOrcamentos';
 
 export class OrcamentoService {
     static async getRegistros(): Promise<OrcamentoRegistro[]> {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return mockOrcamentos;
+        const { data, error } = await supabase.from('orcamentos').select('*');
+        if (error) {
+            console.error('Error fetching budgets:', error);
+            return [];
+        }
+        return data || [];
     }
 
     static async getRegistrosByMarca(marca: string): Promise<OrcamentoRegistro[]> {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        if (marca === 'TODAS') {
-            return mockOrcamentos;
+        const query = supabase.from('orcamentos').select('*');
+
+        if (marca !== 'TODAS') {
+            query.eq('marca', marca);
         }
-        // Filter by marca (would be implemented based on business logic)
-        return mockOrcamentos;
+
+        const { data, error } = await query;
+        if (error) {
+            console.error('Error fetching budgets by brand:', error);
+            return [];
+        }
+        return data || [];
     }
 }

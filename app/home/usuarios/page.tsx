@@ -90,6 +90,7 @@ export default function UsuariosPage() {
         filial: "",
         cargo: "",
         permissoes: [] as string[],
+        password: "",
     });
 
     const permissoesDisponiveis = [
@@ -139,7 +140,7 @@ export default function UsuariosPage() {
             const newUsuario = await UserManagementService.createUsuario(newUser);
             setUsuarios(prev => [...prev, newUsuario]);
             setShowCreateModal(false);
-            setNewUser({ nome: "", email: "", filial: "", cargo: "", permissoes: [] });
+            setNewUser({ nome: "", email: "", filial: "", cargo: "", permissoes: [], password: "" });
         } catch (error) {
             console.error('Error creating user:', error);
         }
@@ -425,6 +426,17 @@ export default function UsuariosPage() {
                                         <option value="Técnico">Técnico</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Senha</label>
+                                <input
+                                    type="text"
+                                    value={newUser.password || ''}
+                                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-slate-700"
+                                    placeholder="Senha provisória (ex: Mudar123!)"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">Se vazio, será usada a senha padrão: Mudar123!</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Permissões</label>

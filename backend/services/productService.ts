@@ -1,12 +1,21 @@
+import { supabase } from '@/lib/supabase';
 import { ProductFormData } from '../models/Product';
 
 export class ProductService {
     static async createProduct(data: ProductFormData): Promise<void> {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const { error } = await supabase.from('produtos').insert([{
+            codigo_nf: data.codigo,
+            ean: data.ean,
+            modelo_ref: data.modeloRef,
+            modelo_fabricante: data.modelosFabricante,
+            acessorios: data.acessorios,
+            estoque_atual: 0 // Default
+        }]);
 
-        // In a real implementation, this would save to database
-        console.log('Produto criado:', data);
+        if (error) {
+            console.error('Error creating product:', error);
+            throw new Error('Erro ao salvar produto no banco de dados');
+        }
     }
 
     static async validateProduct(data: ProductFormData): Promise<Record<string, string>> {

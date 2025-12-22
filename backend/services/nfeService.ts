@@ -1,30 +1,66 @@
+import { supabase } from '@/lib/supabase';
 import { Nota } from '../models/NfeXml';
-import { mockNotas } from '../data/mockNfe';
 
 export class NfeService {
     static async getNotas(): Promise<Nota[]> {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return mockNotas;
+        const { data, error } = await supabase.from('nfe_xmls').select('*');
+        if (error) {
+            console.error('Error fetching NFEs:', error);
+            return [];
+        }
+        return data || [];
     }
 
     static async carregarXml(file?: File): Promise<Nota> {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (!file) throw new Error('Nenhum arquivo selecionado.');
 
-        // Generate a new mock nota
-        const newNota: Nota = {
-            chave: Math.random().toString(36).slice(2, 18).toUpperCase(),
-            numero: String(100000 + mockNotas.length + 1),
-            emissao: new Date().toLocaleDateString('pt-BR'),
-            itens: Math.floor(Math.random() * 5) + 1,
-            status: ['PENDENTE', 'PARCIAL', 'DIVERGENTE', 'CONFERIDA'][Math.floor(Math.random() * 4)] as Nota['status']
+        const text = await file.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, "text/xml");
+
+        const infNFe = xmlDoc.getElementsByTagName("infNFe")[0];
+        if (!infNFe) throw new Error('XML inválido: tag infNFe não encontrada.');
+
+        const ide = xmlDoc.getElementsByTagName("ide")[0];
+        const nNF = ide?.getElementsByTagName("nNF")[0]?.textContent || '';
+        const dhEmi = ide?.getElementsByTagName("dhEmi")[0]?.textContent || ide?.getElementsByTagName("dEmi")[0]?.textContent || new Date().toISOString();
+        const itens = xmlDoc.getElementsByTagName("det").length;
+
+        let chave = infNFe.getAttribute("Id") || '';
+        if (chave.startsWith('NFe')) {
+            chave = chave.substring(3);
+        }
+
+        const nota: Nota = {
+            chave,
+            numero: nNF,
+            emissao: new Date(dhEmi).toLocaleDateString('pt-BR'),
+            itens,
+            status: 'PENDENTE'
         };
 
-        mockNotas.unshift(newNota);
-        return newNota;
+        const { error } = await supabase.from('nfe_xmls').insert([{
+            chave: nota.chave,
+            numero: nota.numero,
+            emissao: dhEmi, // Save ISO string to DB
+            itens: nota.itens,
+            status: nota.status,
+            xml_data: text
+        }]);
+
+        if (error) {
+            if (error.code === '23505') { // Unique violation
+                throw new Error('Nota Fiscal já importada (Chave duplicada).');
+            }
+            console.error('Error saving NFe:', error);
+            throw new Error('Erro ao salvar NFe no banco.');
+        }
+
+        return nota;
     }
 
     static async getStats() {
+        // Simple distinct count or fetch all and filter (optimized for now)
         const notas = await this.getNotas();
         return {
             total: notas.length,

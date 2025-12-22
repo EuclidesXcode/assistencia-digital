@@ -70,10 +70,9 @@ async function recreateAdmin() {
 
     const branchId = branchData?.id;
 
-    // 4. Update Profile
     console.log('Updating Profile to Admin...');
     const updatePayload: any = {
-        role: 'admin',
+        role: 'Administrador',
         full_name: 'Euclides Silva',
         is_active: true
     };

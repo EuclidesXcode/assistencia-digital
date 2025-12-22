@@ -200,7 +200,7 @@ export default function CadastroPage() {
       <footer className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <p className="text-xs text-slate-600">Campos obrigatórios: Código NF, EAN, Modelo Referência, pelo menos 1 Modelo Fabricante e ao menos 1 Acessório Referente.</p>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          <button className="px-4 py-2 border border-primary-600 text-primary-600 rounded-md text-sm bg-white w-full sm:w-auto">SIMULAR CADASTRO</button>
+
           <button onClick={limpar} className="px-4 py-2 border border-slate-200 text-slate-700 rounded-md text-sm bg-white w-full sm:w-auto">LIMPAR</button>
           <button onClick={salvar} className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm w-full sm:w-auto">SALVAR</button>
         </div>

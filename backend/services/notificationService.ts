@@ -1,74 +1,82 @@
-// Notification Service
-
+import { supabase } from '@/lib/supabase';
 import { Notification, CreateNotificationDTO } from '../models/Notification';
-import { mockNotifications } from '../data/mockNotifications';
 import { User } from '../models/Auth';
 
 export class NotificationService {
     /**
-     * Get notifications for user (filtered by permissions)
+     * Get notifications for user
      */
     static async getNotifications(user: User): Promise<Notification[]> {
-        return mockNotifications.filter(notification => {
-            // If notification doesn't require permission, show it
-            if (!notification.permission) {
-                return true;
-            }
+        // Fetch notifications from 'notifications' table
+        // filtering by user_id OR global notifications (if implemented)
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .or(`user_id.eq.${user.id},global.eq.true`)
+            .order('created_at', { ascending: false });
 
-            // Admins see all notifications
-            if (user.role === 'Administrador') {
-                return true;
-            }
+        if (error) {
+            console.error('Error fetching notifications:', error);
+            // Return empty if table doesn't exist
+            return [];
+        }
 
-            // Check if user has permission for this notification
-            return user.permissions.includes(notification.permission);
-        });
+        return data || [];
     }
 
     /**
      * Get unread notifications count
      */
     static async getUnreadCount(user: User): Promise<number> {
-        const notifications = await this.getNotifications(user);
-        return notifications.filter(n => !n.read).length;
+        const { count, error } = await supabase
+            .from('notifications')
+            .select('*', { count: 'exact', head: true })
+            .or(`user_id.eq.${user.id},global.eq.true`)
+            .eq('read', false);
+
+        if (error) return 0;
+        return count || 0;
     }
 
     /**
      * Mark notification as read
      */
     static async markAsRead(notificationId: string): Promise<void> {
-        const notification = mockNotifications.find(n => n.id === notificationId);
-        if (notification) {
-            notification.read = true;
-        }
+        await supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('id', notificationId);
     }
 
     /**
      * Mark all notifications as read
      */
     static async markAllAsRead(user: User): Promise<void> {
-        const userNotifications = await this.getNotifications(user);
-        userNotifications.forEach(n => {
-            n.read = true;
-        });
+        await supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('user_id', user.id);
     }
 
     /**
      * Create new notification
      */
     static async createNotification(data: CreateNotificationDTO): Promise<Notification> {
-        const newNotification: Notification = {
-            id: String(mockNotifications.length + 1),
-            type: data.type,
-            title: data.title,
-            message: data.message,
-            timestamp: 'Agora',
-            read: false,
-            link: data.link,
-            permission: data.permission
-        };
+        const { data: newNotification, error } = await supabase
+            .from('notifications')
+            .insert([{
+                type: data.type,
+                title: data.title,
+                message: data.message,
+                link: data.link,
+                permission: data.permission,
+                read: false,
+                created_at: new Date()
+            }])
+            .select()
+            .single();
 
-        mockNotifications.unshift(newNotification);
+        if (error) throw error;
         return newNotification;
     }
 }

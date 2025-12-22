@@ -11,7 +11,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-describe.skip('Admin Login Verification', () => {
+describe('Admin Login Verification', () => {
 
     // Credentials from V2__seed_admin.sql
     const email = 'euclideslione@gmail.com';
@@ -44,7 +44,7 @@ describe.skip('Admin Login Verification', () => {
 
         expect(error).toBeNull();
         expect(profile).toBeDefined();
-        expect(profile.role).toBe('admin');
+        expect(profile.role).toBe('Administrador');
         expect(profile.branches?.branch_code).toBe('0001');
     });
 });

@@ -106,9 +106,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       >
         <div className="h-16 flex items-center justify-center border-b border-slate-100">
           {sidebarOpen ? (
-            <span className="text-xl font-bold text-primary-600 tracking-tight">Lorem</span>
+            <span className="text-xl font-bold text-primary-600 tracking-tight">Gromit Control</span>
           ) : (
-            <span className="text-xl font-bold text-primary-600">L</span>
+            <span className="text-xl font-bold text-primary-600">LG</span>
           )}
         </div>
 

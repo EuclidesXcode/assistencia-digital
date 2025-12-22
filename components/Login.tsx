@@ -155,6 +155,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
           <div className="relative z-10 mt-8 md:mt-0">
             <p className="text-sm text-slate-400">© 2025 Gromit Control</p>
+            <p className="text-sm text-slate-400 mt-2">
+              Não tem conta? <Link href="/register" className="text-primary-300 hover:text-white transition-colors">Cadastre-se</Link>
+            </p>
           </div>
         </div>
 
