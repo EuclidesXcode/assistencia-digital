@@ -108,7 +108,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           {sidebarOpen ? (
             <span className="text-xl font-bold text-primary-600 tracking-tight">Gromit Control</span>
           ) : (
-            <span className="text-xl font-bold text-primary-600">LG</span>
+            <span className="text-xl font-bold text-primary-600">GC</span>
           )}
         </div>
 
