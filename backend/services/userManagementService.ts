@@ -117,6 +117,43 @@ export class UserManagementService {
     }
 
     /**
+     * Update user details (Full Update)
+     */
+    static async updateUsuario(usuarioId: string, data: Partial<Usuario> & { password?: string }): Promise<void> {
+        // 1. Update Profile Data
+        const updateData: any = {};
+        if (data.nome) updateData.full_name = data.nome;
+        if (data.cargo) updateData.role = data.cargo;
+        if (data.permissoes) updateData.permissions = data.permissoes;
+        // email is tricky to update in supabase without auth re-verification, often better to leave it read-only or handle via specific auth flow
+
+        if (Object.keys(updateData).length > 0) {
+            const { error } = await supabase
+                .from('profiles')
+                .update(updateData)
+                .eq('id', usuarioId);
+
+            if (error) throw new Error('Erro ao atualizar perfil: ' + error.message);
+        }
+
+        // 2. Update Password (if provided) - This requires an Admin API call usually, similar to create
+        if (data.password && data.password.trim() !== "") {
+            const response = await fetch('/api/admin/users', {
+                method: 'PUT', // Using PUT or PATCH for updates
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id: usuarioId, password: data.password }),
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error('Falha ao atualizar senha: ' + text);
+            }
+        }
+    }
+
+    /**
      * Update user permissions
      */
     static async updatePermissoes(usuarioId: string, data: UpdatePermissoesDTO): Promise<void> {
