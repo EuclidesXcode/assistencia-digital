@@ -1,11 +1,23 @@
 -- 11. PRODUCTS
 CREATE TABLE IF NOT EXISTS produtos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  codigo_nf TEXT,
   ean TEXT,
   modelo_ref TEXT,
-  modelo_fabricante TEXT[], -- Array of strings
-  acessorios TEXT[], -- Array of strings
+  marca TEXT, -- Fabricante
+  
+  -- JSONB columns for structured data
+  nfs_data JSONB DEFAULT '[]'::jsonb, -- Array of { codigo: string, revenda: string }
+  modelos_data JSONB DEFAULT '[]'::jsonb, -- Array of models with their sub-items
+  
+  -- Master level assets
+  fotos TEXT[] DEFAULT ARRAY[]::TEXT[],
+  manual_url TEXT,
+  
+  -- Master level items
+  embalagem JSONB DEFAULT '[]'::jsonb,
+  acessorios JSONB DEFAULT '[]'::jsonb, -- Acessorios gerais do produto master
+  
+  -- Metadata
   estoque_atual INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL

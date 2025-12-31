@@ -104,11 +104,14 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         className={`fixed left-0 top-0 z-40 bg-white border-r border-slate-200 h-full min-h-screen transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0 md:w-20'} md:sticky md:top-0 md:h-screen overflow-hidden`}
         id="sidebar"
       >
-        <div className="h-16 flex items-center justify-center border-b border-slate-100">
+        <div className="h-20 flex items-center justify-center border-b border-slate-100">
           {sidebarOpen ? (
-            <span className="text-xl font-bold text-primary-600 tracking-tight">Gromit Control</span>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-lg">G</div>
+              <span className="text-xl font-bold text-slate-900 tracking-tight">Gromit<span className="text-indigo-600">.Control</span></span>
+            </div>
           ) : (
-            <span className="text-xl font-bold text-primary-600">GC</span>
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-200">G</div>
           )}
         </div>
 
@@ -123,16 +126,6 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
             <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           )}
 
-          {/* Orçamentos - only if user has 'orcamentos' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('orcamentos')) && (
-            <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
-          {/* NF-e (XML) - only if user has 'nfe' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('nfe')) && (
-            <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
           {/* Recebimento - only if user has 'recebimento' permission or is admin */}
           {(user?.role === 'Administrador' || user?.permissions?.includes('recebimento')) && (
             <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
@@ -141,6 +134,16 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           {/* Pré-análise - only if user has 'pre-analise' permission or is admin */}
           {(user?.role === 'Administrador' || user?.permissions?.includes('pre-analise')) && (
             <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* Orçamentos - only if user has 'orcamentos' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('orcamentos')) && (
+            <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          )}
+
+          {/* NF-e (XML) - only if user has 'nfe' permission or is admin */}
+          {(user?.role === 'Administrador' || user?.permissions?.includes('nfe')) && (
+            <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           )}
 
           {/* Usuários - only for Administrators */}
@@ -152,7 +155,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         {/* User profile snippet at bottom of sidebar */}
         <Link href="/home/configuracoes" className="absolute bottom-0 w-full p-4 border-t border-slate-100 bg-white hover:bg-slate-50 transition-colors">
           <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
-            <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm flex-shrink-0 overflow-hidden">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm flex-shrink-0 overflow-hidden ring-2 ring-white shadow-md">
               {user?.photoUrl ? (
                 <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
               ) : (
@@ -183,7 +186,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
             >
               <Menu size={20} />
             </button>
-            <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-primary-500/20">
+            <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500/20">
               <Search size={16} className="text-slate-600 mr-2" />
               <input
                 type="text"
@@ -212,7 +215,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         </header>
 
         {/* Dashboard Content Area */}
-        <div className="min-w-0 flex-1 p-8 overflow-auto">
+        <div className="min-w-0 flex-1 overflow-auto">
           {children}
         </div>
 
@@ -232,17 +235,17 @@ interface SidebarItemProps {
 
 const SidebarItem = ({ icon: Icon, label, active, isOpen, href, onNavigate }: SidebarItemProps) => {
   const className = `
-      w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200
+      w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group
       ${active
-      ? 'bg-primary-50 text-primary-700 font-medium'
-      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm ring-1 ring-indigo-100'
+      : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 font-medium'
     }
       ${!isOpen && 'justify-center'}
     `;
 
   const inner = (
     <>
-      <Icon size={24} className={`${active ? 'text-primary-600' : 'text-slate-600'} flex-shrink-0`} />
+      <Icon size={22} className={`${active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'} flex-shrink-0 transition-colors`} />
       {isOpen && <span>{label}</span>}
     </>
   );
