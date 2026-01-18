@@ -30,23 +30,33 @@ export class DashboardService {
     /**
      * Get dashboard statistics from real DB counts
      */
+    /**
+     * Get dashboard statistics from real DB counts
+     */
     static async getStats(): Promise<DashboardStats> {
         try {
             const [
-                { count: pendingBudgets },
-                { count: pendingAnalyses }
+                { count: orcamentosPendentes },
+                { count: preAnalisesEmAndamento },
+                { count: recebimentosAguardando },
+                { count: nfeProcessadas }
             ] = await Promise.all([
                 // Pending Budgets
                 supabase.from('orcamentos').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
                 // Pending Analyses
-                supabase.from('pre_analise').select('*', { count: 'exact', head: true }).eq('status', 'pendente')
+                // Pending Analyses
+                supabase.from('pre_analise').select('*', { count: 'exact', head: true }).eq('status', 'em_analise'), // or 'pendente' depending on definition
+                // Waiting Receipts
+                supabase.from('recebimentos').select('*', { count: 'exact', head: true }).eq('status', 'aguardando'),
+                // Processed NFEs
+                supabase.from('nfe_xmls').select('*', { count: 'exact', head: true }).eq('status', 'processada')
             ]);
 
             return {
-                orcamentosPendentes: pendingBudgets || 0,
-                recebimentosAguardando: 0, // Placeholder: Table 'recebimento' might not exist or logic needs clarification
-                preAnalisesEmAndamento: pendingAnalyses || 0,
-                nfeProcessadas: 0 // Placeholder: Table 'nfe' might not exist or logic needs clarification
+                orcamentosPendentes: orcamentosPendentes || 0,
+                recebimentosAguardando: recebimentosAguardando || 0,
+                preAnalisesEmAndamento: preAnalisesEmAndamento || 0,
+                nfeProcessadas: nfeProcessadas || 0
             };
         } catch (error) {
             console.error('Error fetching stats:', error);
@@ -74,7 +84,7 @@ export class DashboardService {
             return [];
         }
 
-        return data.map(log => ({
+        return data.map((log: any) => ({
             id: log.id,
             type: 'orcamento', // Default or map from log.resource
             title: `${log.action} - ${log.resource}`,
