@@ -2,8 +2,94 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, Check } from "lucide-react";
 import { ModalShell, IconBtn } from "./UIComponents";
+import { ProductService } from "@/backend/services/productService";
+
+export const ModalBuscaProduto: React.FC<{
+    open: boolean;
+    onClose: () => void;
+    onSelect: (ean: string) => void;
+}> = ({ open, onClose, onSelect }) => {
+    const [q, setQ] = useState("");
+    const [results, setResults] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!open) { setQ(""); setResults([]); }
+    }, [open]);
+
+    const handleSearch = async () => {
+        if (q.length < 3) return;
+        setLoading(true);
+        try {
+            const data = await ProductService.searchProducts(q);
+            setResults(data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <ModalShell open={open} title="Pesquisar Produto" onClose={onClose} maxW="max-w-2xl">
+            <div className="flex gap-2">
+                <input
+                    className="flex-1 border border-slate-300 rounded-lg px-4 py-2 font-bold text-slate-700 uppercase"
+                    placeholder="Digite EAN, Modelo ou Marca..."
+                    value={q}
+                    onChange={e => setQ(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    autoFocus
+                />
+                <button
+                    onClick={handleSearch}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+                    disabled={loading || q.length < 3}
+                >
+                    <Search size={20} />
+                </button>
+            </div>
+
+            <div className="mt-4 max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg bg-slate-50">
+                {results.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400">
+                        {loading ? "Buscando..." : "Nenhum resultado encontrado."}
+                    </div>
+                ) : (
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-100 text-slate-500 font-bold uppercase text-xs sticky top-0">
+                            <tr>
+                                <th className="p-3">Marca</th>
+                                <th className="p-3">Modelo</th>
+                                <th className="p-3">EAN</th>
+                                <th className="p-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {results.map((r) => (
+                                <tr key={r.ean} className="hover:bg-indigo-50 transition-colors">
+                                    <td className="p-3 font-bold text-slate-700">{r.marca}</td>
+                                    <td className="p-3 text-slate-600">{r.modelo_ref}</td>
+                                    <td className="p-3 font-mono text-slate-500 text-xs">{r.ean}</td>
+                                    <td className="p-3 text-right">
+                                        <button
+                                            onClick={() => { onSelect(r.ean); onClose(); }}
+                                            className="text-indigo-600 hover:text-indigo-800 font-bold text-xs flex items-center justify-end gap-1 ml-auto"
+                                        >
+                                            <Check size={14} /> SELECIONAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </ModalShell>
+    );
+};
 
 // --- Types ---
 export interface Master {

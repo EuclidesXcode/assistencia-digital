@@ -1,18 +1,16 @@
 "use client";
 
-import { useState, useReducer, useRef, useEffect } from "react";
-import { Plus, Trash2, FileText, Upload, Box, Settings, Check, X, Image as ImageIcon, Play, RotateCcw, Package, Tag, FileJson, Camera, Search, Wrench } from "lucide-react";
+import { useState, useReducer, useRef } from "react";
+import { Plus, Trash2, FileText, Upload, Box, Settings, Check, X, Image as ImageIcon, Play, RotateCcw, Package, Tag, FileJson } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { ProductService } from "@/backend/services/productService";
 import { CreateProductDTO, ModeloFabricante, ProdutoNF, ItemVinculado } from "@/backend/models/Product";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
-import { CameraModal } from "./components/UIComponents";
-import { ModalBuscaProduto } from "./components/DomainModals";
 
 // --- Types & Initial State ---
 
-type ModalType = 'NF' | 'MODELO_FABRICANTE' | 'ESTETICA' | 'FUNCIONAL' | 'FUNCIONALIDADE' | 'EMBALAGEM' | 'ACESSORIOS' | 'SEARCH_PRODUCT' | null;
+type ModalType = 'NF' | 'MODELO_FABRICANTE' | 'ESTETICA' | 'FUNCIONAL' | 'FUNCIONALIDADE' | 'EMBALAGEM' | 'ACESSORIOS' | null;
 
 interface State {
   // Master Data
@@ -25,7 +23,6 @@ interface State {
   // Master Items
   embalagem: ItemVinculado[];
   acessorios: ItemVinculado[];
-  funcionalidade: ItemVinculado[]; // Added as requested for root button access
 
   // Lists
   nfs: ProdutoNF[];
@@ -53,7 +50,6 @@ const initialState: State = {
   manualUrl: "",
   embalagem: [],
   acessorios: [],
-  funcionalidade: [],
   nfs: [],
   modelos: [],
   activeModeloId: null,
@@ -76,8 +72,8 @@ type Action =
   | { type: 'ADD_MODELO', modelo: ModeloFabricante }
   | { type: 'REMOVE_MODELO', id: string }
   | { type: 'SET_ACTIVE_MODELO', id: string | null }
-  | { type: 'ADD_ITEM_MASTER', itemType: 'embalagem' | 'acessorios' | 'funcionalidade', item: ItemVinculado }
-  | { type: 'REMOVE_ITEM_MASTER', itemType: 'embalagem' | 'acessorios' | 'funcionalidade', index: number }
+  | { type: 'ADD_ITEM_MASTER', itemType: 'embalagem' | 'acessorios', item: ItemVinculado }
+  | { type: 'REMOVE_ITEM_MASTER', itemType: 'embalagem' | 'acessorios', index: number }
   | { type: 'ADD_ITEM_MODELO', modeloId: string, itemType: 'estetica' | 'funcional' | 'funcionalidades', item: ItemVinculado }
   | { type: 'REMOVE_ITEM_MODELO', modeloId: string, itemType: 'estetica' | 'funcional' | 'funcionalidades', index: number }
   | { type: 'OPEN_MODAL', modal: ModalType, data?: any }
@@ -86,8 +82,7 @@ type Action =
   | { type: 'ADD_NEW_MODEL' }
   | { type: 'RESET' }
   | { type: 'SET_IMAGE', field: 'fotoProduto' | 'etiquetaProcel' | 'fotoKitAcessorio', value: string | null }
-  | { type: 'UPDATE_ITEM_MODELO', modeloId: string, itemType: 'estetica' | 'funcional' | 'funcionalidades', index: number, newName: string }
-  | { type: 'LOAD_FROM_DB', data: any };
+  | { type: 'UPDATE_ITEM_MODELO', modeloId: string, itemType: 'estetica' | 'funcional' | 'funcionalidades', index: number, newName: string };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -149,22 +144,6 @@ function reducer(state: State, action: Action): State {
         })
       };
 
-    // --- NEW ACTIONS for Auto-Fill ---
-    case 'LOAD_FROM_DB':
-      return {
-        ...state,
-        ean: action.data.ean,
-        modeloRef: action.data.modelo_ref || '',
-        marca: action.data.marca || '',
-        manualUrl: action.data.manual_url || '',
-        fotos: action.data.fotos || [],
-        nfs: action.data.nfs_data ? action.data.nfs_data.map((x: any) => ({ codigo: x.codigo, revenda: x.revenda })) : [],
-        modelos: action.data.modelos_data || [],
-        embalagem: action.data.embalagem || [],
-        acessorios: action.data.acessorios || [],
-        funcionalidade: action.data.funcionalidade || [],
-      };
-
     case 'OPEN_MODAL':
       return { ...state, activeModal: action.modal, modalData: action.data || {} };
     case 'CLOSE_MODAL':
@@ -201,10 +180,6 @@ function reducer(state: State, action: Action): State {
 export default function CadastroProdutoPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Camera State
-  const [showCamera, setShowCamera] = useState(false);
-  const [cameraTarget, setCameraTarget] = useState<'fotoProduto' | 'etiquetaProcel' | 'fotoKitAcessorio' | null>(null);
-
   // Refs for File Inputs
   const fileInputProduto = useRef<HTMLInputElement>(null);
   const fileInputProcel = useRef<HTMLInputElement>(null);
@@ -232,35 +207,6 @@ export default function CadastroProdutoPage() {
     }
   };
 
-  // Auto-fill Logic
-  const autoLoadRef = useRef("");
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const e = state.ean?.trim().toUpperCase();
-    if (!e) return;
-    if (autoLoadRef.current === e) return;
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    typingTimeoutRef.current = setTimeout(async () => {
-      autoLoadRef.current = e;
-      try {
-        const data = await ProductService.findByEan(e);
-        if (data) {
-          dispatch({ type: 'LOAD_FROM_DB', data });
-          // alert("Produto encontrado! Dados carregados."); // Optional feedback
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }, 800);
-
-    return () => {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    };
-  }, [state.ean]);
-
   // Helpers
   const getActiveModel = () => state.modelos.find(m => m.id === state.activeModeloId);
 
@@ -279,22 +225,17 @@ export default function CadastroProdutoPage() {
     dispatch({ type: 'SET_FIELD', field: 'isLoading', value: true });
 
     try {
-      // Aggregate nested items for root DB columns to ensure schema consistency
-      const esteticaAgg = state.modelos.flatMap(m => m.estetica);
-      const funcionalAgg = state.modelos.flatMap(m => m.funcional);
-      const funcioAgg = state.modelos.flatMap(m => m.funcionalidades);
-
       const payload: CreateProductDTO = {
         ean: state.ean,
         modeloRef: state.modeloRef,
         marca: state.marca,
         nfs: state.nfs,
-        modelos: state.modelos, // Saves structure JSONB
+        modelos: state.modelos,
         embalagem: state.embalagem,
         acessorios: state.acessorios,
-        estetica: esteticaAgg, // Populates DB Column
-        funcional: funcionalAgg, // Populates DB Column
-        funcionalidade: [...(state.funcionalidade || []), ...funcioAgg], // Merge root and model-derived
+        estetica: [],
+        funcional: [],
+        funcionalidade: [],
         fotos: state.fotos,
         manualUrl: state.manualUrl
       };
@@ -302,9 +243,9 @@ export default function CadastroProdutoPage() {
       await ProductService.createProduct(payload);
       alert("Produto cadastrado com sucesso!");
       dispatch({ type: 'RESET' });
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(err.message || "Erro ao salvar produto.");
+      alert("Erro ao salvar produto.");
     } finally {
       dispatch({ type: 'SET_FIELD', field: 'isLoading', value: false });
     }
@@ -381,30 +322,20 @@ export default function CadastroProdutoPage() {
             />
           )}
 
-          {(state.activeModal === 'EMBALAGEM' || state.activeModal === 'ACESSORIOS' || state.activeModal === 'FUNCIONALIDADE') && (
+          {(state.activeModal === 'EMBALAGEM' || state.activeModal === 'ACESSORIOS') && (
             <GenericItemForm
-              title={state.activeModal === 'EMBALAGEM' ? 'Adicionar Embalagem' : (state.activeModal === 'ACESSORIOS' ? 'Adicionar Acessório' : 'Adicionar Funcionalidade')}
+              title={state.activeModal === 'EMBALAGEM' ? 'Adicionar Embalagem' : 'Adicionar Acessório'}
               label="Nome do Item"
               onSave={(nome) => {
                 dispatch({
                   type: 'ADD_ITEM_MASTER',
-                  itemType: state.activeModal === 'EMBALAGEM' ? 'embalagem' : (state.activeModal === 'ACESSORIOS' ? 'acessorios' : 'funcionalidade'),
-                  item: { tipo: state.activeModal === 'EMBALAGEM' ? 'embalagem' : (state.activeModal === 'ACESSORIOS' ? 'acessorio' : 'funcionalidade'), nome }
+                  itemType: state.activeModal === 'EMBALAGEM' ? 'embalagem' : 'acessorios',
+                  item: { tipo: state.activeModal === 'EMBALAGEM' ? 'embalagem' : 'acessorio', nome }
                 });
                 closeModal();
               }}
             />
           )}
-
-          <ModalBuscaProduto
-            open={state.activeModal === 'SEARCH_PRODUCT'}
-            onClose={closeModal}
-            onSelect={async (ean) => {
-              // Auto-fills when selected
-              const data = await ProductService.findByEan(ean);
-              if (data) dispatch({ type: 'LOAD_FROM_DB', data });
-            }}
-          />
 
           {/* Item Master Form Logic can be reused or handled inline for 'embalagem'/'acessorios' */}
         </div>
@@ -415,20 +346,6 @@ export default function CadastroProdutoPage() {
   return (
     <div className="space-y-8 pb-20">
       {renderModal()}
-
-      <CameraModal
-        open={showCamera}
-        onClose={() => setShowCamera(false)}
-        onCapture={(file) => {
-          if (cameraTarget) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              dispatch({ type: 'SET_IMAGE', field: cameraTarget, value: reader.result as string });
-            };
-            reader.readAsDataURL(file);
-          }
-        }}
-      />
 
       <div className="min-h-screen bg-slate-50 pb-32">
         {/* --- Header (Static) --- */}
@@ -464,21 +381,12 @@ export default function CadastroProdutoPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">EAN / GTIN</label>
-                  <div className="relative">
-                    <Input
-                      value={state.ean}
-                      onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'ean', value: e.target.value })}
-                      placeholder="0000000000000"
-                      className={`bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 rounded-xl h-12 font-mono text-slate-700 pr-12 ${state.errors.ean ? 'border-red-500' : ''}`}
-                    />
-                    <button
-                      onClick={() => dispatch({ type: 'OPEN_MODAL', modal: 'SEARCH_PRODUCT' })}
-                      className="absolute right-2 top-2 h-8 w-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100"
-                      title="Pesquisar Produto"
-                    >
-                      <Search size={18} />
-                    </button>
-                  </div>
+                  <Input
+                    value={state.ean}
+                    onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'ean', value: e.target.value })}
+                    placeholder="0000000000000"
+                    className={`bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 rounded-xl h-12 font-mono text-slate-700 ${state.errors.ean ? 'border-red-500' : ''}`}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fabricante</label>
@@ -513,16 +421,13 @@ export default function CadastroProdutoPage() {
                 <h3 className="font-bold text-lg mb-4 text-slate-900">Central de Arquivos</h3>
                 <div className="grid grid-cols-2 gap-3 w-full">
                   <Button variant="outline" className="h-auto py-3 justify-start rounded-xl border-slate-200 text-slate-500 hover:text-slate-700" onClick={() => dispatch({ type: 'OPEN_MODAL', modal: 'NF' })}>
-                    <FileJson size={18} className="mr-2" /> <span className="text-[10px] font-bold uppercase">CÓDIGOS NF</span>
+                    <FileJson size={18} className="mr-2" /> <span className="text-xs">NFs</span>
                   </Button>
                   <Button variant="outline" className="h-auto py-3 justify-start rounded-xl border-slate-200 text-slate-500 hover:text-slate-700" onClick={() => dispatch({ type: 'OPEN_MODAL', modal: 'EMBALAGEM' })}>
-                    <Box size={18} className="mr-2" /> <span className="text-[10px] font-bold uppercase">EMBALAGEM</span>
+                    <Box size={18} className="mr-2" /> <span className="text-xs">Pack</span>
                   </Button>
                   <Button variant="outline" className="h-auto py-3 justify-start rounded-xl border-slate-200 text-slate-500 hover:text-slate-700" onClick={() => dispatch({ type: 'OPEN_MODAL', modal: 'ACESSORIOS' })}>
-                    <Package size={18} className="mr-2" /> <span className="text-[10px] font-bold uppercase">ACESSÓRIOS</span>
-                  </Button>
-                  <Button variant="outline" className="h-auto py-3 justify-start rounded-xl border-slate-200 text-slate-500 hover:text-slate-700" onClick={() => dispatch({ type: 'OPEN_MODAL', modal: 'FUNCIONALIDADE' })}>
-                    <Wrench size={18} className="mr-2" /> <span className="text-[10px] font-bold uppercase">FUNCIONALIDADE</span>
+                    <Package size={18} className="mr-2" /> <span className="text-xs">Kit</span>
                   </Button>
 
                   {/* Manual Upload Button */}
@@ -532,8 +437,8 @@ export default function CadastroProdutoPage() {
                       <Check size={18} className="mr-2" /> <span className="text-xs">PDF OK</span>
                     </Button>
                   ) : (
-                    <Button variant="outline" className="col-span-2 md:col-span-1 h-auto py-3 justify-start rounded-xl border-slate-200 text-slate-500 hover:text-slate-700" onClick={() => fileInputManual.current?.click()}>
-                      <FileText size={18} className="mr-2" /> <span className="text-[10px] font-bold uppercase">Manual</span>
+                    <Button variant="outline" className="h-auto py-3 justify-start rounded-xl border-slate-200 text-slate-500 hover:text-slate-700" onClick={() => fileInputManual.current?.click()}>
+                      <FileText size={18} className="mr-2" /> <span className="text-xs">Manual</span>
                     </Button>
                   )}
                 </div>
@@ -551,16 +456,7 @@ export default function CadastroProdutoPage() {
               <div key={idx} className="group relative bg-white p-4 rounded-[2rem] shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <div className="flex items-center justify-between mb-4 px-2">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{item.label}</span>
-                  <div className="flex gap-2">
-                    <button onClick={(e) => {
-                      e.stopPropagation();
-                      setCameraTarget(item.field as any);
-                      setShowCamera(true);
-                    }} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Usar Câmera">
-                      <Camera size={16} />
-                    </button>
-                    <item.icon size={16} className={item.color} />
-                  </div>
+                  <item.icon size={16} className={item.color} />
                 </div>
 
                 <input type="file" ref={item.ref as any} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, item.field as any)} />
@@ -737,7 +633,7 @@ export default function CadastroProdutoPage() {
                 <p className="text-sm text-slate-400">Unifica embalagem, acessórios, estética, funcional e funcionalidades (com miniatura de foto).</p>
               </div>
               <div className="px-4 py-2 bg-slate-50 rounded-full border border-slate-200 text-xs font-mono text-slate-500 self-start md:self-auto">
-                TOTAL ITEMS: <span className="text-slate-900 font-bold">{state.embalagem.length + state.acessorios.length + (state.funcionalidade?.length || 0) + state.modelos.reduce((acc, m) => acc + m.estetica.length + m.funcional.length + m.funcionalidades.length, 0)}</span>
+                TOTAL ITEMS: <span className="text-slate-900 font-bold">{state.embalagem.length + state.acessorios.length + state.modelos.reduce((acc, m) => acc + m.estetica.length + m.funcional.length + m.funcionalidades.length, 0)}</span>
               </div>
             </div>
 
@@ -754,11 +650,6 @@ export default function CadastroProdutoPage() {
               state.acessorios.forEach((item, i) => allItems.push({
                 id: `acc-${i}`, count: ++count, type: 'ACCESSORY', badgeColor: 'bg-emerald-50 text-emerald-600 border-emerald-100',
                 model: '-', code: '-', name: item.nome, icon: Package, origin: 'acessorios', index: i
-              }));
-              // Funcionalidade (Root)
-              state.funcionalidade?.forEach((item, i) => allItems.push({
-                id: `fun-${i}`, count: ++count, type: 'FEATURE', badgeColor: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-                model: '-', code: '-', name: item.nome, icon: Wrench, origin: 'funcionalidade', index: i
               }));
               // Model Items
               state.modelos.forEach(m => {

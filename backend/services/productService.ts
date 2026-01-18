@@ -48,5 +48,21 @@ export class ProductService {
 
         return data;
     }
+
+    static async searchProducts(query: string): Promise<any[]> {
+        if (!query || query.length < 3) return [];
+
+        const { data, error } = await supabase
+            .from('produtos')
+            .select('ean, modelo_ref, marca')
+            .or(`ean.ilike.%${query}%,modelo_ref.ilike.%${query}%,marca.ilike.%${query}%`)
+            .limit(20);
+
+        if (error) {
+            console.error('Error searching products:', error);
+            return [];
+        }
+        return data || [];
+    }
 }
 

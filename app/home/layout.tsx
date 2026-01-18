@@ -121,35 +121,12 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           {/* Dashboard - always visible */}
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={pathname === '/home'} isOpen={sidebarOpen} href="/home" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
 
-          {/* Cadastro - only if user has 'cadastro' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('cadastro')) && (
-            <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
-          {/* Recebimento - only if user has 'recebimento' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('recebimento')) && (
-            <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
-          {/* Pré-análise - only if user has 'pre-analise' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('pre-analise')) && (
-            <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
-          {/* Orçamentos - only if user has 'orcamentos' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('orcamentos')) && (
-            <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
-          {/* NF-e (XML) - only if user has 'nfe' permission or is admin */}
-          {(user?.role === 'Administrador' || user?.permissions?.includes('nfe')) && (
-            <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
-
-          {/* Usuários - only for Administrators */}
-          {user?.role === 'Administrador' && (
-            <SidebarItem icon={Users} label="Usuários" active={pathname === '/home/usuarios'} isOpen={sidebarOpen} href="/home/usuarios" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          )}
+          <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          <SidebarItem icon={Users} label="Usuários" active={pathname === '/home/usuarios'} isOpen={sidebarOpen} href="/home/usuarios" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
         </nav>
 
         {/* User profile snippet at bottom of sidebar */}
