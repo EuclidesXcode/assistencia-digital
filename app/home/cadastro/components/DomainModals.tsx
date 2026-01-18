@@ -20,13 +20,19 @@ export const ModalBuscaProduto: React.FC<{
     }, [open]);
 
     const handleSearch = async () => {
-        if (q.length < 3) return;
+        console.log(`[Modal] Starting search for: "${q}"`);
+        if (q.length < 3) {
+            console.log('[Modal] Query too short.');
+            return;
+        }
         setLoading(true);
         try {
+            console.log('[Modal] Calling ProductService...');
             const data = await ProductService.searchProducts(q);
+            console.log(`[Modal] Received ${data.length} results.`);
             setResults(data);
         } catch (e) {
-            console.error(e);
+            console.error('[Modal] Search error:', e);
         } finally {
             setLoading(false);
         }
