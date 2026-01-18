@@ -1,14 +1,18 @@
 import { supabase } from '@/lib/supabase';
-import { ProductFormData } from '../models/Product';
+import { CreateProductDTO } from '../models/Product';
 
 export class ProductService {
-    static async createProduct(data: ProductFormData): Promise<void> {
+    static async createProduct(data: CreateProductDTO): Promise<void> {
         const { error } = await supabase.from('produtos').insert([{
-            codigo_nf: data.codigo,
             ean: data.ean,
             modelo_ref: data.modeloRef,
-            modelo_fabricante: data.modelosFabricante,
+            marca: data.marca,
+            nfs_data: data.nfs,
+            modelos_data: data.modelos,
+            embalagem: data.embalagem,
             acessorios: data.acessorios,
+            fotos: data.fotos,
+            manual_url: data.manualUrl,
             estoque_atual: 0 // Default
         }]);
 
@@ -17,15 +21,5 @@ export class ProductService {
             throw new Error('Erro ao salvar produto no banco de dados');
         }
     }
-
-    static async validateProduct(data: ProductFormData): Promise<Record<string, string>> {
-        const errors: Record<string, string> = {};
-
-        if (!data.marca) errors.marca = 'Marca é obrigatória';
-        if (!data.categoria) errors.categoria = 'Categoria é obrigatória';
-        if (!data.modelo) errors.modelo = 'Modelo é obrigatório';
-        if (!data.descricao) errors.descricao = 'Descrição é obrigatória';
-
-        return errors;
-    }
 }
+

@@ -1,33 +1,66 @@
 // Product Models
 
+export interface ProdutoNF {
+  codigo: string;
+  revenda: string;
+}
+
+export interface ItemVinculado {
+  tipo: 'estetica' | 'funcional' | 'funcionalidade' | 'embalagem' | 'acessorio';
+  nome: string; // Descrição
+  codigo?: string; // Código da peça se houver
+  quantidade?: number;
+}
+
+export interface ModeloFabricante {
+  id: string; // UUID para vincular itens
+  nome: string; // O modelo em si (ex: 50UT8050PSA)
+  categoria: string; // TV, Audio, etc
+  codigoTipo?: string; // Código/Tipo extra
+  
+  // Anexos do modelo
+  vistaExplodidaUrl?: string;
+  boletimTecnicoUrl?: string;
+  esquemaEletricoUrl?: string;
+
+  // Itens específicos deste modelo
+  estetica: ItemVinculado[];
+  funcional: ItemVinculado[];
+  funcionalidades: ItemVinculado[];
+}
+
 export interface Product {
   id: string;
-  modeloFabricante: string;
   ean: string;
-  itensVinculados: number;
-  ultimaAtualizacao: string;
-  status: 'ativo' | 'inativo';
+  modeloRef: string; // Master reference
+  marca: string; // Fabricante (Philco, etc)
+  
+  // Master Level Items
+  embalagem: ItemVinculado[];
+  acessorios: ItemVinculado[];
+  
+  // Structured Data
+  nfs: ProdutoNF[];
+  modelos: ModeloFabricante[];
+  
+  // Assets
+  fotos: string[];
+  manualUrl?: string;
+
+  estoqueAtual: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateProductDTO {
-  modeloFabricante: string;
   ean: string;
+  modeloRef: string;
+  marca: string;
+  nfs: ProdutoNF[];
+  modelos: ModeloFabricante[];
+  embalagem: ItemVinculado[];
+  acessorios: ItemVinculado[];
+  fotos: string[];
+  manualUrl?: string;
 }
 
-export interface UpdateProductDTO {
-  modeloFabricante?: string;
-  ean?: string;
-  status?: 'ativo' | 'inativo';
-}
-export interface ProductFormData {
-  modeloFabricante?: string;
-  ean: string;
-  codigo?: string;
-  modeloRef?: string;
-  modelosFabricante?: string[];
-  acessorios?: string[];
-  marca?: string;
-  categoria?: string;
-  modelo?: string;
-  descricao?: string;
-}

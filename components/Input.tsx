@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LucideIcon, Eye, EyeOff } from 'lucide-react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label?: string;
   icon?: LucideIcon;
 }
 
@@ -25,12 +25,14 @@ export const Input: React.FC<InputProps> = ({
 
   return (
     <div className="w-full">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-slate-700 mb-1.5"
-      >
-        {label}
-      </label>
+      {label && (
+        <label
+          htmlFor={id}
+          className="block text-sm font-medium text-slate-700 mb-1.5"
+        >
+          {label}
+        </label>
+      )}
       <div className="relative">
         {Icon && (
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
