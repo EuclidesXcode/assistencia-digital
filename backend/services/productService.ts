@@ -3,6 +3,12 @@ import { CreateProductDTO } from '../models/Product';
 
 export class ProductService {
     static async createProduct(data: CreateProductDTO): Promise<void> {
+        // Check if EAN already exists
+        const existing = await this.findByEan(data.ean);
+        if (existing) {
+            throw new Error(`O produto com EAN ${data.ean} já está cadastrado.`);
+        }
+
         const { error } = await supabase.from('produtos').insert([{
             ean: data.ean,
             modelo_ref: data.modeloRef,
@@ -21,6 +27,8 @@ export class ProductService {
 
         if (error) {
             console.error('Error creating product:', error);
+            // Handle unique constraint error specifically if needed, though check above covers most cases
+            if (error.code === '23505') throw new Error('Este EAN já está cadastrado.');
             throw new Error('Erro ao salvar produto no banco de dados');
         }
     }
