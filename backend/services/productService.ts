@@ -21,5 +21,21 @@ export class ProductService {
             throw new Error('Erro ao salvar produto no banco de dados');
         }
     }
+
+    static async findByEan(ean: string): Promise<any | null> {
+        const { data, error } = await supabase
+            .from('produtos')
+            .select('*')
+            .eq('ean', ean)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null; // Not found
+            console.error('Error finding product by EAN:', error);
+            throw new Error('Erro ao buscar produto');
+        }
+
+        return data;
+    }
 }
 
