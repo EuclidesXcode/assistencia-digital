@@ -101,19 +101,17 @@ const CadastroNF_EAN_Modelo = () => {
     const fetchProductByEan = async (ean: string) => {
         setMensagem("Buscando EAN no banco de dados...");
         try {
-            const res = await fetch(`/api/products/lookup?ean=${ean}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data) {
-                    carregarRegistroDoBanco(data);
-                }
+            // Using Service directly instead of API route for consistency
+            const data = await ProductService.findByEan(ean);
+
+            if (data) {
+                carregarRegistroDoBanco(data);
             } else {
-                if (res.status === 404) setMensagem("EAN não encontrado no banco (Novo cadastro).");
-                else setMensagem("Erro ao buscar EAN.");
+                setMensagem("EAN não encontrado no banco (Novo cadastro).");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            setMensagem("Erro de conexão.");
+            setMensagem("Erro de conexão ou busca.");
         }
     };
 
