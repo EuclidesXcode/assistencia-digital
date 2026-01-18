@@ -233,6 +233,9 @@ export default function CadastroProdutoPage() {
         modelos: state.modelos,
         embalagem: state.embalagem,
         acessorios: state.acessorios,
+        estetica: [],
+        funcional: [],
+        funcionalidade: [],
         fotos: state.fotos,
         manualUrl: state.manualUrl
       };

@@ -28,6 +28,7 @@ import {
     PecaBase,
     ModeloFabricante
 } from "./components/DomainModals";
+import { ProductService } from "@/backend/services/productService";
 
 // --- Types needed locally for state ---
 type ProdutoDocKey = "fotoProduto" | "etiquetaProcel" | "kitAcessorio" | "manualUsuario";
@@ -122,13 +123,21 @@ const CadastroNF_EAN_Modelo = () => {
             modeloReferencia: data.modelo_ref || '',
             fabricante: data.marca || ''
         });
-        // Populate arrays if API returns them.
+
+        const mapItem = (x: any, i: number) => ({
+            id: i,
+            descricao: x.nome,
+            codigoPeca: x.codigo || '',
+            createdAt: '',
+            createdBy: ''
+        });
+
         if (data.nfs_data) setCodigosNF(data.nfs_data.map((x: any, i: number) => ({ ...x, id: i })));
-        if (data.embalagem) setEmbalagens(data.embalagem.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
-        if (data.acessorios) setAcessorios(data.acessorios.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
-        if (data.estetica) setEsteticas(data.estetica.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
-        if (data.funcional) setFuncionaisPeca(data.funcional.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
-        if (data.funcionalidade) setFuncionalidades(data.funcionalidade.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
+        if (data.embalagem) setEmbalagens(data.embalagem.map(mapItem));
+        if (data.acessorios) setAcessorios(data.acessorios.map(mapItem));
+        if (data.estetica) setEsteticas(data.estetica.map(mapItem));
+        if (data.funcional) setFuncionaisPeca(data.funcional.map(mapItem));
+        if (data.funcionalidade) setFuncionalidades(data.funcionalidade.map(mapItem));
 
         setMensagem("Produto encontrado no banco de dados!");
     };
@@ -159,31 +168,21 @@ const CadastroNF_EAN_Modelo = () => {
                 modeloRef: master.modeloReferencia,
                 marca: master.fabricante,
                 nfs: codigosNF.map(c => ({ codigo: c.codigo, revenda: c.revenda })),
-                modelos: [], // Models logic could be expanded here if needed
-                embalagem: embalagens.map(p => ({ tipo: 'embalagem', nome: p.descricao, codigo: p.codigoPeca })),
-                acessorios: acessorios.map(p => ({ tipo: 'acessorio', nome: p.descricao, codigo: p.codigoPeca })),
-                estetica: esteticas.map(p => ({ tipo: 'estetica', nome: p.descricao, codigo: p.codigoPeca })),
-                funcional: funcionaisPeca.map(p => ({ tipo: 'funcional', nome: p.descricao, codigo: p.codigoPeca })),
-                funcionalidade: funcionalidades.map(p => ({ tipo: 'funcionalidade', nome: p.descricao, codigo: p.codigoPeca })),
-                fotos: [], // Should upload images first separately or handle here? For now sending empty or need upload logic.
+                modelos: [],
+                embalagem: embalagens.map(p => ({ tipo: 'embalagem' as const, nome: p.descricao, codigo: p.codigoPeca })),
+                acessorios: acessorios.map(p => ({ tipo: 'acessorio' as const, nome: p.descricao, codigo: p.codigoPeca })),
+                estetica: esteticas.map(p => ({ tipo: 'estetica' as const, nome: p.descricao, codigo: p.codigoPeca })),
+                funcional: funcionaisPeca.map(p => ({ tipo: 'funcional' as const, nome: p.descricao, codigo: p.codigoPeca })),
+                funcionalidade: funcionalidades.map(p => ({ tipo: 'funcionalidade' as const, nome: p.descricao, codigo: p.codigoPeca })),
+                fotos: [],
                 manualUrl: ''
             };
 
-            const res = await fetch('/api/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                setMensagem("Produto salvo com sucesso!");
-            } else {
-                const err = await res.json();
-                setMensagem(`Erro ao salvar: ${err.error || 'Desconhecido'}`);
-            }
+            await ProductService.createProduct(payload);
+            setMensagem("Produto salvo com sucesso!");
         } catch (e: any) {
             console.error(e);
-            setMensagem("Erro local ao salvar.");
+            setMensagem(`Erro ao salvar: ${e.message || "Erro desconhecido"}`);
         }
     };
 
