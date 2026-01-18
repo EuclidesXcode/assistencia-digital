@@ -17,7 +17,7 @@ export interface ModeloFabricante {
   nome: string; // O modelo em si (ex: 50UT8050PSA)
   categoria: string; // TV, Audio, etc
   codigoTipo?: string; // Código/Tipo extra
-  
+
   // Anexos do modelo
   vistaExplodidaUrl?: string;
   boletimTecnicoUrl?: string;
@@ -34,15 +34,18 @@ export interface Product {
   ean: string;
   modeloRef: string; // Master reference
   marca: string; // Fabricante (Philco, etc)
-  
+
   // Master Level Items
   embalagem: ItemVinculado[];
   acessorios: ItemVinculado[];
-  
+  estetica: ItemVinculado[];
+  funcional: ItemVinculado[];
+  funcionalidade: ItemVinculado[];
+
   // Structured Data
   nfs: ProdutoNF[];
   modelos: ModeloFabricante[];
-  
+
   // Assets
   fotos: string[];
   manualUrl?: string;
@@ -60,6 +63,9 @@ export interface CreateProductDTO {
   modelos: ModeloFabricante[];
   embalagem: ItemVinculado[];
   acessorios: ItemVinculado[];
+  estetica: ItemVinculado[];
+  funcional: ItemVinculado[];
+  funcionalidade: ItemVinculado[];
   fotos: string[];
   manualUrl?: string;
 }

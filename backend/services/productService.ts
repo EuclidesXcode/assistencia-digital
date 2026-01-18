@@ -11,6 +11,9 @@ export class ProductService {
             modelos_data: data.modelos,
             embalagem: data.embalagem,
             acessorios: data.acessorios,
+            estetica: data.estetica,
+            funcional: data.funcional,
+            funcionalidade: data.funcionalidade,
             fotos: data.fotos,
             manual_url: data.manualUrl,
             estoque_atual: 0 // Default

@@ -76,6 +76,15 @@ const CadastroNF_EAN_Modelo = () => {
     const [acessorios, setAcessorios] = useState<PecaBase[]>([]);
     const [formAcessorio, setFormAcessorio] = useState<{ codigoPeca: string; descricao: string }>({ codigoPeca: "", descricao: "" });
 
+    const [esteticas, setEsteticas] = useState<PecaBase[]>([]);
+    const [formEstetica, setFormEstetica] = useState<{ codigoPeca: string; descricao: string }>({ codigoPeca: "", descricao: "" });
+
+    const [funcionaisPeca, setFuncionaisPeca] = useState<PecaBase[]>([]);
+    const [formFuncionaisPeca, setFormFuncionaisPeca] = useState<{ codigoPeca: string; descricao: string }>({ codigoPeca: "", descricao: "" });
+
+    const [funcionalidades, setFuncionalidades] = useState<PecaBase[]>([]);
+    const [formFuncionalidade, setFormFuncionalidade] = useState<{ codigoPeca: string; descricao: string }>({ codigoPeca: "", descricao: "" });
+
     const [modelosFabricante, setModelosFabricante] = useState<ModeloFabricante[]>([]);
     const [modeloSelecionadoId, setModeloSelecionadoId] = useState<number | null>(null);
 
@@ -114,8 +123,13 @@ const CadastroNF_EAN_Modelo = () => {
             fabricante: data.marca || ''
         });
         // Populate arrays if API returns them.
-        // Assuming the 'lookup' API returns a flat object or relations.
-        // For now, simpler mapping:
+        if (data.nfs_data) setCodigosNF(data.nfs_data.map((x: any, i: number) => ({ ...x, id: i })));
+        if (data.embalagem) setEmbalagens(data.embalagem.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
+        if (data.acessorios) setAcessorios(data.acessorios.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
+        if (data.estetica) setEsteticas(data.estetica.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
+        if (data.funcional) setFuncionaisPeca(data.funcional.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
+        if (data.funcionalidade) setFuncionalidades(data.funcionalidade.map((x: any, i: number) => ({ id: i, descricao: x.nome, codigoPeca: x.codigo, createdAt: '', createdBy: '' })));
+
         setMensagem("Produto encontrado no banco de dados!");
     };
 
@@ -135,6 +149,43 @@ const CadastroNF_EAN_Modelo = () => {
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         };
     }, [master.ean]);
+
+    const handleSaveProduct = async () => {
+        setMensagem("Salvando...");
+        try {
+            // Map frontend state to DTO
+            const payload = {
+                ean: master.ean,
+                modeloRef: master.modeloReferencia,
+                marca: master.fabricante,
+                nfs: codigosNF.map(c => ({ codigo: c.codigo, revenda: c.revenda })),
+                modelos: [], // Models logic could be expanded here if needed
+                embalagem: embalagens.map(p => ({ tipo: 'embalagem', nome: p.descricao, codigo: p.codigoPeca })),
+                acessorios: acessorios.map(p => ({ tipo: 'acessorio', nome: p.descricao, codigo: p.codigoPeca })),
+                estetica: esteticas.map(p => ({ tipo: 'estetica', nome: p.descricao, codigo: p.codigoPeca })),
+                funcional: funcionaisPeca.map(p => ({ tipo: 'funcional', nome: p.descricao, codigo: p.codigoPeca })),
+                funcionalidade: funcionalidades.map(p => ({ tipo: 'funcionalidade', nome: p.descricao, codigo: p.codigoPeca })),
+                fotos: [], // Should upload images first separately or handle here? For now sending empty or need upload logic.
+                manualUrl: ''
+            };
+
+            const res = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                setMensagem("Produto salvo com sucesso!");
+            } else {
+                const err = await res.json();
+                setMensagem(`Erro ao salvar: ${err.error || 'Desconhecido'}`);
+            }
+        } catch (e: any) {
+            console.error(e);
+            setMensagem("Erro local ao salvar.");
+        }
+    };
 
 
     // Handlers
@@ -238,6 +289,17 @@ const CadastroNF_EAN_Modelo = () => {
                                     <button onClick={() => setMostrarPopupAcessorios(true)} className="inline-flex items-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition">
                                         <Cable size={16} /> ACESSÓRIOS <CountPill n={acessorios.length} />
                                     </button>
+                                    <button onClick={() => setMostrarPopupEstetica(true)} className="inline-flex items-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold border border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100 transition">
+                                        <Sparkles size={16} /> ESTÉTICA <CountPill n={esteticas.length} />
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button onClick={() => setMostrarPopupFuncionalPeca(true)} className="inline-flex items-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition">
+                                        <BookOpen size={16} /> FUNCIONAL (PEÇA) <CountPill n={funcionaisPeca.length} />
+                                    </button>
+                                    <button onClick={() => setMostrarPopupFuncionalidade(true)} className="inline-flex items-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold border border-cyan-200 text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition">
+                                        <FileText size={16} /> FUNCIONALIDADES <CountPill n={funcionalidades.length} />
+                                    </button>
                                 </div>
                             </div>
 
@@ -263,7 +325,7 @@ const CadastroNF_EAN_Modelo = () => {
                             {/* Save Actions */}
                             <div className="flex justify-end gap-2 pt-4 border-t">
                                 <button className="px-4 h-9 rounded-xl text-xs font-bold border hover:bg-gray-50 flex items-center gap-2"><X size={16} /> LIMPAR</button>
-                                <button className="px-4 h-9 rounded-xl text-xs font-bold bg-slate-900 text-white flex items-center gap-2"><Plus size={16} /> SALVAR PRODUTO</button>
+                                <button onClick={handleSaveProduct} className="px-4 h-9 rounded-xl text-xs font-bold bg-slate-900 text-white flex items-center gap-2"><Plus size={16} /> SALVAR PRODUTO</button>
                             </div>
 
                         </div>
@@ -343,15 +405,55 @@ const CadastroNF_EAN_Modelo = () => {
                 onRemover={(id) => setAcessorios(p => p.filter(x => x.id !== id))}
             />
 
-            {/* File Modal */}
-            <ModalArquivos
-                open={arqInfo.open}
-                title={arqInfo.title}
-                accept={arqInfo.accept}
-                files={arqInfo.files}
-                onClose={() => setArquivosCtx(null)}
-                onAdd={arqInfo.onAdd}
-                onRemove={arqInfo.onRemove}
+            <ModalPecas
+                open={mostrarPopupEstetica}
+                title="Estética"
+                master={master}
+                form={formEstetica}
+                mensagem={""}
+                onClose={() => setMostrarPopupEstetica(false)}
+                onChangeCodigo={(v) => setFormEstetica(p => ({ ...p, codigoPeca: v }))}
+                onChangeDescricao={(v) => setFormEstetica(p => ({ ...p, descricao: v }))}
+                onAdd={() => {
+                    setEsteticas(p => [...p, { id: Date.now(), ...formEstetica, createdAt: '', createdBy: '' }]);
+                    setFormEstetica({ codigoPeca: '', descricao: '' });
+                }}
+                lista={esteticas}
+                onRemover={(id) => setEsteticas(p => p.filter(x => x.id !== id))}
+            />
+
+            <ModalPecas
+                open={mostrarPopupFuncionalPeca}
+                title="Funcional (Peça)"
+                master={master}
+                form={formFuncionaisPeca}
+                mensagem={""}
+                onClose={() => setMostrarPopupFuncionalPeca(false)}
+                onChangeCodigo={(v) => setFormFuncionaisPeca(p => ({ ...p, codigoPeca: v }))}
+                onChangeDescricao={(v) => setFormFuncionaisPeca(p => ({ ...p, descricao: v }))}
+                onAdd={() => {
+                    setFuncionaisPeca(p => [...p, { id: Date.now(), ...formFuncionaisPeca, createdAt: '', createdBy: '' }]);
+                    setFormFuncionaisPeca({ codigoPeca: '', descricao: '' });
+                }}
+                lista={funcionaisPeca}
+                onRemover={(id) => setFuncionaisPeca(p => p.filter(x => x.id !== id))}
+            />
+
+            <ModalPecas
+                open={mostrarPopupFuncionalidade}
+                title="Funcionalidades"
+                master={master}
+                form={formFuncionalidade}
+                mensagem={""}
+                onClose={() => setMostrarPopupFuncionalidade(false)}
+                onChangeCodigo={(v) => setFormFuncionalidade(p => ({ ...p, codigoPeca: v }))}
+                onChangeDescricao={(v) => setFormFuncionalidade(p => ({ ...p, descricao: v }))}
+                onAdd={() => {
+                    setFuncionalidades(p => [...p, { id: Date.now(), ...formFuncionalidade, createdAt: '', createdBy: '' }]);
+                    setFormFuncionalidade({ codigoPeca: '', descricao: '' });
+                }}
+                lista={funcionalidades}
+                onRemover={(id) => setFuncionalidades(p => p.filter(x => x.id !== id))}
             />
 
         </div>
