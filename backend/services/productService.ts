@@ -11,8 +11,8 @@ export class ProductService {
 
         const { error } = await supabase.from('produtos').insert([{
             ean: data.ean,
-            modelo_ref: data.modeloRef,
-            marca: data.marca,
+            modelo_referencia: data.modeloRef,
+            fabricante: data.marca,
             nfs_data: data.nfs,
             modelos_data: data.modelos,
             embalagem: data.embalagem,
@@ -22,12 +22,11 @@ export class ProductService {
             funcionalidade: data.funcionalidade,
             fotos: data.fotos,
             manual_url: data.manualUrl,
-            estoque_atual: 0 // Default
+            estoque_atual: 0
         }]);
 
         if (error) {
             console.error('Error creating product:', error);
-            // Handle unique constraint error specifically if needed, though check above covers most cases
             if (error.code === '23505') throw new Error('Este EAN já está cadastrado.');
             throw new Error('Erro ao salvar produto no banco de dados');
         }
@@ -41,12 +40,34 @@ export class ProductService {
             .single();
 
         if (error) {
-            if (error.code === 'PGRST116') return null; // Not found
+            if (error.code === 'PGRST116') return null;
             console.error('Error finding product by EAN:', error);
             throw new Error('Erro ao buscar produto');
         }
 
-        return data;
+        if (data) {
+            // Map DB columns (snake_case) to Domain Model (camelCase)
+            return {
+                id: data.id,
+                ean: data.ean,
+                modeloRef: data.modelo_referencia,
+                marca: data.fabricante,
+                nfs: data.nfs_data || [],
+                modelos: data.modelos_data || [],
+                embalagem: data.embalagem || [],
+                acessorios: data.acessorios || [],
+                estetica: data.estetica || [],
+                funcional: data.funcional || [],
+                funcionalidade: data.funcionalidade || [], // Root functionality
+                fotos: data.fotos || [],
+                manualUrl: data.manual_url,
+                estoqueAtual: data.estoque_atual,
+                createdAt: data.created_at,
+                updatedAt: data.updated_at
+            };
+        }
+
+        return null;
     }
 
     static async searchProducts(query: string): Promise<any[]> {
@@ -54,15 +75,39 @@ export class ProductService {
 
         const { data, error } = await supabase
             .from('produtos')
-            .select('ean, modelo_ref, marca')
-            .or(`ean.ilike.%${query}%,modelo_ref.ilike.%${query}%,marca.ilike.%${query}%`)
+            .select('ean, modelo_referencia, fabricante')
+            .or(`ean.ilike.%${query}%,modelo_referencia.ilike.%${query}%,fabricante.ilike.%${query}%`)
             .limit(20);
 
         if (error) {
             console.error('Error searching products:', error);
             return [];
         }
-        return data || [];
+
+        return (data || []).map(item => ({
+            ean: item.ean,
+            modeloRef: item.modelo_referencia,
+            marca: item.fabricante
+        }));
+    }
+
+    static async getLatestProducts(): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('produtos')
+            .select('ean, modelo_referencia, fabricante')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (error) {
+            console.error('Error fetching latest products:', error);
+            return [];
+        }
+
+        return (data || []).map(item => ({
+            ean: item.ean,
+            modeloRef: item.modelo_referencia,
+            marca: item.fabricante
+        }));
     }
 }
 

@@ -16,15 +16,43 @@ export const ModalBuscaProduto: React.FC<{
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!open) { setQ(""); setResults([]); }
+        if (!open) {
+            setQ("");
+            setResults([]);
+        } else {
+            // Load latest products immediately when opening
+            loadLatest();
+        }
     }, [open]);
+
+    // Live Search Debounce
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (q.length >= 3) {
+                handleSearch();
+            } else if (q.length === 0 && open) {
+                loadLatest();
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [q, open]);
+
+    const loadLatest = async () => {
+        setLoading(true);
+        try {
+            console.log('[Modal] Fetching latest products...');
+            const data = await ProductService.getLatestProducts();
+            setResults(data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSearch = async () => {
         console.log(`[Modal] Starting search for: "${q}"`);
-        if (q.length < 3) {
-            console.log('[Modal] Query too short.');
-            return;
-        }
         setLoading(true);
         try {
             console.log('[Modal] Calling ProductService...');
@@ -46,13 +74,12 @@ export const ModalBuscaProduto: React.FC<{
                     placeholder="Digite EAN, Modelo ou Marca..."
                     value={q}
                     onChange={e => setQ(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
                     autoFocus
                 />
                 <button
                     onClick={handleSearch}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
-                    disabled={loading || q.length < 3}
+                    disabled={loading}
                 >
                     <Search size={20} />
                 </button>
@@ -77,7 +104,7 @@ export const ModalBuscaProduto: React.FC<{
                             {results.map((r) => (
                                 <tr key={r.ean} className="hover:bg-indigo-50 transition-colors">
                                     <td className="p-3 font-bold text-slate-700">{r.marca}</td>
-                                    <td className="p-3 text-slate-600">{r.modelo_ref}</td>
+                                    <td className="p-3 text-slate-600">{r.modeloRef}</td>
                                     <td className="p-3 font-mono text-slate-500 text-xs">{r.ean}</td>
                                     <td className="p-3 text-right">
                                         <button
