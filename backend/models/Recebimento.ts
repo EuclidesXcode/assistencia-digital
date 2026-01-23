@@ -30,4 +30,6 @@ export interface RecebimentoRegistro {
   modeloFabricante: string;
   ean: string;
   nf: string;
+  status?: 'aguardando' | 'em_processo' | 'concluido';
+  fornecedor?: string;
 }

@@ -14,11 +14,18 @@ export const ModalBuscaProduto: React.FC<{
     const [q, setQ] = useState("");
     const [results, setResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalResults, setTotalResults] = useState(0);
+    const [pageSize] = useState(20);
 
     useEffect(() => {
         if (!open) {
             setQ("");
             setResults([]);
+            setCurrentPage(1);
+            setTotalPages(0);
+            setTotalResults(0);
         } else {
             // Load latest products immediately when opening
             loadLatest();
@@ -29,7 +36,8 @@ export const ModalBuscaProduto: React.FC<{
     useEffect(() => {
         const timer = setTimeout(() => {
             if (q.length >= 3) {
-                handleSearch();
+                setCurrentPage(1); // Reset to page 1 on new search
+                handleSearch(1);
             } else if (q.length === 0 && open) {
                 loadLatest();
             }
@@ -44,6 +52,9 @@ export const ModalBuscaProduto: React.FC<{
             console.log('[Modal] Fetching latest products...');
             const data = await ProductService.getLatestProducts();
             setResults(data);
+            setTotalResults(data.length);
+            setTotalPages(1);
+            setCurrentPage(1);
         } catch (e) {
             console.error(e);
         } finally {
@@ -51,20 +62,32 @@ export const ModalBuscaProduto: React.FC<{
         }
     };
 
-    const handleSearch = async () => {
-        console.log(`[Modal] Starting search for: "${q}"`);
+    const handleSearch = async (page: number = currentPage) => {
+        console.log(`[Modal] Starting search for: "${q}" - Page ${page}`);
         setLoading(true);
         try {
             console.log('[Modal] Calling ProductService...');
-            const data = await ProductService.searchProducts(q);
-            console.log(`[Modal] Received ${data.length} results.`);
-            setResults(data);
+            const response = await ProductService.searchProducts(q, page, pageSize);
+            console.log(`[Modal] Received ${response.data.length} results of ${response.total} total.`);
+            setResults(response.data);
+            setTotalResults(response.total);
+            setTotalPages(response.totalPages);
+            setCurrentPage(response.page);
         } catch (e) {
             console.error('[Modal] Search error:', e);
         } finally {
             setLoading(false);
         }
     };
+
+    const goToPage = (page: number) => {
+        if (page < 1 || page > totalPages || page === currentPage) return;
+        setCurrentPage(page);
+        handleSearch(page);
+    };
+
+    const startResult = totalResults > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const endResult = Math.min(currentPage * pageSize, totalResults);
 
     return (
         <ModalShell open={open} title="Pesquisar Produto" onClose={onClose} maxW="max-w-2xl">
@@ -77,13 +100,25 @@ export const ModalBuscaProduto: React.FC<{
                     autoFocus
                 />
                 <button
-                    onClick={handleSearch}
+                    onClick={() => handleSearch(1)}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
                     disabled={loading}
                 >
                     <Search size={20} />
                 </button>
             </div>
+
+            {/* Results Info */}
+            {totalResults > 0 && (
+                <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
+                    <span className="font-semibold">
+                        Mostrando {startResult}-{endResult} de {totalResults} resultados
+                    </span>
+                    <span className="text-slate-500">
+                        Página {currentPage} de {totalPages}
+                    </span>
+                </div>
+            )}
 
             <div className="mt-4 max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg bg-slate-50">
                 {results.length === 0 ? (
@@ -120,6 +155,56 @@ export const ModalBuscaProduto: React.FC<{
                     </table>
                 )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                    <button
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage === 1 || loading}
+                        className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        ← Anterior
+                    </button>
+
+                    <div className="flex gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) {
+                                pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                                pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                                pageNum = totalPages - 4 + i;
+                            } else {
+                                pageNum = currentPage - 2 + i;
+                            }
+
+                            return (
+                                <button
+                                    key={pageNum}
+                                    onClick={() => goToPage(pageNum)}
+                                    disabled={loading}
+                                    className={`w-10 h-10 text-sm font-semibold rounded-lg transition-colors ${currentPage === pageNum
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                    {pageNum}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <button
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage === totalPages || loading}
+                        className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        Próximo →
+                    </button>
+                </div>
+            )}
         </ModalShell>
     );
 };

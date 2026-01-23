@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Users, UserPlus, Edit2, Power, Activity, Search, X, AlertCircle, Shield, CheckCircle2, User, Key, BarChart3, Filter, Check, Mail, Building2 } from "lucide-react";
 import { Button } from "@/components/Button";
 
@@ -62,7 +62,7 @@ export default function UsuariosPage() {
             try {
                 const { UserManagementService } = await import('@/backend/services/userManagementService');
                 const [users, statistics] = await Promise.all([
-                    UserManagementService.getUsuarios(),
+                    UserManagementService.getUsuarios({ search: q }),
                     UserManagementService.getStats()
                 ]);
                 setUsuarios(users);
@@ -76,7 +76,10 @@ export default function UsuariosPage() {
         loadUsers();
     }, []);
 
-    const [searchQuery, setSearchQuery] = useState("");
+    const searchParams = useSearchParams();
+    const q = (searchParams.get("q") || "").trim().toLowerCase();
+
+    // const [searchQuery, setSearchQuery] = useState(""); // Removed
     const [filialFilter, setFilialFilter] = useState("TODAS");
     const [statusFilter, setStatusFilter] = useState("TODOS");
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -116,15 +119,15 @@ export default function UsuariosPage() {
 
     const filteredUsers = useMemo(() => {
         return usuarios.filter(u => {
-            const matchSearch = u.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                u.email.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchSearch = u.nome.toLowerCase().includes(q) ||
+                u.email.toLowerCase().includes(q);
             const matchFilial = filialFilter === "TODAS" || u.filial === filialFilter;
             const matchStatus = statusFilter === "TODOS" ||
                 (statusFilter === "ATIVOS" && u.ativo) ||
                 (statusFilter === "INATIVOS" && !u.ativo);
             return matchSearch && matchFilial && matchStatus;
         });
-    }, [usuarios, searchQuery, filialFilter, statusFilter]);
+    }, [usuarios, q, filialFilter, statusFilter]);
 
     const userActivities = useMemo(() => {
         if (!selectedUserActivity) return [];
@@ -261,16 +264,7 @@ export default function UsuariosPage() {
                     <p className="text-slate-500 font-medium text-sm">Controle de usuários, permissões e segurança.</p>
                 </div>
                 <div className="flex gap-3">
-                    <div className="hidden md:flex items-center bg-slate-100 px-3 py-2 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500/20">
-                        <Search size={16} className="text-slate-400 mr-2" />
-                        <input
-                            type="text"
-                            placeholder="Buscar usuário..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-transparent border-none focus:outline-none text-sm text-slate-700 w-48 placeholder:text-slate-400"
-                        />
-                    </div>
+                    {/* Local search removed */}
                     <Button onClick={() => setShowCreateModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 rounded-full px-6 font-semibold transition-all hover:scale-105 active:scale-95">
                         <UserPlus size={18} className="mr-2" /> Novo Usuário
                     </Button>

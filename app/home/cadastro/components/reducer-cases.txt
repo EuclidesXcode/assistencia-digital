@@ -1,0 +1,109 @@
+// Casos adicionais do reducer para copiar e colar no reducer principal
+
+// Adicionar após o caso 'UPDATE_ITEM_MODELO':
+
+    case 'UPDATE_MODELO':
+      return {
+        ...state,
+        modelos: state.modelos.map(m => 
+          m.id === action.id ? { ...m, [action.field]: action.value } : m
+        )
+      };
+
+    // Fotos de itens master
+    case 'ADD_FOTO_ITEM_MASTER':
+      return {
+        ...state,
+        [action.itemType]: state[action.itemType].map((item, i) => 
+          i === action.index ? { ...item, fotos: [...(item.fotos || []), action.foto] } : item
+        )
+      };
+
+    case 'REMOVE_FOTO_ITEM_MASTER':
+      return {
+        ...state,
+        [action.itemType]: state[action.itemType].map((item, i) => 
+          i === action.index ? { ...item, fotos: (item.fotos || []).filter((_, fi) => fi !== action.fotoIndex) } : item
+        )
+      };
+
+    // Fotos de itens de modelo
+    case 'ADD_FOTO_ITEM_MODELO':
+      return {
+        ...state,
+        modelos: state.modelos.map(m => {
+          if (m.id !== action.modeloId) return m;
+          return {
+            ...m,
+            [action.itemType]: m[action.itemType].map((item, i) => 
+              i === action.index ? { ...item, fotos: [...(item.fotos || []), action.foto] } : item
+            )
+          };
+        })
+      };
+
+    case 'REMOVE_FOTO_ITEM_MODELO':
+      return {
+        ...state,
+        modelos: state.modelos.map(m => {
+          if (m.id !== action.modeloId) return m;
+          return {
+            ...m,
+            [action.itemType]: m[action.itemType].map((item, i) => 
+              i === action.index ? { ...item, fotos: (item.fotos || []).filter((_, fi) => fi !== action.fotoIndex) } : item
+            )
+          };
+        })
+      };
+
+    // Anexos de modelo
+    case 'ADD_ANEXO_MODELO':
+      return {
+        ...state,
+        modelos: state.modelos.map(m => 
+          m.id === action.modeloId 
+            ? { ...m, [action.anexoTipo]: [...(m[action.anexoTipo] || []), action.url] }
+            : m
+        )
+      };
+
+    case 'REMOVE_ANEXO_MODELO':
+      return {
+        ...state,
+        modelos: state.modelos.map(m => 
+          m.id === action.modeloId 
+            ? { ...m, [action.anexoTipo]: (m[action.anexoTipo] || []).filter((_, i) => i !== action.index) }
+            : m
+        )
+      };
+
+    // Filtros
+    case 'TOGGLE_FILTRO':
+      if (action.filtro === 'modeloRef') {
+        return { ...state, filtroModeloRef: !state.filtroModeloRef };
+      } else {
+        return { ...state, filtroModeloFabricante: !state.filtroModeloFabricante };
+      }
+
+    case 'SET_FILTRO_MODELO_SELECIONADO':
+      return { ...state, filtroModeloSelecionado: action.modeloId };
+
+// Também atualizar o caso 'ADD_NEW_MODEL' para incluir linha:
+    case 'ADD_NEW_MODEL':
+      if (!state.newModel.nome) return state;
+      const newModelo: ModeloFabricante = {
+        id: uuidv4(),
+        nome: state.newModel.nome,
+        categoria: state.newModel.categoria,
+        codigoTipo: state.newModel.codigo,
+        linha: state.newModel.linha,
+        estetica: [],
+        funcional: [],
+        funcionalidades: []
+      };
+      return {
+        ...state,
+        modelos: [...state.modelos, newModelo],
+        activeModeloId: newModelo.id,
+        newModel: { nome: '', categoria: '', codigo: '', linha: '' }
+      };

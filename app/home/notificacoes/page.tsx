@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
     Package,
     Truck,
@@ -37,6 +38,8 @@ export default function NotificacoesPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'unread'>('all');
+    const searchParams = useSearchParams();
+    const q = (searchParams.get("q") || "").trim().toLowerCase();
 
     useEffect(() => {
         const loadNotifications = async () => {
@@ -76,8 +79,16 @@ export default function NotificacoesPage() {
             filtered = filtered.filter(n => !n.read);
         }
 
+        if (q) {
+            filtered = filtered.filter(n =>
+                n.title.toLowerCase().includes(q) ||
+                n.message.toLowerCase().includes(q) ||
+                (n.timestamp && n.timestamp.toLowerCase().includes(q))
+            );
+        }
+
         return filtered;
-    }, [notifications, user, filter]);
+    }, [notifications, user, filter, q]);
 
     const markAsRead = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -218,8 +229,8 @@ export default function NotificacoesPage() {
                             <div
                                 key={notification.id}
                                 className={`group relative bg-white rounded-[1.5rem] border p-6 transition-all duration-200 ${notification.read
-                                        ? 'border-slate-100 shadow-sm opacity-80 hover:opacity-100'
-                                        : 'border-indigo-100 shadow-lg shadow-indigo-100/50 scale-[1.01]'
+                                    ? 'border-slate-100 shadow-sm opacity-80 hover:opacity-100'
+                                    : 'border-indigo-100 shadow-lg shadow-indigo-100/50 scale-[1.01]'
                                     } hover:border-indigo-200 hover:shadow-xl`}
                             >
                                 <div className="flex items-start gap-5">

@@ -70,25 +70,45 @@ export class ProductService {
         return null;
     }
 
-    static async searchProducts(query: string): Promise<any[]> {
-        if (!query || query.length < 3) return [];
+    static async searchProducts(query: string, page: number = 1, pageSize: number = 20): Promise<{ data: any[], total: number, page: number, pageSize: number, totalPages: number }> {
+        if (!query || query.length < 3) return { data: [], total: 0, page: 1, pageSize, totalPages: 0 };
 
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        // Get total count
+        const { count } = await supabase
+            .from('produtos')
+            .select('*', { count: 'exact', head: true })
+            .or(`ean.ilike.%${query}%,modelo_referencia.ilike.%${query}%,fabricante.ilike.%${query}%`);
+
+        // Get paginated data
         const { data, error } = await supabase
             .from('produtos')
             .select('ean, modelo_referencia, fabricante')
             .or(`ean.ilike.%${query}%,modelo_referencia.ilike.%${query}%,fabricante.ilike.%${query}%`)
-            .limit(20);
+            .range(from, to)
+            .order('created_at', { ascending: false });
 
         if (error) {
             console.error('Error searching products:', error);
-            return [];
+            return { data: [], total: 0, page: 1, pageSize, totalPages: 0 };
         }
 
-        return (data || []).map(item => ({
-            ean: item.ean,
-            modeloRef: item.modelo_referencia,
-            marca: item.fabricante
-        }));
+        const total = count || 0;
+        const totalPages = Math.ceil(total / pageSize);
+
+        return {
+            data: (data || []).map(item => ({
+                ean: item.ean,
+                modeloRef: item.modelo_referencia,
+                marca: item.fabricante
+            })),
+            total,
+            page,
+            pageSize,
+            totalPages
+        };
     }
 
     static async getLatestProducts(): Promise<any[]> {

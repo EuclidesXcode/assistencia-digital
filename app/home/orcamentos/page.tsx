@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { DollarSign, Printer, Filter, ChevronRight, Calculator, FileText, CheckCircle2, User, Calendar, Barcode, Search } from "lucide-react";
 import { Button } from "@/components/Button";
 
@@ -19,6 +20,21 @@ export default function OrcamentosPage() {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  const searchParams = useSearchParams();
+  const q = (searchParams.get("q") || "").trim().toLowerCase();
+
+  const filteredRegistros = useMemo(() => {
+    if (!q) return registros;
+    return registros.filter(r =>
+      r.id.toLowerCase().includes(q) ||
+      r.nf.toLowerCase().includes(q) ||
+      r.modeloFabricante.toLowerCase().includes(q) ||
+      r.ean.toLowerCase().includes(q) ||
+      r.codigoNF.toLowerCase().includes(q) ||
+      r.analisadoPor.toLowerCase().includes(q)
+    );
+  }, [registros, q]);
 
   useEffect(() => {
     const loadRegistros = async () => {
@@ -62,14 +78,7 @@ export default function OrcamentosPage() {
           <p className="text-slate-500 font-medium text-sm">Elaboração, aprovação e envio de propostas.</p>
         </div>
         <div className="flex gap-3">
-          <div className="hidden md:flex items-center bg-slate-100 px-3 py-2 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500/20">
-            <Search size={16} className="text-slate-400 mr-2" />
-            <input
-              type="text"
-              placeholder="Buscar orçamento..."
-              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 w-48 placeholder:text-slate-400"
-            />
-          </div>
+          {/* Local search removed */}
           <Button onClick={() => alert("Abrir modal de Novo Orçamento")} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 rounded-full px-6 font-semibold transition-all hover:scale-105 active:scale-95">
             <Calculator size={18} className="mr-2" /> Novo Orçamento
           </Button>
@@ -96,6 +105,7 @@ export default function OrcamentosPage() {
               <div className="bg-slate-50 border border-slate-200 rounded-full px-4 py-2 flex items-center gap-2 text-xs font-mono text-slate-500">
                 <Filter size={14} />
                 <span>TOTAL: <strong className="text-slate-900">{registros.length}</strong></span>
+                <span>TOTAL: <strong className="text-slate-900">{filteredRegistros.length}</strong></span>
               </div>
               <Button variant="outline" onClick={abrirPecasPendentes} className="rounded-full border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50">
                 Pendentes ({registros.length})
@@ -117,9 +127,9 @@ export default function OrcamentosPage() {
                       onChange={(e) => {
                         const checked = e.target.checked;
                         const map: Record<string, boolean> = {};
-                        registros.forEach(r => map[r.id] = checked);
+                        filteredRegistros.forEach(r => map[r.id] = checked);
                         setSelected(map);
-                      }} checked={allSelectedCount === registros.length && registros.length > 0}
+                      }} checked={allSelectedCount === filteredRegistros.length && filteredRegistros.length > 0}
                     />
                   </th>
                   <th className="p-4 border-b border-slate-200">Data Análise</th>
@@ -132,46 +142,49 @@ export default function OrcamentosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {registros.map((r) => (
-                  <tr key={r.id} className="group hover:bg-blue-50/30 transition-colors">
-                    <td className="p-4">
-                      <input type="checkbox"
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        checked={!!selected[r.id]} onChange={() => toggle(r.id)}
-                      />
-                    </td>
-                    <td className="p-4 font-medium text-slate-700">{r.data}</td>
-                    <td className="p-4 text-slate-500 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
-                        {r.analisadoPor.charAt(0)}
-                      </div>
-                      {r.analisadoPor}
-                    </td>
-                    <td className="p-4 font-mono text-slate-500">{r.id}</td>
-                    <td className="p-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-700">{r.nf}</span>
-                        <span className="text-[10px] text-slate-400">COD: {r.codigoNF}</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-800">{r.modeloFabricante}</span>
-                        <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1"><Barcode size={10} /> {r.ean}</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-yellow-50 text-yellow-600 border border-yellow-100">
-                        Pendente
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button onClick={() => alert(`Detalhes do orçamento ${r.id}`)} className="text-slate-400 hover:text-blue-600 transition-colors">
-                        <ChevronRight size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredRegistros.length === 0 ? (
+                  <tr><td colSpan={8} className="p-8 text-center text-slate-400">Nenhum orçamento encontrado.</td></tr>
+                ) : (
+                  filteredRegistros.map((r) => (
+                    <tr key={r.id} className="group hover:bg-blue-50/30 transition-colors">
+                      <td className="p-4">
+                        <input type="checkbox"
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          checked={!!selected[r.id]} onChange={() => toggle(r.id)}
+                        />
+                      </td>
+                      <td className="p-4 font-medium text-slate-700">{r.data}</td>
+                      <td className="p-4 text-slate-500 flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                          {r.analisadoPor.charAt(0)}
+                        </div>
+                        {r.analisadoPor}
+                      </td>
+                      <td className="p-4 font-mono text-slate-500">{r.id}</td>
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-700">{r.nf}</span>
+                          <span className="text-[10px] text-slate-400">COD: {r.codigoNF}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-800">{r.modeloFabricante}</span>
+                          <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1"><Barcode size={10} /> {r.ean}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-yellow-50 text-yellow-600 border border-yellow-100">
+                          Pendente
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button onClick={() => alert(`Detalhes do orçamento ${r.id}`)} className="text-slate-400 hover:text-blue-600 transition-colors">
+                          <ChevronRight size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  )))}
               </tbody>
             </table>
           </div>
@@ -185,15 +198,19 @@ export default function OrcamentosPage() {
                   onChange={(e) => {
                     const checked = e.target.checked;
                     const map: Record<string, boolean> = {};
-                    registros.forEach(r => map[r.id] = checked);
+                    filteredRegistros.forEach(r => map[r.id] = checked);
                     setSelected(map);
-                  }} checked={allSelectedCount === registros.length && registros.length > 0}
+                  }} checked={allSelectedCount === filteredRegistros.length && filteredRegistros.length > 0}
                 />
-                <span className="text-sm font-medium text-slate-600">Selecionar Todos</span>
+                <span className="text-sm font-medium text-slate-600">Selecionar Todos ({filteredRegistros.length})</span>
               </div>
             </div>
 
-            {registros.map((r) => (
+            {filteredRegistros.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400">
+                Nenhum orçamento encontrado.
+              </div>
+            ) : filteredRegistros.map((r) => (
               <div key={r.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 relative group active:scale-[0.98] transition-all">
                 <div className="absolute top-4 right-4">
                   <input type="checkbox"

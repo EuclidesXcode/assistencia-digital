@@ -10,6 +10,13 @@ export interface ItemVinculado {
   nome: string; // Descrição
   codigo?: string; // Código da peça se houver
   quantidade?: number;
+  fotos?: string[]; // Fotos específicas do item
+}
+
+export interface AnexoModelo {
+  tipo: 'vistaExplodida' | 'boletimTecnico' | 'manualTecnico';
+  url: string;
+  nome?: string;
 }
 
 export interface ModeloFabricante {
@@ -17,11 +24,12 @@ export interface ModeloFabricante {
   nome: string; // O modelo em si (ex: 50UT8050PSA)
   categoria: string; // TV, Audio, etc
   codigoTipo?: string; // Código/Tipo extra
+  linha?: string; // Linha do produto
 
-  // Anexos do modelo
-  vistaExplodidaUrl?: string;
-  boletimTecnicoUrl?: string;
-  esquemaEletricoUrl?: string;
+  // Anexos do modelo (múltiplos)
+  vistaExplodida?: string[];
+  boletimTecnico?: string[];
+  manualTecnico?: string[];
 
   // Itens específicos deste modelo
   estetica: ItemVinculado[];

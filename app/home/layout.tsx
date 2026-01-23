@@ -18,6 +18,7 @@ import {
   Settings
 } from 'lucide-react';
 import { User } from '@/types';
+import GlobalSearch from '@/components/GlobalSearch';
 
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -101,7 +102,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-40 bg-white border-r border-slate-200 h-full min-h-screen transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0 md:w-20'} md:sticky md:top-0 md:h-screen overflow-hidden`}
+        className={`fixed left-0 top-0 z-[60] bg-white border-r border-slate-200 h-full min-h-screen transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0 md:w-20'} md:sticky md:top-0 md:h-screen overflow-hidden`}
         id="sidebar"
       >
         <div className="h-20 flex items-center justify-center border-b border-slate-100">
@@ -153,7 +154,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
       <main className="min-w-0 flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-20 flex-shrink-0">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-[50] flex-shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -163,14 +164,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
             >
               <Menu size={20} />
             </button>
-            <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500/20">
-              <Search size={16} className="text-slate-600 mr-2" />
-              <input
-                type="text"
-                placeholder="Buscar..."
-                className="bg-transparent border-none focus:outline-none text-sm text-slate-700 w-48 placeholder:text-slate-600"
-              />
-            </div>
+            <GlobalSearch />
           </div>
 
           <div className="flex items-center gap-4">
