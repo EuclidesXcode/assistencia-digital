@@ -26,6 +26,27 @@ export class ProductService {
         }
     }
 
+    private static mapProduct(data: any): any {
+        return {
+            id: data.id,
+            ean: data.ean,
+            modeloRef: data.modelo_ref,
+            marca: data.fabricante || 'N/A',
+            nfs: data.nfs_data || [],
+            modelos: data.modelo_fabricante || [],
+            embalagem: data.embalagem || [],
+            acessorios: data.acessorios || [],
+            estetica: data.estetica || [],
+            funcional: data.funcional || [],
+            funcionalidade: data.funcionalidade || [],
+            fotos: data.fotos || [],
+            manualUrl: data.manual_url,
+            estoqueAtual: data.estoque_atual,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+        };
+    }
+
     static async findByEan(ean: string): Promise<any | null> {
         // Busca o registro mais recente para este EAN para servir de template
         const { data, error } = await supabase
@@ -42,28 +63,7 @@ export class ProductService {
             throw new Error('Erro ao buscar produto');
         }
 
-        if (data) {
-            return {
-                id: data.id,
-                ean: data.ean,
-                modeloRef: data.modelo_ref,
-                marca: data.fabricante || 'N/A',
-                nfs: data.nfs_data || [],
-                modelos: data.modelo_fabricante || [],
-                embalagem: data.embalagem || [],
-                acessorios: data.acessorios || [],
-                estetica: data.estetica || [],
-                funcional: data.funcional || [],
-                funcionalidade: data.funcionalidade || [],
-                fotos: data.fotos || [],
-                manualUrl: data.manual_url,
-                estoqueAtual: data.estoque_atual,
-                createdAt: data.created_at,
-                updatedAt: data.updated_at
-            };
-        }
-
-        return null;
+        return data ? this.mapProduct(data) : null;
     }
 
     static async searchProducts(query: string, page: number = 1, pageSize: number = 20): Promise<{ data: any[], total: number, page: number, pageSize: number, totalPages: number }> {
@@ -88,12 +88,7 @@ export class ProductService {
         const totalPages = Math.ceil(total / pageSize);
 
         return {
-            data: (data || []).map((item: any) => ({
-                id: item.id,
-                ean: item.ean,
-                modeloRef: item.modelo_ref,
-                marca: item.fabricante || 'N/A'
-            })),
+            data: (data || []).map((item: any) => this.mapProduct(item)),
             total,
             page,
             pageSize,
@@ -113,12 +108,7 @@ export class ProductService {
             return [];
         }
 
-        return (data || []).map((item: any) => ({
-            id: item.id,
-            ean: item.ean,
-            modeloRef: item.modelo_ref,
-            marca: item.fabricante || 'N/A'
-        }));
+        return (data || []).map((item: any) => this.mapProduct(item));
     }
 
 

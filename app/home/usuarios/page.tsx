@@ -204,7 +204,7 @@ function UsuariosContent() {
         setEditUserData({
             ...editUserData,
             permissoes: editUserData.permissoes.includes(permissao)
-                ? editUserData.permissoes.filter(p => p !== permissoes)
+                ? editUserData.permissoes.filter(p => p !== permissao)
                 : [...editUserData.permissoes, permissao]
         });
     };
