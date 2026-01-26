@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FileText,
@@ -102,7 +102,7 @@ function StatusPill({ status }: { status: Nota["status"] }) {
   );
 }
 
-export default function NFeXmlPage() {
+function NFeXmlContent() {
   const [notas, setNotas] = useState<Nota[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -857,3 +857,16 @@ export default function NFeXmlPage() {
     </div>
   );
 }
+
+export default function NFeXmlPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600" />
+      </div>
+    }>
+      <NFeXmlContent />
+    </Suspense>
+  );
+}
+

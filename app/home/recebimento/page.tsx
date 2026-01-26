@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Check, Truck, Box, FileText, Package, Search, Printer, Filter, ChevronRight, Inbox, Clock, User, Barcode } from "lucide-react";
-import { Button } from "@/components/Button"; // Assuming Button component exists as in Cadastro
+import { Button } from "@/components/Button";
 
 interface Registro {
   id: string;
@@ -16,7 +16,7 @@ interface Registro {
   nf: string;
 }
 
-export default function RecebimentoPage() {
+function RecebimentoContent() {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -71,7 +71,6 @@ export default function RecebimentoPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32">
-      {/* --- Floating Header (Glassmorphism) --- */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 border-b border-slate-200/50 px-8 py-4 flex items-center justify-between shadow-sm transition-all duration-200">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">Recebimento de Produto</h1>
@@ -85,18 +84,14 @@ export default function RecebimentoPage() {
       </header>
 
       <div className="max-w-7xl mx-auto p-8 space-y-8">
-
-        {/* --- Workflow Status Card --- */}
         <section className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl opacity-50 -mr-16 -mt-16 pointer-events-none" />
-
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
             <div className="flex-1">
               <h2 className="font-bold text-xl text-slate-900 mb-2">Fluxo de Entrada</h2>
               <p className="text-slate-500 text-sm max-w-2xl">
                 Acompanhe as 4 etapas essenciais do processo de recebimento: LPN, Vistoria Revenda, SAT e Recebimento Físico.
               </p>
-
               <div className="mt-6 flex flex-wrap gap-3">
                 {['LPN', 'Vistoria', 'SAT', 'Recebimento'].map((step, i) => (
                   <div key={step} className="flex items-center">
@@ -109,14 +104,12 @@ export default function RecebimentoPage() {
                 ))}
               </div>
             </div>
-
             <div className="hidden lg:block opacity-10">
               <Truck size={120} className="text-indigo-900" />
             </div>
           </div>
         </section>
 
-        {/* --- Data Table Section --- */}
         <section className="bg-white p-0 md:p-8 rounded-[2rem] shadow-xl border border-slate-100">
           <div className="p-6 md:p-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
@@ -126,7 +119,6 @@ export default function RecebimentoPage() {
               </h3>
               <p className="text-sm text-slate-400">Produtos analisados, pendentes de elaboração.</p>
             </div>
-
             <div className="flex flex-wrap items-center gap-3">
               <div className="bg-slate-50 border border-slate-200 rounded-full px-4 py-2 flex items-center gap-2 text-xs font-mono text-slate-500">
                 <Filter size={14} />
@@ -138,7 +130,6 @@ export default function RecebimentoPage() {
             </div>
           </div>
 
-          {/* Desktop Table View */}
           <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-100">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
@@ -212,7 +203,6 @@ export default function RecebimentoPage() {
             </table>
           </div>
 
-          {/* Mobile Card View */}
           <div className="lg:hidden space-y-4 px-6 md:px-0">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -241,7 +231,6 @@ export default function RecebimentoPage() {
                     checked={!!selected[r.id]} onChange={() => toggle(r.id)}
                   />
                 </div>
-
                 <div className="flex flex-col gap-4">
                   <div>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-700 border border-amber-200 mb-2">
@@ -250,7 +239,6 @@ export default function RecebimentoPage() {
                     <h4 className="font-bold text-slate-900 text-lg leading-tight mb-1">{r.modeloFabricante}</h4>
                     <span className="text-xs text-slate-500 font-mono bg-white px-1 rounded border border-slate-100">ID: {r.id}</span>
                   </div>
-
                   <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm bg-white p-3 rounded-xl border border-slate-100">
                     <div>
                       <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Nota Fiscal</span>
@@ -272,10 +260,20 @@ export default function RecebimentoPage() {
               </div>
             ))}
           </div>
-
         </section>
-
       </div>
     </div>
+  );
+}
+
+export default function RecebimentoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    }>
+      <RecebimentoContent />
+    </Suspense>
   );
 }

@@ -24,7 +24,7 @@ import {
     Settings2,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { useSearchParams } from "next/navigation";
+
 import { ProductService } from "@/backend/services/productService";
 import { CreateProductDTO, ModeloFabricante, ProdutoNF, ItemVinculado } from "@/backend/models/Product";
 import { Input } from "@/components/Input";
