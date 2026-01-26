@@ -180,6 +180,7 @@ type Action =
     | { type: "SET_FILTER_MODE"; value: State["filterMode"] }
     | { type: "SET_FILTRO_MODELO_SELECIONADO"; value: string | null }
     | { type: "LOAD_FROM_DB"; data: any }
+    | { type: "LOAD_TEMPLATE_DATA"; data: any }
     | { type: "ADD_TOAST"; toast: Toast }
     | { type: "REMOVE_TOAST"; id: string };
 
@@ -214,6 +215,18 @@ function reducer(state: State, action: Action): State {
         case "CLEAR_IMAGE": return { ...state, imagens: { ...state.imagens, [action.field]: { url: null, file: null } } };
         case "SET_FILTER_MODE": return { ...state, filterMode: action.value, filtroModeloSelecionado: action.value === "MODELO_REF" ? null : state.filtroModeloSelecionado };
         case "SET_FILTRO_MODELO_SELECIONADO": return { ...state, filtroModeloSelecionado: action.value };
+        case "LOAD_TEMPLATE_DATA": {
+            const modelos = action.data.modelos || [];
+            return {
+                ...state,
+                modeloRef: action.data.modeloRef || "",
+                marca: action.data.marca || "",
+                manualUrl: action.data.manualUrl || "",
+                modelos,
+                activeModeloId: modelos[0]?.id ?? null,
+                errors: {}
+            };
+        }
         case "LOAD_FROM_DB": {
             const modelos = action.data.modelos || [];
             return { ...state, ean: action.data.ean || "", modeloRef: action.data.modeloRef || "", marca: action.data.marca || "", manualUrl: action.data.manualUrl || "", fotos: action.data.fotos || [], nfs: action.data.nfs || [], modelos, embalagem: action.data.embalagem || [], acessorios: action.data.acessorios || [], funcionalidade: action.data.funcionalidade || [], activeModeloId: modelos[0]?.id ?? null, errors: {} };
@@ -302,7 +315,10 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
             autoLoadRef.current = ean;
             try {
                 const data = await ProductService.findByEan(ean);
-                if (data) { dispatch({ type: "LOAD_FROM_DB", data }); toast("success", "Produto localizado."); }
+                if (data) {
+                    dispatch({ type: "LOAD_TEMPLATE_DATA", data });
+                    toast("info", "Template de produto carregado para este EAN.");
+                }
             } catch (err) { console.error(err); }
         }, 1000);
         return () => { if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current); };

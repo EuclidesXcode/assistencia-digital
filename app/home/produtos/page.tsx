@@ -35,7 +35,7 @@ function ProdutosContent() {
   const [produtos, setProdutos] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [expandedEan, setExpandedEan] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const loadProdutos = async () => {
     setIsLoading(true);
@@ -63,8 +63,8 @@ function ProdutosContent() {
     );
   }, [produtos, searchTerm]);
 
-  const toggleExpand = (ean: string) => {
-    setExpandedEan(expandedEan === ean ? null : ean);
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
   };
 
   if (showCadastro) {
@@ -163,10 +163,10 @@ function ProdutosContent() {
                   </tr>
                 ) : (
                   filteredProdutos.map((produto) => (
-                    <React.Fragment key={produto.ean}>
+                    <React.Fragment key={produto.id}>
                       <tr
-                        onClick={() => toggleExpand(produto.ean)}
-                        className={`group cursor-pointer transition-all duration-300 ${expandedEan === produto.ean ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}
+                        onClick={() => toggleExpand(produto.id)}
+                        className={`group cursor-pointer transition-all duration-300 ${expandedId === produto.id ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}
                       >
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-4">
@@ -198,10 +198,10 @@ function ProdutosContent() {
                         <td className="px-8 py-6">
                           <div className="flex items-center justify-center gap-3">
                             <button
-                              onClick={(e) => { e.stopPropagation(); toggleExpand(produto.ean); }}
-                              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${expandedEan === produto.ean ? 'bg-indigo-600 text-white shadow-indigo-200' : 'bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200'} shadow-sm`}
+                              onClick={(e) => { e.stopPropagation(); toggleExpand(produto.id); }}
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${expandedId === produto.id ? 'bg-indigo-600 text-white shadow-indigo-200' : 'bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200'} shadow-sm`}
                             >
-                              {expandedEan === produto.ean ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                              {expandedId === produto.id ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); }}
@@ -214,7 +214,7 @@ function ProdutosContent() {
                       </tr>
 
                       {/* Expanded Details Row */}
-                      {expandedEan === produto.ean && (
+                      {expandedId === produto.id && (
                         <tr>
                           <td colSpan={3} className="px-8 py-0 bg-slate-50/30 border-b border-slate-100">
                             <div className="py-8 animate-in slide-in-from-top-4 duration-300">
