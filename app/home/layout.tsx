@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { User } from '@/types';
 import GlobalSearch from '@/components/GlobalSearch';
+import { canAccessModule } from '@/lib/permissions';
 
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -102,10 +103,10 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-[60] bg-white border-r border-slate-200 h-full min-h-screen transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0 md:w-20'} md:sticky md:top-0 md:h-screen overflow-hidden`}
+        className={`fixed left-0 top-0 z-[60] bg-white border-r border-slate-200 h-full min-h-screen transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0 md:w-20'} md:sticky md:top-0 md:h-screen flex flex-col`}
         id="sidebar"
       >
-        <div className="h-20 flex items-center justify-center border-b border-slate-100">
+        <div className="h-20 flex-shrink-0 flex items-center justify-center border-b border-slate-100">
           {sidebarOpen ? (
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-lg">G</div>
@@ -118,11 +119,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
 
 
-        <nav className="p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0">
           {/* Dashboard - always visible */}
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={pathname === '/home'} isOpen={sidebarOpen} href="/home" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
 
-          <SidebarItem icon={Package} label="Cadastro" active={pathname === '/home/cadastro'} isOpen={sidebarOpen} href="/home/cadastro" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
+          <SidebarItem icon={Package} label="Produtos" active={pathname === '/home/produtos'} isOpen={sidebarOpen} href="/home/produtos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
           <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
@@ -131,7 +132,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         </nav>
 
         {/* User profile snippet at bottom of sidebar */}
-        <Link href="/home/configuracoes" className="absolute bottom-0 w-full p-4 border-t border-slate-100 bg-white hover:bg-slate-50 transition-colors">
+        <Link href="/home/configuracoes" className="mt-auto w-full p-4 border-t border-slate-100 bg-white hover:bg-slate-50 transition-colors flex-shrink-0">
           <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
             <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm flex-shrink-0 overflow-hidden ring-2 ring-white shadow-md">
               {user?.photoUrl ? (

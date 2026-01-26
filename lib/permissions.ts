@@ -2,8 +2,9 @@
 export function hasPermission(user: { role?: string; permissions?: string[] } | null, permission: string): boolean {
     if (!user) return false;
 
-    // Administrators have all permissions
-    if (user.role === 'Administrador') return true;
+    // Administrators have all permissions (case-insensitive check)
+    const role = user.role?.toLowerCase();
+    if (role === 'administrador' || role === 'admin') return true;
 
     // Check if user has specific permission
     return user.permissions?.includes(permission) || false;
@@ -16,7 +17,8 @@ export function canAccessModule(user: { role?: string; permissions?: string[] } 
         'nfe-xml': 'nfe',
         'recebimento': 'recebimento',
         'pre-analise': 'pre-analise',
-        'usuarios': 'admin'
+        'usuarios': 'admin',
+        'configuracoes': 'admin'
     };
 
     const requiredPermission = modulePermissionMap[module];
@@ -24,3 +26,4 @@ export function canAccessModule(user: { role?: string; permissions?: string[] } 
 
     return hasPermission(user, requiredPermission);
 }
+

@@ -1,29 +1,14 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rejkmpkxlxonbkhkddvs.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_Teklw3P-UwS87s2LSjkl2g_ZZ-4up2B';
-
-// Debug environment variables
-console.log('Supabase Initialization:', {
-    hasUrl: !!supabaseUrl,
-    url: supabaseUrl,
-    hasKey: !!supabaseKey,
-    keyLength: supabaseKey?.length
-});
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-    console.error('CRITICAL: Missing Supabase environment variables');
+    console.warn('Supabase environment variables are missing. Using hardcoded defaults for development.');
 }
 
-// Validate Key Format (Basic check to avoid DOMException on atob)
-const isValidKey = (key: string) => {
-    // JWTs usually have 3 parts separated by dots
-    return key && key.split('.').length === 3;
-};
+const finalUrl = supabaseUrl || 'https://rejkmpkxlxonbkhkddvs.supabase.co';
+const finalKey = supabaseKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlamttcGt4bHhvbmJraGtkZHZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMzgxNDMsImV4cCI6MjA4MTgxNDE0M30.BxoKQvW7Io2gkTJ5oG12v8AC0vrwSZnGOJ2ud_Q8gb8';
 
-if (!isValidKey(supabaseKey!)) {
-    console.warn('WARNING: Supabase Key does not look like a valid JWT. This might cause "The string did not match the expected pattern" errors.');
-}
-
-export const supabase = createClient(supabaseUrl!, supabaseKey!);
+export const supabase = createClient(finalUrl, finalKey);

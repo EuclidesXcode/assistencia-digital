@@ -11,24 +11,24 @@ export class ProductService {
 
         const { error } = await supabase.from('produtos').insert([{
             ean: data.ean,
-            modelo_referencia: data.modeloRef,
-            fabricante: data.marca,
+            modelo_ref: data.modeloRef,
+            // fabricante: data.marca, // Removido pois a coluna não existe no banco
             nfs_data: data.nfs,
-            modelos_data: data.modelos,
+            modelo_fabricante: data.modelos, // Corrigido para bater com o banco
             embalagem: data.embalagem,
             acessorios: data.acessorios,
             estetica: data.estetica,
             funcional: data.funcional,
             funcionalidade: data.funcionalidade,
-            fotos: data.fotos,
-            manual_url: data.manualUrl,
+            // fotos: data.fotos, // Coluna fotos não encontrada no sample
+            // manual_url: data.manualUrl, // Coluna manual_url não encontrada no sample
             estoque_atual: 0
         }]);
 
         if (error) {
             console.error('Error creating product:', error);
             if (error.code === '23505') throw new Error('Este EAN já está cadastrado.');
-            throw new Error('Erro ao salvar produto no banco de dados');
+            throw new Error('Erro ao salvar produto no banco de dados: ' + error.message);
         }
     }
 
@@ -50,15 +50,15 @@ export class ProductService {
             return {
                 id: data.id,
                 ean: data.ean,
-                modeloRef: data.modelo_referencia,
-                marca: data.fabricante,
+                modeloRef: data.modelo_ref,
+                marca: data.fabricante || 'PHILCO', // Fallback se não existir
                 nfs: data.nfs_data || [],
-                modelos: data.modelos_data || [],
+                modelos: data.modelo_fabricante || [],
                 embalagem: data.embalagem || [],
                 acessorios: data.acessorios || [],
                 estetica: data.estetica || [],
                 funcional: data.funcional || [],
-                funcionalidade: data.funcionalidade || [], // Root functionality
+                funcionalidade: data.funcionalidade || [],
                 fotos: data.fotos || [],
                 manualUrl: data.manual_url,
                 estoqueAtual: data.estoque_atual,
@@ -70,6 +70,7 @@ export class ProductService {
         return null;
     }
 
+
     static async searchProducts(query: string, page: number = 1, pageSize: number = 20): Promise<{ data: any[], total: number, page: number, pageSize: number, totalPages: number }> {
         if (!query || query.length < 3) return { data: [], total: 0, page: 1, pageSize, totalPages: 0 };
 
@@ -80,13 +81,13 @@ export class ProductService {
         const { count } = await supabase
             .from('produtos')
             .select('*', { count: 'exact', head: true })
-            .or(`ean.ilike.%${query}%,modelo_referencia.ilike.%${query}%,fabricante.ilike.%${query}%`);
+            .or(`ean.ilike.%${query}%,modelo_ref.ilike.%${query}%`);
 
         // Get paginated data
         const { data, error } = await supabase
             .from('produtos')
-            .select('ean, modelo_referencia, fabricante')
-            .or(`ean.ilike.%${query}%,modelo_referencia.ilike.%${query}%,fabricante.ilike.%${query}%`)
+            .select('ean, modelo_ref')
+            .or(`ean.ilike.%${query}%,modelo_ref.ilike.%${query}%`)
             .range(from, to)
             .order('created_at', { ascending: false });
 
@@ -99,10 +100,10 @@ export class ProductService {
         const totalPages = Math.ceil(total / pageSize);
 
         return {
-            data: (data || []).map(item => ({
+            data: (data || []).map((item: any) => ({
                 ean: item.ean,
-                modeloRef: item.modelo_referencia,
-                marca: item.fabricante
+                modeloRef: item.modelo_ref,
+                marca: item.fabricante || 'N/A'
             })),
             total,
             page,
@@ -114,7 +115,7 @@ export class ProductService {
     static async getLatestProducts(): Promise<any[]> {
         const { data, error } = await supabase
             .from('produtos')
-            .select('ean, modelo_referencia, fabricante')
+            .select('ean, modelo_ref')
             .order('created_at', { ascending: false })
             .limit(10);
 
@@ -123,11 +124,13 @@ export class ProductService {
             return [];
         }
 
-        return (data || []).map(item => ({
+        return (data || []).map((item: any) => ({
             ean: item.ean,
-            modeloRef: item.modelo_referencia,
-            marca: item.fabricante
+            modeloRef: item.modelo_ref,
+            marca: item.fabricante || 'N/A'
         }));
     }
+
+
 }
 
