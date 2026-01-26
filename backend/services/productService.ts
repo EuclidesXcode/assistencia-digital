@@ -9,7 +9,6 @@ export class ProductService {
         const { error } = await supabase.from('produtos').insert([{
             ean: data.ean,
             modelo_ref: data.modeloRef,
-            fabricante: data.marca,
             nfs_data: data.nfs,
             modelo_fabricante: data.modelos,
             embalagem: data.embalagem,

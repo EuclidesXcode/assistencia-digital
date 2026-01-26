@@ -332,9 +332,9 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
     const allItems = useMemo(() => {
         const items: any[] = [];
         let count = 0;
-        state.embalagem.forEach((item, i) => items.push({ id: `emb-${i}`, count: ++count, type: "PACKAGING", badgeColor: "bg-amber-50 text-amber-700 border-amber-100", model: "-", code: "-", name: item.nome, icon: Box, origin: "embalagem", index: i }));
-        state.acessorios.forEach((item, i) => items.push({ id: `acc-${i}`, count: ++count, type: "ACCESSORY", badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-100", model: "-", code: "-", name: item.nome, icon: Package, origin: "acessorios", index: i }));
-        state.funcionalidade?.forEach((item, i) => items.push({ id: `fun-${i}`, count: ++count, type: "FEATURE", badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-100", model: "-", code: "-", name: item.nome, icon: Wrench, origin: "funcionalidade", index: i }));
+        state.embalagem.forEach((item, i) => items.push({ id: `emb-${i}`, count: ++count, type: "EMBALAGEM", badgeColor: "bg-amber-50 text-amber-700 border-amber-100", model: "-", code: "-", name: item.nome, icon: Box, origin: "embalagem", index: i }));
+        state.acessorios.forEach((item, i) => items.push({ id: `acc-${i}`, count: ++count, type: "ACESSÓRIO", badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-100", model: "-", code: "-", name: item.nome, icon: Package, origin: "acessorios", index: i }));
+        state.funcionalidade?.forEach((item, i) => items.push({ id: `fun-${i}`, count: ++count, type: "RECURSO", badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-100", model: "-", code: "-", name: item.nome, icon: Wrench, origin: "funcionalidade", index: i }));
         state.modelos.forEach((m) => {
             if (state.filterMode === "MODELO_FABRICANTE" && state.filtroModeloSelecionado && state.filtroModeloSelecionado !== m.id) return;
             [{ list: m.estetica, type: "ESTÉTICA", b: "bg-indigo-50 text-indigo-700 border-indigo-100", k: "estetica", i: ImageIcon },
@@ -505,7 +505,7 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
                                         const found = ["PHILCO", "LG", "SONY", "SAMSUNG", "PANASONIC", "TCL", "AOC", "BRITÂNIA", "BRITANIA", "HISENSE"].find(b => v.toUpperCase().includes(b));
                                         if (found && !state.marca) dispatch({ type: "SET_FIELD", field: "marca", value: found });
                                     }}
-                                    placeholder="Digite a descrição master do produto..."
+                                    placeholder="Digite a descrição principal do produto..."
                                     tabIndex={2}
                                     className={`h-16 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white text-xl font-black text-slate-800 transition-all ${state.errors.modeloRef ? 'border-red-500' : 'focus:ring-indigo-500/20'}`}
                                 />
@@ -518,7 +518,7 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
                         <div className="bg-slate-900 p-10 rounded-[3rem] shadow-2xl text-white h-full border border-slate-800">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
-                                    <h3 className="text-xl font-black tracking-tight">Arquivos Master</h3>
+                                    <h3 className="text-xl font-black tracking-tight">Arquivos Gerais</h3>
                                     <p className="text-slate-400 text-xs font-medium mt-1">Componentes de logística.</p>
                                 </div>
                                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-indigo-400"><FileJson size={20} /></div>
