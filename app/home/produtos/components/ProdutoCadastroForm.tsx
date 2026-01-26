@@ -264,9 +264,30 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
 
     const getActiveModel = () => state.modelos.find((m) => m.id === state.activeModeloId);
 
+    const isValidGTIN = (code: string) => {
+        const cleaned = code.replace(/\D/g, '');
+        if (![8, 12, 13, 14].includes(cleaned.length)) return false;
+
+        const digits = cleaned.split('').map(Number);
+        const checkDigit = digits.pop();
+
+        let sum = 0;
+        const reversedDigits = digits.reverse();
+        for (let i = 0; i < reversedDigits.length; i++) {
+            sum += reversedDigits[i] * (i % 2 === 0 ? 3 : 1);
+        }
+
+        const calculatedCheckDigit = (10 - (sum % 10)) % 10;
+        return calculatedCheckDigit === checkDigit;
+    };
+
     const validate = () => {
         const errors: Record<string, string> = {};
-        if (!state.ean?.trim()) errors.ean = "EAN é obrigatório";
+        if (!state.ean?.trim()) {
+            errors.ean = "EAN/GTIN é obrigatório";
+        } else if (!isValidGTIN(state.ean)) {
+            errors.ean = "EAN/GTIN inválido (verifique os dígitos)";
+        }
         if (!state.modeloRef?.trim()) errors.modeloRef = "Modelo Referência é obrigatório";
         if (state.modelos.length === 0) errors.modelos = "Cadastre pelo menos 1 Modelo Fabricante";
         return errors;
@@ -476,7 +497,10 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
                                 <div className="relative group">
                                     <Input
                                         value={state.ean}
-                                        onChange={(e) => dispatch({ type: "SET_FIELD", field: "ean", value: e.target.value })}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, '').slice(0, 14);
+                                            dispatch({ type: "SET_FIELD", field: "ean", value: val });
+                                        }}
                                         placeholder="0000000000000"
                                         tabIndex={1}
                                         className={`h-14 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-lg font-mono tracking-wider ${state.errors.ean ? 'border-red-500 bg-red-50' : 'focus:ring-indigo-500/20'}`}
