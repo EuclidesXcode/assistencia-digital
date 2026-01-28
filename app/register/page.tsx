@@ -2,14 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Building2, Mail, Lock, ArrowRight, User as UserIcon, LayoutDashboard, AlertCircle } from 'lucide-react';
+import { Building2, Mail, Lock, User as UserIcon, LayoutDashboard, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { supabase } from '@/lib/supabase';
+import { registerUser } from '@/lib/authService';
 
 export default function RegisterPage() {
-    const router = useRouter();
     const [formData, setFormData] = useState({
         name: '',
         branchCode: '0001', // Default to Head Office for now
@@ -39,27 +37,18 @@ export default function RegisterPage() {
         }
 
         try {
-            const { data, error: signUpError } = await supabase.auth.signUp({
+            const result = await registerUser({
+                name: formData.name,
+                branchCode: formData.branchCode,
                 email: formData.email,
-                password: formData.password,
-                options: {
-                    data: {
-                        full_name: formData.name,
-                        branch_code: formData.branchCode,
-                    }
-                }
+                password: formData.password
             });
 
-            if (signUpError) {
-                throw signUpError;
+            if (!result.ok) {
+                throw new Error(result.error || 'Cadastro indisponivel no momento.');
             }
 
-            if (data.user) {
-                setSuccess(true);
-                // Optional: Auto login or wait for email confirmation?
-                // Usually, Supabase defaults to "Confirm Email".
-            }
-
+            setSuccess(true);
         } catch (err: any) {
             console.error('Registration error:', err);
             setError(err.message || 'Erro ao realizar cadastro.');
@@ -77,7 +66,7 @@ export default function RegisterPage() {
                     </div>
                     <h2 className="text-2xl font-bold text-slate-800 mb-2">Cadastro realizado!</h2>
                     <p className="text-slate-600 mb-6">
-                        Sua conta foi criada com sucesso. Verifique seu email para confirmar o cadastro antes de fazer login.
+                        Sua conta foi criada com sucesso. Voce ja pode fazer login.
                     </p>
                     <Link href="/">
                         <Button className="w-full">Ir para Login</Button>

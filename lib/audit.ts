@@ -1,6 +1,4 @@
 
-import { supabase } from './supabase';
-
 export interface AuditLogParams {
     userId: string;
     action: string;
@@ -21,20 +19,23 @@ export async function createAuditLog({
     userAgent
 }: AuditLogParams) {
     try {
-        const { error } = await supabase
-            .from('audit_logs')
-            .insert({
-                user_id: userId,
+        const response = await fetch('/api/audit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId,
                 action,
                 resource,
-                resource_id: resourceId,
+                resourceId,
                 details,
-                ip_address: ipAddress,
-                user_agent: userAgent
-            });
+                ipAddress,
+                userAgent
+            })
+        });
 
-        if (error) {
-            console.error('Error creating audit log:', error);
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Error creating audit log:', text);
         }
     } catch (err) {
         console.error('Unexpected error creating audit log:', err);

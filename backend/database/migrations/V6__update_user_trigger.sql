@@ -1,29 +1,36 @@
--- Update Trigger to Handle Branch Assignment via Code
-CREATE OR REPLACE FUNCTION public.handle_new_user() 
+-- Update Trigger to Handle Branch Assignment via app_users.matriz_filial
+CREATE OR REPLACE FUNCTION public.handle_new_app_user() 
 RETURNS trigger AS $$
 DECLARE
   v_branch_id UUID;
-  v_branch_code TEXT;
 BEGIN
-  -- Get branch code from metadata
-  v_branch_code := new.raw_user_meta_data->>'branch_code';
-
-  -- Try to find branch
-  IF v_branch_code IS NOT NULL THEN
-    SELECT id INTO v_branch_id FROM public.branches WHERE branch_code = v_branch_code LIMIT 1;
+  IF new.matriz_filial IS NOT NULL THEN
+    SELECT id INTO v_branch_id
+    FROM public.branches
+    WHERE branch_code = new.matriz_filial OR branch_name = new.matriz_filial
+    LIMIT 1;
   END IF;
 
-  -- Insert profile
-  INSERT INTO public.profiles (id, full_name, email, role, permissions, branch_id)
+  INSERT INTO public.profiles (id, full_name, email, role, permissions, branch_id, is_active)
   VALUES (
-    new.id, 
-    new.raw_user_meta_data->>'full_name', 
-    new.email, 
-    'user', 
-    '{}',
-    v_branch_id
-  );
+    new.id,
+    NULL,
+    new.email,
+    'user',
+    '{}'::text[],
+    v_branch_id,
+    new.ativo
+  )
+  ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        branch_id = EXCLUDED.branch_id,
+        is_active = EXCLUDED.is_active;
   
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_app_user_created ON public.app_users;
+CREATE TRIGGER on_app_user_created
+  AFTER INSERT ON public.app_users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_app_user();

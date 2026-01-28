@@ -63,7 +63,7 @@ CREATE POLICY "Enable all access for authenticated users" ON nfe_xmls FOR ALL TO
 -- 15. NOTIFICATIONS
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE, -- specific user or null for global?
+  user_id UUID REFERENCES app_users(id) ON DELETE CASCADE, -- specific user or null for global?
   global BOOLEAN DEFAULT FALSE, -- if true, visible to all (or filtered by permission)
   type TEXT CHECK (type IN ('orcamento', 'recebimento', 'pre-analise', 'nfe', 'alerta', 'sucesso', 'cadastro')),
   title TEXT NOT NULL,
@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 -- RLS
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Enable read/update for own notifications" ON notifications FOR ALL TO authenticated USING (auth.uid() = user_id OR global = true);
+DROP POLICY IF EXISTS "service_role_all_notifications" ON notifications;
+CREATE POLICY "service_role_all_notifications" ON notifications FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 
 -- 16. RECEBIMENTOS

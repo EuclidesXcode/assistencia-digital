@@ -1,21 +1,5 @@
 
-import { supabase } from '@/lib/supabase';
 import { Usuario, AtividadeUsuario, CreateUsuarioDTO, UpdatePermissoesDTO, UpdateStatusDTO } from '../models/UserManagement';
-
-// Helper to map Profile to Usuario
-function mapProfileToUsuario(profile: any): Usuario {
-    return {
-        id: profile.id,
-        nome: profile.full_name || '',
-        email: profile.email || '',
-        filial: profile.branches?.branch_name || 'N/A', // Assuming relation
-        cargo: profile.role || 'user',
-        permissoes: profile.permissions || [],
-        ativo: profile.is_active,
-        ultimoAcesso: profile.last_login ? new Date(profile.last_login).toLocaleString('pt-BR') : 'Nunca',
-        dataCriacao: new Date(profile.created_at).toLocaleDateString('pt-BR')
-    };
-}
 
 export class UserManagementService {
     /**
@@ -26,42 +10,18 @@ export class UserManagementService {
         filial?: string;
         status?: 'ATIVOS' | 'INATIVOS' | 'TODOS';
     }): Promise<Usuario[]> {
-        let query = supabase
-            .from('profiles')
-            .select(`
-                *,
-                branches (branch_name)
-            `);
+        const params = new URLSearchParams();
+        if (filters?.search) params.set('search', filters.search);
+        if (filters?.status) params.set('status', filters.status);
 
-        if (filters?.filial && filters.filial !== 'TODAS') {
-            // This assumes filtering by branch ID or Name. Since DTO uses string, we need to adapt.
-            // Ideally we filter by branch_id. For now, assuming client handles mapping.
-            // query = query.eq('branch_id', filters.filial); 
+        const response = await fetch(`/api/admin/users?${params.toString()}`);
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Falha ao listar usuarios.');
         }
 
-        if (filters?.status) {
-            if (filters.status === 'ATIVOS') {
-                query = query.eq('is_active', true);
-            } else if (filters.status === 'INATIVOS') {
-                query = query.eq('is_active', false);
-            }
-        }
-
-        const { data: profiles, error } = await query;
-
-        if (error) throw new Error(error.message);
-
-        let usuarios = profiles.map(mapProfileToUsuario);
-
-        if (filters?.search) {
-            const searchLower = filters.search.toLowerCase();
-            usuarios = usuarios.filter(u =>
-                u.nome.toLowerCase().includes(searchLower) ||
-                u.email.toLowerCase().includes(searchLower)
-            );
-        }
-
-        return usuarios;
+        const data = await response.json();
+        return data.usuarios || [];
     }
 
     /**
@@ -120,36 +80,25 @@ export class UserManagementService {
      * Update user details (Full Update)
      */
     static async updateUsuario(usuarioId: string, data: Partial<Usuario> & { password?: string }): Promise<void> {
-        // 1. Update Profile Data
-        const updateData: any = {};
-        if (data.nome) updateData.full_name = data.nome;
-        if (data.cargo) updateData.role = data.cargo;
-        if (data.permissoes) updateData.permissions = data.permissoes;
-        // email is tricky to update in supabase without auth re-verification, often better to leave it read-only or handle via specific auth flow
+        const response = await fetch('/api/admin/users', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: usuarioId,
+                nome: data.nome,
+                filial: (data as any).filial,
+                cargo: data.cargo,
+                permissoes: data.permissoes,
+                branchId: (data as any).branchId,
+                password: data.password
+            }),
+        });
 
-        if (Object.keys(updateData).length > 0) {
-            const { error } = await supabase
-                .from('profiles')
-                .update(updateData)
-                .eq('id', usuarioId);
-
-            if (error) throw new Error('Erro ao atualizar perfil: ' + error.message);
-        }
-
-        // 2. Update Password (if provided) - This requires an Admin API call usually, similar to create
-        if (data.password && data.password.trim() !== "") {
-            const response = await fetch('/api/admin/users', {
-                method: 'PUT', // Using PUT or PATCH for updates
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ id: usuarioId, password: data.password }),
-            });
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error('Falha ao atualizar senha: ' + text);
-            }
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error('Falha ao atualizar usuario: ' + text);
         }
     }
 
@@ -157,73 +106,58 @@ export class UserManagementService {
      * Update user permissions
      */
     static async updatePermissoes(usuarioId: string, data: UpdatePermissoesDTO): Promise<void> {
-        const { error } = await supabase
-            .from('profiles')
-            .update({ permissions: data.permissoes })
-            .eq('id', usuarioId);
+        const response = await fetch('/api/admin/users', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: usuarioId, permissoes: data.permissoes })
+        });
 
-        if (error) throw new Error(error.message);
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Erro ao atualizar permissoes.');
+        }
     }
 
     /**
      * Update user status
      */
     static async updateStatus(usuarioId: string, data: UpdateStatusDTO): Promise<void> {
-        const { error } = await supabase
-            .from('profiles')
-            .update({ is_active: data.ativo })
-            .eq('id', usuarioId);
+        const response = await fetch('/api/admin/users', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: usuarioId, ativo: data.ativo })
+        });
 
-        if (error) throw new Error(error.message);
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Erro ao atualizar status.');
+        }
     }
 
     /**
      * Get user activities (Audit Logs)
      */
     static async getAtividades(usuarioId: string): Promise<AtividadeUsuario[]> {
-        const { data: logs, error } = await supabase
-            .from('audit_logs')
-            .select('*')
-            .eq('user_id', usuarioId)
-            .order('created_at', { ascending: false });
+        const response = await fetch(`/api/admin/users/activities?userId=${usuarioId}`);
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Erro ao buscar atividades.');
+        }
 
-        if (error) throw new Error(error.message);
-
-        return logs.map((log: any) => ({
-            id: log.id,
-            usuarioId: log.user_id,
-            acao: log.action,
-            modulo: log.resource || 'Sistema',
-            data: new Date(log.created_at).toLocaleString('pt-BR'),
-            detalhes: log.details ? JSON.stringify(log.details) : (log.resource || '')
-        }));
+        const data = await response.json();
+        return data.atividades || [];
     }
 
     /**
      * Get user statistics
      */
     static async getStats() {
-        const { data: profiles, error } = await supabase.from('profiles').select('is_active');
-        if (error) throw new Error(error.message);
+        const response = await fetch('/api/admin/users/stats');
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Erro ao buscar estatisticas.');
+        }
 
-        const total = profiles.length;
-        const ativos = profiles.filter(p => p.is_active).length;
-        const inativos = total - ativos;
-
-        // Count today's activities
-        const today = new Date().toISOString().split('T')[0];
-        const { count, error: countError } = await supabase
-            .from('audit_logs')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', today);
-
-        if (countError) throw new Error(countError.message);
-
-        return {
-            total,
-            ativos,
-            inativos,
-            atividadesHoje: count || 0
-        };
+        return response.json();
     }
 }

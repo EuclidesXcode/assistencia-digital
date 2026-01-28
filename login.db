@@ -1,0 +1,19 @@
+﻿CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+Users table
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+Examplo insert 
+INSERT INTO public.users (email, password_hash)
+VALUES ('user@example.com', crypt('SenhaForte123', gen_salt('bf')));
+
+Examplo login check
+ SELECT id, email, created_at
+FROM public.users
+WHERE email = 'user@example.com'
+AND password_hash = crypt('SenhaForte123', password_hash);

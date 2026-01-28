@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { Notification, CreateNotificationDTO } from '../models/Notification';
 import { User } from '../models/Auth';
 
@@ -7,76 +6,59 @@ export class NotificationService {
      * Get notifications for user
      */
     static async getNotifications(user: User): Promise<Notification[]> {
-        // Fetch notifications from 'notifications' table
-        // filtering by user_id OR global notifications (if implemented)
-        const { data, error } = await supabase
-            .from('notifications')
-            .select('*')
-            .or(`user_id.eq.${user.id},global.eq.true`)
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching notifications:', error);
-            // Return empty if table doesn't exist
-            return [];
-        }
-
-        return data || [];
+        const response = await fetch(`/api/notifications?userId=${user.id}`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.notifications || [];
     }
 
     /**
      * Get unread notifications count
      */
     static async getUnreadCount(user: User): Promise<number> {
-        const { count, error } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .or(`user_id.eq.${user.id},global.eq.true`)
-            .eq('read', false);
-
-        if (error) return 0;
-        return count || 0;
+        const response = await fetch(`/api/notifications/unread-count?userId=${user.id}`);
+        if (!response.ok) return 0;
+        const data = await response.json();
+        return data.count || 0;
     }
 
     /**
      * Mark notification as read
      */
     static async markAsRead(notificationId: string): Promise<void> {
-        await supabase
-            .from('notifications')
-            .update({ read: true })
-            .eq('id', notificationId);
+        await fetch('/api/notifications', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: notificationId })
+        });
     }
 
     /**
      * Mark all notifications as read
      */
     static async markAllAsRead(user: User): Promise<void> {
-        await supabase
-            .from('notifications')
-            .update({ read: true })
-            .eq('user_id', user.id);
+        await fetch('/api/notifications', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ all: true, userId: user.id })
+        });
     }
 
     /**
      * Create new notification
      */
     static async createNotification(data: CreateNotificationDTO): Promise<Notification> {
-        const { data: newNotification, error } = await supabase
-            .from('notifications')
-            .insert([{
-                type: data.type,
-                title: data.title,
-                message: data.message,
-                link: data.link,
-                permission: data.permission,
-                read: false,
-                created_at: new Date()
-            }])
-            .select()
-            .single();
+        const response = await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
 
-        if (error) throw error;
-        return newNotification;
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Erro ao criar notificacao');
+        }
+
+        return response.json();
     }
 }

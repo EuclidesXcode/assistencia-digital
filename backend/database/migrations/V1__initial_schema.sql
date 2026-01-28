@@ -1,5 +1,6 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- 1. ADDRESSES
 CREATE TABLE addresses (
@@ -135,9 +136,23 @@ CREATE TABLE entities (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 8.5 APP_USERS (Custom Auth)
+CREATE TABLE app_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  matriz_filial TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX idx_app_users_email ON app_users(email);
+CREATE INDEX idx_app_users_matriz_filial ON app_users(matriz_filial);
+
 -- 9. PROFILES
 CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
   full_name TEXT,
   email TEXT,
   avatar_url TEXT,
@@ -153,7 +168,7 @@ CREATE TABLE profiles (
 -- 10. AUDIT LOGS
 CREATE TABLE audit_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES app_users(id) ON DELETE SET NULL,
   action TEXT NOT NULL,
   resource TEXT NOT NULL,
   resource_id UUID,
@@ -171,6 +186,7 @@ ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE people ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE entities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
@@ -185,23 +201,36 @@ CREATE POLICY "Enable read access for authenticated users" ON people FOR SELECT 
 CREATE POLICY "Enable read access for authenticated users" ON clients FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Enable read access for authenticated users" ON entities FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "service_role_all_app_users" ON app_users FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "service_role_all_profiles" ON profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- TRIGGERS
-CREATE OR REPLACE FUNCTION public.handle_new_user() 
+CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, email, role, permissions)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email, 'user', '{}');
+  NEW.updated_at = timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_app_users_updated_at
+BEFORE UPDATE ON app_users
+FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
+
+CREATE OR REPLACE FUNCTION public.handle_new_app_user() 
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, role, permissions, is_active)
+  VALUES (new.id, NULL, new.email, 'user', '{}', new.ativo)
+  ON CONFLICT (id) DO NOTHING;
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+CREATE OR REPLACE TRIGGER on_app_user_created
+  AFTER INSERT ON app_users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_app_user();
 
 -- INDEXES
 CREATE INDEX idx_profiles_branch ON profiles(branch_id);
