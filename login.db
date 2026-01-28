@@ -8,11 +8,11 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-Examplo insert 
+Examplo insert (commented)
 INSERT INTO public.users (email, password_hash)
 VALUES ('user@example.com', crypt('SenhaForte123', gen_salt('bf')));
 
-Examplo login check
+Examplo login check (commented)
  SELECT id, email, created_at
 FROM public.users
 WHERE email = 'user@example.com'
