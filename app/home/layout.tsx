@@ -7,30 +7,191 @@ import {
   LogOut,
   Menu,
   Bell,
-  Search,
   LayoutDashboard,
   Package,
   DollarSign,
-  FileText,
   Truck,
   ClipboardCheck,
   Users,
-  Settings
+  Settings,
+  Wrench,
+  MapPin,
+  BadgeCheck,
+  Box,
+  Ship,
+  Search,
+  Building2,
+  UserPlus,
 } from 'lucide-react';
 import { User } from '@/types';
 import GlobalSearch from '@/components/GlobalSearch';
-import { canAccessModule } from '@/lib/permissions';
+import Sidebar, { Group, MenuData, Screen, ScreenKey } from '@/components/Sidebar';
+import { hasPermission } from '@/lib/permissions';
+
+const SYSTEM_NAME = 'Gromit';
+const SYSTEM_DOT = 'Gromit.Control';
+
+const SCREEN_ROUTES: Record<ScreenKey, string> = {
+  dashboard: '/home',
+  recebimento: '/home/recebimento',
+  recebimento_com_nf: '/home/recebimento/com-nf',
+  recebimento_sem_nf: '/home/recebimento/sem-nf',
+  pre_analise: '/home/pre-analise',
+  analise_tecnica: '/home/analise-tecnica',
+  endereco: '/home/endereco',
+  conserto: '/home/conserto',
+  qualidade: '/home/qualidade',
+  embalagem: '/home/embalagem',
+  expedicao: '/home/expedicao',
+  cadastro_produtos: '/home/produtos',
+  orcamento: '/home/orcamentos',
+  verificar_disponibilidade: '/home/verificar-disponibilidade',
+  cadastro_empresas: '/home/cadastro-empresas',
+  cadastro_clientes: '/home/cadastro-clientes',
+  cadastro_usuario: '/home/usuarios',
+};
+
+const SCREEN_LABELS: Record<ScreenKey, string> = {
+  dashboard: 'Dashboard',
+  recebimento: '01 - Recebimento',
+  recebimento_com_nf: 'Com NF',
+  recebimento_sem_nf: 'Sem NF',
+  pre_analise: 'Pre-analise',
+  analise_tecnica: 'Analise tecnica',
+  endereco: 'Endereco',
+  conserto: 'Conserto',
+  qualidade: 'Qualidade',
+  embalagem: 'Embalagem',
+  expedicao: 'Expedicao',
+  cadastro_produtos: 'Cadastro de produtos',
+  orcamento: 'Orcamento',
+  verificar_disponibilidade: 'Verificar disponibilidade',
+  cadastro_empresas: 'Cadastro de empresas',
+  cadastro_clientes: 'Cadastro de clientes',
+  cadastro_usuario: 'Cadastro de usuario',
+};
+
+const SCREEN_GROUPS: Record<ScreenKey, Group> = {
+  dashboard: 'GERAL',
+  recebimento: 'PRODUCAO',
+  recebimento_com_nf: 'PRODUCAO',
+  recebimento_sem_nf: 'PRODUCAO',
+  pre_analise: 'PRODUCAO',
+  analise_tecnica: 'PRODUCAO',
+  endereco: 'PRODUCAO',
+  conserto: 'PRODUCAO',
+  qualidade: 'PRODUCAO',
+  embalagem: 'PRODUCAO',
+  expedicao: 'PRODUCAO',
+  cadastro_produtos: 'ADMINISTRATIVO',
+  orcamento: 'ADMINISTRATIVO',
+  verificar_disponibilidade: 'ADMINISTRATIVO',
+  cadastro_empresas: 'ADMINISTRATIVO',
+  cadastro_clientes: 'ADMINISTRATIVO',
+  cadastro_usuario: 'ADMIN',
+};
+
+const SCREEN_ICONS: Record<ScreenKey, React.ElementType> = {
+  dashboard: LayoutDashboard,
+  recebimento: Truck,
+  recebimento_com_nf: Truck,
+  recebimento_sem_nf: Truck,
+  pre_analise: ClipboardCheck,
+  analise_tecnica: Wrench,
+  endereco: MapPin,
+  conserto: Settings,
+  qualidade: BadgeCheck,
+  embalagem: Box,
+  expedicao: Ship,
+  cadastro_produtos: Package,
+  orcamento: DollarSign,
+  verificar_disponibilidade: Search,
+  cadastro_empresas: Building2,
+  cadastro_clientes: Users,
+  cadastro_usuario: UserPlus,
+};
+
+const SCREEN_PERMISSIONS: Partial<Record<ScreenKey, string>> = {
+  recebimento: 'recebimento',
+  recebimento_com_nf: 'recebimento',
+  recebimento_sem_nf: 'recebimento',
+  pre_analise: 'pre-analise',
+  analise_tecnica: 'recebimento',
+  endereco: 'recebimento',
+  conserto: 'recebimento',
+  qualidade: 'recebimento',
+  embalagem: 'recebimento',
+  expedicao: 'recebimento',
+  cadastro_produtos: 'cadastro',
+  orcamento: 'orcamentos',
+  verificar_disponibilidade: 'orcamentos',
+  cadastro_empresas: 'cadastro',
+  cadastro_clientes: 'cadastro',
+  cadastro_usuario: 'admin',
+};
+
+const PRODUCAO_KEYS: ScreenKey[] = [
+  'pre_analise',
+  'analise_tecnica',
+  'endereco',
+  'conserto',
+  'qualidade',
+  'embalagem',
+  'expedicao',
+];
+
+const ADMINISTRATIVO_KEYS: ScreenKey[] = [
+  'cadastro_produtos',
+  'orcamento',
+  'verificar_disponibilidade',
+  'cadastro_empresas',
+  'cadastro_clientes',
+];
+
+const ADMIN_KEYS: ScreenKey[] = ['cadastro_usuario'];
+
+const ALL_KEYS: ScreenKey[] = [
+  'dashboard',
+  'recebimento',
+  'recebimento_com_nf',
+  'recebimento_sem_nf',
+  ...PRODUCAO_KEYS,
+  ...ADMINISTRATIVO_KEYS,
+  ...ADMIN_KEYS,
+];
+
+const getScreenFromPath = (pathname: string): ScreenKey => {
+  if (pathname === '/home') return 'dashboard';
+  if (pathname.startsWith('/home/recebimento/com-nf')) return 'recebimento_com_nf';
+  if (pathname.startsWith('/home/recebimento/sem-nf')) return 'recebimento_sem_nf';
+  if (pathname.startsWith('/home/recebimento')) return 'recebimento';
+  if (pathname.startsWith('/home/pre-analise')) return 'pre_analise';
+  if (pathname.startsWith('/home/analise-tecnica')) return 'analise_tecnica';
+  if (pathname.startsWith('/home/endereco')) return 'endereco';
+  if (pathname.startsWith('/home/conserto')) return 'conserto';
+  if (pathname.startsWith('/home/qualidade')) return 'qualidade';
+  if (pathname.startsWith('/home/embalagem')) return 'embalagem';
+  if (pathname.startsWith('/home/expedicao')) return 'expedicao';
+  if (pathname.startsWith('/home/produtos')) return 'cadastro_produtos';
+  if (pathname.startsWith('/home/orcamentos')) return 'orcamento';
+  if (pathname.startsWith('/home/verificar-disponibilidade')) return 'verificar_disponibilidade';
+  if (pathname.startsWith('/home/cadastro-empresas')) return 'cadastro_empresas';
+  if (pathname.startsWith('/home/cadastro-clientes')) return 'cadastro_clientes';
+  if (pathname.startsWith('/home/usuarios')) return 'cadastro_usuario';
+  return 'dashboard';
+};
 
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [sidebarMini, setSidebarMini] = useState(false);
+  const [recebimentoOpen, setRecebimentoOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    setMounted(true);
     const userData = localStorage.getItem('user');
     if (!userData) {
       router.push('/');
@@ -39,7 +200,6 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     const currentUser = JSON.parse(userData);
     setUser(currentUser);
 
-    // Load unread notifications count
     const loadUnreadCount = async () => {
       try {
         const { NotificationService } = await import('@/backend/services/notificationService');
@@ -51,16 +211,20 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     };
     loadUnreadCount();
 
-    // Initialize sidebar state based on viewport width (open on md and above)
-    const initOpen = window.innerWidth >= 768;
-    setSidebarOpen(initOpen);
-
-    const onResize = () => {
-      // keep behavior: when resizing to desktop, open sidebar; when going to small, keep current user preference
-      if (window.innerWidth >= 768) setSidebarOpen(true);
+    const updateViewport = () => {
+      const desktop = window.innerWidth >= 768;
+      setIsDesktop(desktop);
+      if (desktop) {
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
+        setSidebarMini(false);
+      }
     };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    updateViewport();
+
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
   }, [router]);
 
   const handleLogout = () => {
@@ -68,33 +232,85 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     router.push('/');
   };
 
-  // Close on Escape for accessibility
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && sidebarOpen && window.innerWidth < 768) {
+      if (e.key === 'Escape' && sidebarOpen && !isDesktop) {
         setSidebarOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, isDesktop]);
 
-  // Lock body scroll when sidebar is open on small screens
   useEffect(() => {
-    const shouldLock = sidebarOpen && window.innerWidth < 768;
+    const shouldLock = sidebarOpen && !isDesktop;
     if (shouldLock) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
-  }, [sidebarOpen]);
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen, isDesktop]);
+
+  useEffect(() => {
+    const current = getScreenFromPath(pathname);
+    if (current === 'recebimento' || current === 'recebimento_com_nf' || current === 'recebimento_sem_nf') {
+      setRecebimentoOpen(true);
+    }
+  }, [pathname]);
+
+  const screen = getScreenFromPath(pathname);
+
+  const can = (key: ScreenKey) => {
+    if (!user) return false;
+    if (key === 'dashboard') return true;
+    const perm = SCREEN_PERMISSIONS[key];
+    if (!perm) return true;
+    return hasPermission(user, perm);
+  };
+
+  const buildScreen = (key: ScreenKey): Screen => ({
+    key,
+    label: SCREEN_LABELS[key],
+    group: SCREEN_GROUPS[key],
+    icon: SCREEN_ICONS[key],
+  });
+
+  const menu: MenuData = {
+    dashboard: can('dashboard') ? buildScreen('dashboard') : undefined,
+    recebimento: buildScreen('recebimento'),
+    producao: PRODUCAO_KEYS.map(buildScreen).filter((item) => can(item.key)),
+    administrativo: ADMINISTRATIVO_KEYS.map(buildScreen).filter((item) => can(item.key)),
+    admin: ADMIN_KEYS.map(buildScreen).filter((item) => can(item.key)),
+  };
+
+  const screens = ALL_KEYS.map(buildScreen);
+
+  const handleSetScreen = (key: ScreenKey) => {
+    const href = SCREEN_ROUTES[key];
+    if (!href) return;
+    router.push(href);
+    if (!isDesktop) setSidebarOpen(false);
+  };
+
+  const handleSidebarToggle = () => {
+    if (isDesktop) {
+      setSidebarMini((s) => !s);
+    } else {
+      setSidebarOpen((s) => !s);
+    }
+  };
+
+  const effectiveSidebarMini = isDesktop ? sidebarMini : false;
+  const sidebarVisible = isDesktop || sidebarOpen;
+  const sidebarWidth = isDesktop ? (effectiveSidebarMini ? '78px' : '300px') : '0px';
+  const mainStyle = { '--sidebar-w': sidebarWidth } as React.CSSProperties;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row overflow-x-hidden">
-      {/* Sidebar */}
-      {/* Backdrop shown on mobile when sidebar open */}
-      {sidebarOpen && (
+      {sidebarOpen && !isDesktop && (
         <div
           className="md:hidden fixed inset-0 bg-black/40 z-30"
           onClick={() => setSidebarOpen(false)}
@@ -102,63 +318,29 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         />
       )}
 
-      <aside
-        className={`fixed left-0 top-0 z-[60] bg-white border-r border-slate-200 h-full min-h-screen transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0 md:w-20'} md:sticky md:top-0 md:h-screen flex flex-col`}
+      <div
         id="sidebar"
+        className={`fixed left-0 top-0 z-[60] h-full transition-transform duration-300 ease-in-out ${sidebarVisible ? 'translate-x-0' : '-translate-x-full'} md:static md:translate-x-0 md:shrink-0`}
       >
-        <div className="h-20 flex-shrink-0 flex items-center justify-center border-b border-slate-100">
-          {sidebarOpen ? (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-lg">G</div>
-              <span className="text-xl font-bold text-slate-900 tracking-tight">Gromit<span className="text-indigo-600">.Control</span></span>
-            </div>
-          ) : (
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-200">G</div>
-          )}
-        </div>
+        <Sidebar
+          systemName={SYSTEM_NAME}
+          systemDot={SYSTEM_DOT}
+          screens={screens}
+          menu={menu}
+          screen={screen}
+          setScreen={handleSetScreen}
+          can={can}
+          sidebarMini={effectiveSidebarMini}
+          recebimentoOpen={recebimentoOpen}
+          setRecebimentoOpen={setRecebimentoOpen}
+        />
+      </div>
 
-
-
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0">
-          {/* Dashboard - always visible */}
-          <SidebarItem icon={LayoutDashboard} label="Dashboard" active={pathname === '/home'} isOpen={sidebarOpen} href="/home" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-
-          <SidebarItem icon={Package} label="Produtos" active={pathname === '/home/produtos'} isOpen={sidebarOpen} href="/home/produtos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={Truck} label="Recebimento" active={pathname === '/home/recebimento'} isOpen={sidebarOpen} href="/home/recebimento" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={ClipboardCheck} label="Pré-análise" active={pathname === '/home/pre-analise'} isOpen={sidebarOpen} href="/home/pre-analise" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={DollarSign} label="Orçamentos" active={pathname === '/home/orcamentos'} isOpen={sidebarOpen} href="/home/orcamentos" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={FileText} label="NF-e (XML)" active={pathname === '/home/nfe-xml'} isOpen={sidebarOpen} href="/home/nfe-xml" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-          <SidebarItem icon={Users} label="Usuários" active={pathname === '/home/usuarios'} isOpen={sidebarOpen} href="/home/usuarios" onNavigate={() => window.innerWidth < 768 && setSidebarOpen(false)} />
-        </nav>
-
-        {/* User profile snippet at bottom of sidebar */}
-        <Link href="/home/configuracoes" className="mt-auto w-full p-4 border-t border-slate-100 bg-white hover:bg-slate-50 transition-colors flex-shrink-0">
-          <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
-            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm flex-shrink-0 overflow-hidden ring-2 ring-white shadow-md">
-              {user?.photoUrl ? (
-                <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
-              ) : (
-                user?.name?.charAt(0) ?? 'U'
-              )}
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">{user?.name ?? 'Usuário'}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.role ?? 'Usuário'}</p>
-              </div>
-            )}
-          </div>
-        </Link>
-      </aside>
-
-      {/* Main Content */}
-
-      <main className="min-w-0 flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header */}
+      <main className="min-w-0 flex-1 flex flex-col h-screen overflow-hidden" style={mainStyle}>
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-[50] flex-shrink-0">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={handleSidebarToggle}
               className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
               aria-controls="sidebar"
               aria-expanded={sidebarOpen}
@@ -186,53 +368,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
 
-        {/* Dashboard Content Area */}
-        <div className="min-w-0 flex-1 overflow-auto">
-          {children}
-        </div>
-
+        <div className="min-w-0 flex-1 overflow-auto">{children}</div>
       </main>
     </div>
   );
 }
-
-interface SidebarItemProps {
-  icon: any;
-  label: string;
-  active?: boolean;
-  isOpen: boolean;
-  href?: string;
-  onNavigate?: () => void;
-}
-
-const SidebarItem = ({ icon: Icon, label, active, isOpen, href, onNavigate }: SidebarItemProps) => {
-  const className = `
-      w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group
-      ${active
-      ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm ring-1 ring-indigo-100'
-      : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 font-medium'
-    }
-      ${!isOpen && 'justify-center'}
-    `;
-
-  const inner = (
-    <>
-      <Icon size={22} className={`${active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'} flex-shrink-0 transition-colors`} />
-      {isOpen && <span>{label}</span>}
-    </>
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className={className} onClick={onNavigate}>
-        {inner}
-      </Link>
-    );
-  }
-
-  return (
-    <button className={className} onClick={onNavigate}>
-      {inner}
-    </button>
-  );
-};
