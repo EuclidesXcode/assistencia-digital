@@ -49,10 +49,11 @@ async function recreateAdmin() {
     process.exit(1);
   }
 
+  const admin = data as any;
   console.log('Admin created:', {
-    id: data?.id,
-    email: data?.email,
-    branch: data?.matriz_filial
+    id: admin?.id,
+    email: admin?.email,
+    branch: admin?.matriz_filial
   });
 }
 

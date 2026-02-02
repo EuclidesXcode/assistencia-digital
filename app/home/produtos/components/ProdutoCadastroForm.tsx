@@ -266,7 +266,7 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
 
     const isValidGTIN = (code: string) => {
         const cleaned = code.replace(/\D/g, '');
-        if (![8, 12, 13, 14].includes(cleaned.length)) return false;
+        if (cleaned.length < 8 || cleaned.length > 14) return false;
 
         const digits = cleaned.split('').map(Number);
         const checkDigit = digits.pop();
@@ -274,6 +274,7 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
         let sum = 0;
         const reversedDigits = digits.reverse();
         for (let i = 0; i < reversedDigits.length; i++) {
+            // Em GTIN, o multiplicador alterna entre 3 e 1 começando da direita (posição 1 = 3)
             sum += reversedDigits[i] * (i % 2 === 0 ? 3 : 1);
         }
 
@@ -283,17 +284,38 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
 
     const validate = () => {
         const errors: Record<string, string> = {};
+
+        // EAN/GTIN Validation
         if (!state.ean?.trim()) {
             errors.ean = "EAN/GTIN é obrigatório";
-        } else if (!isValidGTIN(state.ean)) {
-            errors.ean = "EAN/GTIN inválido (verifique os dígitos)";
+        } else {
+            const cleaned = state.ean.replace(/\D/g, '');
+            if (cleaned.length < 8 || cleaned.length > 14) {
+                errors.ean = "EAN/GTIN deve ter entre 8 e 14 dígitos";
+            } else if (!isValidGTIN(state.ean)) {
+                errors.ean = "Dígito verificador do EAN/GTIN inválido";
+            }
         }
-        if (!state.modeloRef?.trim()) errors.modeloRef = "Modelo Referência é obrigatório";
-        if (state.modelos.length === 0) errors.modelos = "Cadastre pelo menos 1 Modelo Fabricante";
+
+        // Marca Validation
+        if (!state.marca?.trim()) {
+            errors.marca = "A marca/fabricante é obrigatória";
+        }
+
+        // Modelo Referência Validation
+        if (!state.modeloRef?.trim()) {
+            errors.modeloRef = "O modelo de referência é obrigatório";
+        }
+
+        // Variações Validation
+        if (state.modelos.length === 0) {
+            errors.modelos = "Cadastre pelo menos 1 variação de modelo";
+        }
+
         return errors;
     };
 
-    const isValid = useMemo(() => Object.keys(validate()).length === 0, [state.ean, state.modeloRef, state.modelos.length]);
+    const isValid = useMemo(() => Object.keys(validate()).length === 0, [state.ean, state.modeloRef, state.marca, state.modelos.length]);
 
     const setImageFromFile = (field: ImageField, file: File) => {
         const prev = state.imagens[field]?.url;
@@ -493,7 +515,14 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-2.5">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">EAN / GTIN Principal</label>
+                                <div className="flex items-center justify-between ml-1">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">EAN / GTIN Principal</label>
+                                    {state.ean && state.ean.length >= 8 && (
+                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full transition-all ${isValidGTIN(state.ean) ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600 animate-pulse'}`}>
+                                            {isValidGTIN(state.ean) ? 'EAN VÁLIDO' : 'EAN INVÁLIDO'}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="relative group">
                                     <Input
                                         value={state.ean}
@@ -501,12 +530,17 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
                                             const val = e.target.value.replace(/\D/g, '').slice(0, 14);
                                             dispatch({ type: "SET_FIELD", field: "ean", value: val });
                                         }}
-                                        placeholder="0000000000000"
+                                        placeholder="Digite o código de barras (8-14 dígitos)"
                                         tabIndex={1}
-                                        className={`h-14 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-lg font-mono tracking-wider ${state.errors.ean ? 'border-red-500 bg-red-50' : 'focus:ring-indigo-500/20'}`}
+                                        className={`h-14 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-lg font-mono tracking-wider ${state.errors.ean || (state.ean?.length > 0 && !isValidGTIN(state.ean)) ? 'border-red-500 bg-red-50' : 'focus:ring-indigo-500/20'}`}
                                     />
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-indigo-400 transition-colors"><Search size={22} /></div>
                                 </div>
+                                {state.ean?.length > 0 && !isValidGTIN(state.ean) && (
+                                    <p className="text-[9px] text-red-500 font-bold uppercase ml-1">
+                                        {state.ean.length < 8 ? "Mínimo 8 dígitos" : "Checksum incorreto ou formato inválido"}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-2.5">
@@ -516,7 +550,7 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
                                     onChange={(e) => dispatch({ type: "SET_FIELD", field: "marca", value: e.target.value.toUpperCase() })}
                                     placeholder="Ex: PHILCO, LG, SONY"
                                     tabIndex={3}
-                                    className="h-14 rounded-2xl border-slate-200 bg-slate-100 font-bold text-slate-900 uppercase tracking-wide cursor-text"
+                                    className={`h-14 rounded-2xl border-slate-200 bg-slate-100 font-bold text-slate-900 uppercase tracking-wide cursor-text transition-all ${state.errors.marca ? 'border-red-500 bg-red-50' : 'focus:ring-indigo-500/20'}`}
                                 />
                             </div>
 
@@ -531,7 +565,7 @@ export default function ProdutoCadastroForm({ onBack, onSuccess, initialEan }: {
                                     }}
                                     placeholder="Digite a descrição principal do produto..."
                                     tabIndex={2}
-                                    className={`h-16 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white text-xl font-black text-slate-800 transition-all ${state.errors.modeloRef ? 'border-red-500' : 'focus:ring-indigo-500/20'}`}
+                                    className={`h-16 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white text-xl font-black text-slate-800 transition-all ${state.errors.modeloRef ? 'border-red-500 bg-red-50' : 'focus:ring-indigo-500/20'}`}
                                 />
                             </div>
                         </div>
