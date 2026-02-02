@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Building2, Mail, Lock, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { Input } from './Input';
-import { supabase } from '@/lib/supabase';
 import { createAuditLog } from '@/lib/audit';
 import { Button } from './Button';
 import { LoginStatus, User } from '@/types';
+import { login } from '@/lib/authService';
 
 interface LoginProps {
   onLogin: (user: User) => void;
 }
+
+type FieldName = 'branchId' | 'email' | 'password';
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [formData, setFormData] = useState({
@@ -21,11 +23,23 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   });
   const [status, setStatus] = useState<LoginStatus>(LoginStatus.IDLE);
   const [error, setError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldName, string>>>({});
+
+  useEffect(() => {
+    const target = document.getElementById('branchId');
+    if (target instanceof HTMLInputElement) {
+      target.focus();
+    }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    const fieldName = name as FieldName;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (error) setError('');
+    if (fieldErrors[fieldName]) {
+      setFieldErrors(prev => ({ ...prev, [fieldName]: '' }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,91 +47,49 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     console.log('Login attempt started for:', formData.email);
     setStatus(LoginStatus.LOADING);
 
-    if (!formData.email || !formData.password) {
+    const nextErrors: Partial<Record<FieldName, string>> = {};
+    if (!formData.email) {
+      nextErrors.email = 'Informe seu email.';
+    }
+    if (!formData.password) {
+      nextErrors.password = 'Informe sua senha.';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
       console.log('Validation failed: Missing email or password');
-      setError('Por favor, preencha email e senha.');
+      setFieldErrors(nextErrors);
+      setError('');
       setStatus(LoginStatus.ERROR);
       return;
     }
 
+    setFieldErrors({});
+
     try {
-      // Authenticate with Supabase
-      console.log('Calling supabase.auth.signInWithPassword...');
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const result = await login({
         email: formData.email,
         password: formData.password,
+        branchId: formData.branchId
       });
 
-      console.log('Auth response:', {
-        success: !authError,
-        user: authData?.user?.id,
-        error: authError
-      });
-
-      if (authError) {
-        console.error('Supabase auth error:', authError);
-        setError('Falha no login. Verifique suas credenciais.');
+      if (!result.ok || !result.user) {
+        setError(result.error || 'Login indisponivel no momento.');
         setStatus(LoginStatus.ERROR);
         return;
       }
 
-      if (authData.user) {
-        console.log('Auth successful, fetching profile for user:', authData.user.id);
+      const user: User = result.user;
 
-        // Fetch Profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*, branches(branch_name, branch_code)')
-          .eq('id', authData.user.id)
-          .single();
+      console.log('Login successful, logging audit and redirecting...');
+      await createAuditLog({
+        userId: user.id || '',
+        action: 'LOGIN',
+        resource: 'auth',
+        details: { method: 'email_password' }
+      });
 
-        console.log('Profile fetch response:', {
-          found: !!profile,
-          error: profileError
-        });
-
-        if (profileError || !profile) {
-          console.error('Profile fetch error:', profileError);
-          setError('Erro ao carregar perfil do usuário.');
-          setStatus(LoginStatus.ERROR);
-          await supabase.auth.signOut();
-          return;
-        }
-
-        if (!profile.is_active) {
-          console.warn('User is inactive');
-          setError('Usuário inativo. Contate o administrador.');
-          setStatus(LoginStatus.ERROR);
-          await supabase.auth.signOut();
-          return;
-        }
-
-        // Construct User object
-        const user: User = {
-          id: authData.user.id,
-          name: profile.full_name,
-          email: profile.email,
-          branchId: profile.branch_id, // Or profile.branches?.branch_code
-          role: profile.role,
-          permissions: profile.permissions || [],
-          active: profile.is_active,
-          createdAt: new Date(profile.created_at),
-          updatedAt: new Date(profile.updated_at),
-          lastLogin: new Date()
-        };
-
-        // Log successful login
-        console.log('Login successful, logging audit and redirecting...');
-        await createAuditLog({
-          userId: user.id || '',
-          action: 'LOGIN',
-          resource: 'auth',
-          details: { method: 'email_password' }
-        });
-
-        setStatus(LoginStatus.SUCCESS);
-        onLogin(user);
-      }
+      setStatus(LoginStatus.SUCCESS);
+      onLogin(user);
     } catch (err) {
       console.error('Unexpected login error:', err);
       setError('Erro inesperado. Tente novamente.');
@@ -156,7 +128,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="relative z-10 mt-8 md:mt-0">
             <p className="text-sm text-slate-400">© 2025 Gromit Control</p>
             <p className="text-sm text-slate-400 mt-2">
-              Não tem conta? <Link href="/register" className="text-primary-300 hover:text-white transition-colors">Cadastre-se</Link>
+              Não tem conta? <Link href="/register" className="text-primary-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 focus-visible:ring-offset-2 rounded-sm">Cadastre-se</Link>
             </p>
           </div>
         </div>
@@ -166,10 +138,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="max-w-md mx-auto">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-slate-900">Bem-vindo de volta</h2>
-              <p className="text-slate-500 mt-1">Insira suas credenciais para acessar o painel.</p>
+              <p className="text-slate-500 mt-2">Insira suas credenciais para acessar o painel.</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <Input
                 id="branchId"
                 name="branchId"
@@ -180,6 +152,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 value={formData.branchId}
                 onChange={handleChange}
                 autoFocus
+                error={fieldErrors.branchId}
               />
 
               <Input
@@ -191,6 +164,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 icon={Mail}
                 value={formData.email}
                 onChange={handleChange}
+                error={fieldErrors.email}
               />
 
               <Input
@@ -202,6 +176,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 icon={Lock}
                 value={formData.password}
                 onChange={handleChange}
+                error={fieldErrors.password}
+                className="bg-slate-50 text-slate-500 placeholder:text-slate-300 focus:bg-white focus:text-slate-700"
               />
 
               {error && (
@@ -210,10 +186,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <Button
                   type="submit"
-                  className="w-full group"
+                  size="lg"
+                  className="w-full min-h-[44px] group"
                   isLoading={status === LoginStatus.LOADING}
                 >
                   Login
@@ -223,8 +200,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 </Button>
               </div>
 
-              <div className="text-center mt-4">
-                <Link href="/esqueci-senha" className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors">
+              <div className="text-center">
+                <Link href="/esqueci-senha" className="text-sm text-slate-500 hover:text-primary-700 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 focus-visible:ring-offset-2 rounded-sm">
                   Esqueceu sua senha?
                 </Link>
               </div>

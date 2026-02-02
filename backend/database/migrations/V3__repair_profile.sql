@@ -7,7 +7,7 @@ BEGIN;
         v_branch_id UUID;
     BEGIN
         -- 1. Get User ID
-        SELECT id INTO v_user_id FROM auth.users WHERE email = 'euclideslione@gmail.com';
+        SELECT id INTO v_user_id FROM app_users WHERE email = 'euclideslione@gmail.com';
         
         -- 2. Get Branch ID
         SELECT id INTO v_branch_id FROM public.branches WHERE branch_code = '0001' LIMIT 1;

@@ -1,83 +1,180 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-// Server-side only: Use service role key
-// Helper to get admin client safely
-function getSupabaseAdmin() {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+async function resolveBranchId(filial?: string) {
+  if (!filial) return null;
 
-    if (!url || !key) {
-        throw new Error('Configuração incompleta: NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY faltando.');
+  const { data } = await supabaseAdmin
+    .from('branches')
+    .select('id, branch_code, branch_name')
+    .or(`branch_code.eq.${filial},branch_name.eq.${filial}`)
+    .limit(1)
+    .single();
+
+  return data?.id || null;
+}
+
+function mapUsuario(profile: any) {
+  const branchName = profile.branch_name || profile.branches?.branch_name;
+  const matriz = profile.matriz_filial || profile.app_users?.matriz_filial;
+  const email = profile.email || profile.app_users?.email || '';
+  const ativo = profile.ativo ?? profile.app_users?.ativo ?? profile.is_active;
+  return {
+    id: profile.id,
+    nome: profile.full_name || '',
+    email,
+    filial: branchName || matriz || 'N/A',
+    cargo: profile.role || 'user',
+    permissoes: profile.permissions || [],
+    ativo: Boolean(ativo),
+    ultimoAcesso: profile.last_login
+      ? new Date(profile.last_login).toLocaleString('pt-BR')
+      : 'Nunca',
+    dataCriacao: profile.created_at
+      ? new Date(profile.created_at).toLocaleDateString('pt-BR')
+      : ''
+  };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search')?.trim();
+    const status = searchParams.get('status');
+
+    let query = supabaseAdmin
+      .from('profiles')
+      .select(
+        'id, full_name, email, role, permissions, is_active, last_login, created_at, app_users(ativo, matriz_filial, email), branches(branch_name)'
+      );
+
+    if (status === 'ATIVOS') {
+      query = query.eq('app_users.ativo', true);
+    }
+    if (status === 'INATIVOS') {
+      query = query.eq('app_users.ativo', false);
     }
 
-    return createClient(url, key, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    });
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const usuarios = (data || []).map(mapUsuario);
+    return NextResponse.json({ usuarios });
+  } catch (error) {
+    console.error('Admin users GET error:', error);
+    return NextResponse.json({ error: 'Erro ao listar usuarios.' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-    try {
-        const supabaseAdmin = getSupabaseAdmin();
-        const body = await req.json();
-        const { email, password, nome, filial, cargo, permissoes } = body;
+  try {
+    const body = await req.json();
+    const email = String(body?.email || '').trim();
+    const password = String(body?.password || '');
+    const nome = String(body?.nome || '').trim();
+    const filial = String(body?.filial || '').trim();
+    const cargo = String(body?.cargo || 'user').trim();
+    const permissoes = Array.isArray(body?.permissoes) ? body.permissoes : [];
 
-        // 1. Create User in Supabase Auth
-        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true, // Auto-confirm
-            user_metadata: {
-                full_name: nome,
-                branch_code: filial, // Assuming filial string is branch_code or similar
-            },
-        });
-
-        if (authError) throw authError;
-
-        if (!authUser.user) throw new Error('Falha ao criar usuário Auth');
-
-        // 2. Profile creation is handled by Trigger (from V6 migration)
-        // However, trigger only sets basic fields. Admin might want to set specific Role/Permissions immediately.
-        // We can update the profile strictly after creation to ensure correct role/permissions
-
-        // Default trigger might set role='user'. Admin form provides 'cargo'.
-        // We update the profile to match admin selection.
-
-        // Wait for trigger (minor race condition) or simply upsert. 
-        // Best practice: direct update.
-
-        const { error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .update({
-                role: cargo, // Ensure cargo matches the role field (e.g. 'Administrador' -> 'admin' mapping might be needed if values differ)
-                permissions: permissoes
-            })
-            .eq('id', authUser.user.id);
-
-        if (profileError) {
-            console.error('Error updating profile role:', profileError);
-            // Don't fail the whole request, but log it
-        }
-
-        // Return the created user structure expected by frontend
-        return NextResponse.json({
-            id: authUser.user.id,
-            nome,
-            email,
-            filial,
-            cargo,
-            permissoes: permissoes || [],
-            ativo: true,
-            ultimoAcesso: 'Nunca',
-            dataCriacao: new Date().toLocaleDateString('pt-BR')
-        });
-
-    } catch (error: any) {
-        console.error('API Error creating user:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!email || !password || !filial) {
+      return NextResponse.json({ error: 'Email, senha e filial sao obrigatorios.' }, { status: 400 });
     }
+
+    const branchId = await resolveBranchId(filial);
+
+    const { data, error } = await supabaseAdmin
+      .rpc('create_app_user', {
+        p_email: email,
+        p_password: password,
+        p_matriz_filial: filial,
+        p_full_name: nome || null,
+        p_role: cargo || null,
+        p_permissions: permissoes,
+        p_branch_id: branchId
+      })
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json({ error: 'Falha ao criar usuario.' }, { status: 400 });
+    }
+
+    return NextResponse.json(mapUsuario(data));
+  } catch (error) {
+    console.error('Admin users POST error:', error);
+    return NextResponse.json({ error: 'Erro ao criar usuario.' }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const id = String(body?.id || '');
+    if (!id) {
+      return NextResponse.json({ error: 'ID obrigatorio.' }, { status: 400 });
+    }
+
+    const updateProfile: any = {};
+    if (body?.nome) updateProfile.full_name = body.nome;
+    if (body?.cargo) updateProfile.role = body.cargo;
+    if (Array.isArray(body?.permissoes)) updateProfile.permissions = body.permissoes;
+
+    let resolvedBranchId = body?.branchId || null;
+    if (!resolvedBranchId && body?.filial) {
+      resolvedBranchId = await resolveBranchId(String(body.filial));
+    }
+    if (resolvedBranchId) updateProfile.branch_id = resolvedBranchId;
+
+    if (Object.keys(updateProfile).length > 0) {
+      const { error } = await supabaseAdmin
+        .from('profiles')
+        .update(updateProfile)
+        .eq('id', id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
+
+    if (typeof body?.ativo === 'boolean') {
+      const { error: userError } = await supabaseAdmin
+        .from('app_users')
+        .update({ ativo: body.ativo })
+        .eq('id', id);
+
+      if (userError) {
+        return NextResponse.json({ error: userError.message }, { status: 400 });
+      }
+
+      await supabaseAdmin.from('profiles').update({ is_active: body.ativo }).eq('id', id);
+    }
+
+    if (body?.filial) {
+      await supabaseAdmin
+        .from('app_users')
+        .update({ matriz_filial: String(body.filial) })
+        .eq('id', id);
+    }
+
+    if (body?.password) {
+      const { error: pwdError } = await supabaseAdmin.rpc('update_app_user_password', {
+        p_user_id: id,
+        p_password: body.password
+      });
+
+      if (pwdError) {
+        return NextResponse.json({ error: pwdError.message }, { status: 400 });
+      }
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('Admin users PUT error:', error);
+    return NextResponse.json({ error: 'Erro ao atualizar usuario.' }, { status: 500 });
+  }
 }
