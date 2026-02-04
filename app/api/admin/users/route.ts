@@ -16,9 +16,9 @@ async function resolveBranchId(filial?: string) {
 
 function mapUsuario(profile: any) {
   const branchName = profile.branch_name || profile.branches?.branch_name;
-  const matriz = profile.matriz_filial || profile.app_users?.matriz_filial;
-  const email = profile.email || profile.app_users?.email || '';
-  const ativo = profile.ativo ?? profile.app_users?.ativo ?? profile.is_active;
+  const matriz = profile.matriz_filial || profile.users?.matriz_filial;
+  const email = profile.email || profile.users?.email || '';
+  const ativo = profile.ativo ?? profile.users?.ativo ?? profile.is_active;
   return {
     id: profile.id,
     nome: profile.full_name || '',
@@ -45,14 +45,14 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin
       .from('profiles')
       .select(
-        'id, full_name, email, role, permissions, is_active, last_login, created_at, app_users(ativo, matriz_filial, email), branches(branch_name)'
+        'id, full_name, email, role, permissions, is_active, last_login, created_at, users(ativo, matriz_filial, email, username), branches(branch_name)'
       );
 
     if (status === 'ATIVOS') {
-      query = query.eq('app_users.ativo', true);
+      query = query.eq('users.ativo', true);
     }
     if (status === 'INATIVOS') {
-      query = query.eq('app_users.ativo', false);
+      query = query.eq('users.ativo', false);
     }
 
     if (search) {
@@ -143,7 +143,7 @@ export async function PUT(req: NextRequest) {
 
     if (typeof body?.ativo === 'boolean') {
       const { error: userError } = await supabaseAdmin
-        .from('app_users')
+        .from('users')
         .update({ ativo: body.ativo })
         .eq('id', id);
 
@@ -156,7 +156,7 @@ export async function PUT(req: NextRequest) {
 
     if (body?.filial) {
       await supabaseAdmin
-        .from('app_users')
+        .from('users')
         .update({ matriz_filial: String(body.filial) })
         .eq('id', id);
     }

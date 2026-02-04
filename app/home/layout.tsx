@@ -264,11 +264,14 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const screen = getScreenFromPath(pathname);
 
   const can = (key: ScreenKey) => {
+    return true; // Libera todo o menu temporariamente solicitado pelo user
+    /* 
     if (!user) return false;
     if (key === 'dashboard') return true;
     const perm = SCREEN_PERMISSIONS[key];
     if (!perm) return true;
     return hasPermission(user, perm);
+    */
   };
 
   const buildScreen = (key: ScreenKey): Screen => ({

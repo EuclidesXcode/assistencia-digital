@@ -3,12 +3,14 @@ import { LucideIcon, Eye, EyeOff } from 'lucide-react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  labelClassName?: string;
   icon?: LucideIcon;
   error?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
   label,
+  labelClassName = '',
   icon: Icon,
   id,
   type = 'text',
@@ -32,7 +34,7 @@ export const Input: React.FC<InputProps> = ({
       {label && (
         <label
           htmlFor={id}
-          className="block text-sm font-medium text-slate-700 mb-1.5"
+          className={`block text-sm font-medium text-slate-700 mb-1.5 ${labelClassName}`}
         >
           {label}
         </label>
@@ -49,18 +51,16 @@ export const Input: React.FC<InputProps> = ({
           aria-invalid={hasError}
           aria-describedby={errorId}
           className={`
-            w-full px-4 py-2.5 bg-white
+            w-full px-4 py-2.5 outline-none
             ${Icon ? 'pl-10' : ''} 
             ${isPassword ? 'pr-11' : ''}
             border 
             ${hasError ? 'border-red-500 focus:border-red-600 focus:ring-red-100' : 'border-slate-200 focus:border-primary-600 focus:ring-primary-100'}
             rounded-lg 
-            focus:outline-none focus:ring-4
-            transition-[border-color,box-shadow,background-color,color]
+            focus:ring-4
+            transition-all
             placeholder:text-slate-400
-            text-slate-600
-            hover:border-slate-300
-            ${className}
+            ${className || 'bg-white text-slate-900'}
           `}
           {...props}
         />

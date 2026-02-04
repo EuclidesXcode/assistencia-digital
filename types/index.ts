@@ -9,6 +9,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  username?: string;
   branchId: string;
   branches?: { branch_name: string };
   role?: string; // Cargo do usuário (ex: "Atendente", "Administrador")

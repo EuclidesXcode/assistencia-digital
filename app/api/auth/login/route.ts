@@ -1,58 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import bcrypt from 'bcryptjs';
+import { signToken } from '@/lib/jwt';
 
-type LoginRow = {
-  id: string;
-  matriz_filial: string | null;
-  email: string;
-  full_name: string | null;
-  role: string | null;
-  permissions: string[] | null;
-  branch_id: string | null;
-  branch_name: string | null;
-  ativo: boolean;
-  created_at: string;
-  updated_at: string;
-  last_login: string | null;
-};
-
-function mapLoginRow(row: LoginRow) {
-  return {
-    id: row.id,
-    name: row.full_name || '',
-    email: row.email,
-    branchId: row.branch_id || row.matriz_filial || '',
-    branches: row.branch_name ? { branch_name: row.branch_name } : undefined,
-    role: row.role || undefined,
-    permissions: row.permissions || [],
-    active: row.ativo,
-    createdAt: row.created_at ? new Date(row.created_at) : undefined,
-    updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
-    lastLogin: row.last_login ? new Date(row.last_login) : undefined
-  };
-}
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const email = String(body?.email || '').trim();
+    const login = String(body?.email || '').trim();
     const password = String(body?.password || '');
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email e senha sao obrigatorios.' }, { status: 400 });
+    console.log('--- MANUAL LOGIN DEBUG ---');
+    console.log('Tentativa de login para:', login);
+
+    if (!login || !password) {
+      return NextResponse.json({ error: 'Login e senha sao obrigatorios.' }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .rpc('login_user', { p_email: email, p_password: password })
-      .single();
+    // 1. Busca apenas o usuário (sem join com profiles para evitar erro de FK)
+    const usersUrl = `${SUPABASE_URL}/rest/v1/users?or=(email.eq.${login},username.eq.${login})&select=*`;
+    console.log('Consultando Users URL:', usersUrl);
 
-    if (error || !data) {
+    const response = await fetch(usersUrl, {
+      headers: {
+        'apikey': SERVICE_KEY || '',
+        'Authorization': `Bearer ${SERVICE_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Erro na busca de usuário:', response.status, errorText);
+      return NextResponse.json({ error: 'Erro ao conectar no banco de dados.' }, { status: 500 });
+    }
+
+    const users = await response.json();
+
+    if (!Array.isArray(users) || users.length === 0) {
+      console.log('Nenhum usuário encontrado para:', login);
       return NextResponse.json({ error: 'Credenciais invalidas.' }, { status: 401 });
     }
 
-    return NextResponse.json({ user: mapLoginRow(data as LoginRow) });
-  } catch (error) {
-    console.error('Login API error:', error);
-    return NextResponse.json({ error: 'Erro interno ao autenticar.' }, { status: 500 });
+    const user = users[0];
+    console.log('Usuário encontrado:', { id: user.id, email: user.email });
+
+    // 2. Validação manual da senha
+    const isPasswordCorrect = await bcrypt.compare(password, user.password_hash);
+
+    if (!isPasswordCorrect) {
+      console.log('Senha incorreta.');
+      return NextResponse.json({ error: 'Credenciais invalidas.' }, { status: 401 });
+    }
+
+    if (!user.ativo) {
+      return NextResponse.json({ error: 'Usuario inativo.' }, { status: 403 });
+    }
+
+    // 3. Busca o perfil separadamente
+    let profileData: any = {};
+    try {
+      const profilesUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=*`;
+      const profileResponse = await fetch(profilesUrl, {
+        headers: {
+          'apikey': SERVICE_KEY || '',
+          'Authorization': `Bearer ${SERVICE_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (profileResponse.ok) {
+        const profiles = await profileResponse.json();
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          profileData = profiles[0];
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar perfil (ignorado):', err);
+    }
+
+    // Gera o token JWT
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: profileData?.role || 'user'
+    });
+
+    const userData = {
+      id: user.id,
+      name: profileData?.full_name || '',
+      email: user.email,
+      username: user.username || '',
+      branchId: user.matriz_filial || '',
+      role: profileData?.role || undefined,
+      permissions: profileData?.permissions || [],
+      token: token
+    };
+
+    console.log('Login bem sucedido! Token gerado.');
+
+    return NextResponse.json({ user: userData });
+  } catch (error: any) {
+    console.error('Manual Login API error FULL:', error);
+    return NextResponse.json({ error: 'Erro interno ao autenticar: ' + (error?.message || String(error)) }, { status: 500 });
   }
 }

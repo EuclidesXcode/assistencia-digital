@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Building2, Mail, Lock, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { Mail, Lock, ArrowRight, LayoutDashboard, Sparkles } from 'lucide-react';
 import { Input } from './Input';
 import { createAuditLog } from '@/lib/audit';
 import { Button } from './Button';
@@ -13,11 +13,10 @@ interface LoginProps {
   onLogin: (user: User) => void;
 }
 
-type FieldName = 'branchId' | 'email' | 'password';
+type FieldName = 'email' | 'password';
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [formData, setFormData] = useState({
-    branchId: '',
     email: '',
     password: ''
   });
@@ -26,7 +25,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldName, string>>>({});
 
   useEffect(() => {
-    const target = document.getElementById('branchId');
+    const target = document.getElementById('email');
     if (target instanceof HTMLInputElement) {
       target.focus();
     }
@@ -49,14 +48,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     const nextErrors: Partial<Record<FieldName, string>> = {};
     if (!formData.email) {
-      nextErrors.email = 'Informe seu email.';
+      nextErrors.email = 'Informe seu usuário ou email.';
     }
     if (!formData.password) {
       nextErrors.password = 'Informe sua senha.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
-      console.log('Validation failed: Missing email or password');
       setFieldErrors(nextErrors);
       setError('');
       setStatus(LoginStatus.ERROR);
@@ -66,21 +64,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setFieldErrors({});
 
     try {
-      const result = await login({
+      const payload = {
         email: formData.email,
-        password: formData.password,
-        branchId: formData.branchId
-      });
+        password: formData.password
+      };
+      console.log('--- LOGIN DEBUG ---');
+      console.log('Enviando payload:', { ...payload, password: '***' });
+
+      const result = await login(payload);
+
+      console.log('Resultado do servidor:', result);
 
       if (!result.ok || !result.user) {
-        setError(result.error || 'Login indisponivel no momento.');
+        setError(result.error || 'Credenciais inválidas ou serviço indisponível.');
         setStatus(LoginStatus.ERROR);
         return;
       }
 
       const user: User = result.user;
 
-      console.log('Login successful, logging audit and redirecting...');
       await createAuditLog({
         userId: user.id || '',
         action: 'LOGIN',
@@ -98,116 +100,134 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#f8fafc] p-4">
-      {/* Background decoration */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary-200/30 blur-3xl"></div>
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[60%] rounded-full bg-blue-200/30 blur-3xl"></div>
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#0f172a] p-4 relative overflow-hidden">
+      {/* Dynamic Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[120px] animate-pulse"></div>
+        <div className="absolute top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-purple-600/20 blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute -bottom-[10%] left-[20%] w-[30%] h-[30%] rounded-full bg-indigo-600/20 blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100">
+      <div className="relative w-full max-w-5xl flex flex-col md:flex-row rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-sm">
 
-        {/* Left Side - Hero/Branding */}
-        <div className="w-full md:w-1/2 bg-slate-900 p-8 md:p-12 flex flex-col justify-between text-white relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-slate-900 opacity-90"></div>
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
+        {/* Left Side - Visual/Branding */}
+        <div className="w-full md:w-5/12 bg-gradient-to-br from-indigo-700 via-blue-800 to-slate-900 p-8 md:p-12 flex flex-col justify-between text-white relative">
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
 
           <div className="relative z-10">
-            <div className="flex items-center gap-2 text-primary-200 mb-2">
-              <LayoutDashboard size={24} />
-              <span className="font-semibold tracking-wide">Gromit Control</span>
+            <div className="flex items-center gap-3 text-blue-200 mb-8">
+              <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
+                <LayoutDashboard size={28} className="text-white" />
+              </div>
+              <span className="font-bold text-xl tracking-wider uppercase">Gromit Control</span>
             </div>
-            <h1 className="text-4xl font-bold leading-tight mb-4">
-              A assistência técnica no rumo certo
-            </h1>
-            <p className="text-slate-300 text-lg">
-              Não é apenas um sistema de ordens de serviço ou posto autorizado. É uma ferramenta de gestão, visão e controle, que vai além do óbvio, orienta decisões e corrige falhas muitas vezes ignoradas, resolvendo o problema de forma sistemática.
-            </p>
+
+            <div className="space-y-6">
+              <h1 className="text-4xl md:text-5xl font-extrabold leading-tight">
+                Gestão Inteligente para sua <span className="text-blue-400">Assistência.</span>
+              </h1>
+              <p className="text-slate-300 text-lg leading-relaxed">
+                Transforme sua operação com controle total. Uma ferramenta sistemática que orienta decisões e otimiza resultados.
+              </p>
+            </div>
           </div>
 
-          <div className="relative z-10 mt-8 md:mt-0">
-            <p className="text-sm text-slate-400">© 2025 Gromit Control</p>
-            <p className="text-sm text-slate-400 mt-2">
-              Não tem conta? <Link href="/register" className="text-primary-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 focus-visible:ring-offset-2 rounded-sm">Cadastre-se</Link>
+          <div className="relative z-10 mt-12 bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-2 text-blue-300">
+              <Sparkles size={16} />
+              <span className="text-xs font-semibold uppercase tracking-widest">Inovação</span>
+            </div>
+            <p className="text-sm text-slate-300 italic">
+              "A eficiência é o que acontece quando o sistema trabalha para você, não o contrário."
             </p>
           </div>
         </div>
 
-        {/* Right Side - Login Form */}
-        <div className="w-full md:w-1/2 p-8 md:p-12">
-          <div className="max-w-md mx-auto">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-slate-900">Bem-vindo de volta</h2>
-              <p className="text-slate-500 mt-2">Insira suas credenciais para acessar o painel.</p>
+        {/* Right Side - Form */}
+        <div className="w-full md:w-7/12 bg-slate-900/40 backdrop-blur-xl p-8 md:p-16 flex flex-col justify-center border-l border-white/5">
+          <div className="max-w-md mx-auto w-full">
+            <div className="mb-10">
+              <h2 className="text-3xl font-bold text-white mb-2">Login</h2>
+              <p className="text-slate-400">Acesse sua conta para continuar.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <Input
-                id="branchId"
-                name="branchId"
-                label="Matriz ou Filial"
-                placeholder="Digite a Matriz ou Filial"
-                type="text"
-                icon={Building2}
-                value={formData.branchId}
-                onChange={handleChange}
-                autoFocus
-                error={fieldErrors.branchId}
-              />
+              <div className="space-y-4">
+                <div className="group transition-all">
+                  <Input
+                    id="email"
+                    name="email"
+                    label="E-mail ou Usuário"
+                    labelClassName="text-gray-300"
+                    placeholder="nome@empresa.com"
+                    type="text"
+                    icon={Mail}
+                    value={formData.email}
+                    onChange={handleChange}
+                    error={fieldErrors.email}
+                    className="bg-slate-950/40 border-white/10 text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:bg-slate-950/60 focus:ring-blue-500/20 transition-all"
+                  />
+                </div>
 
-              <Input
-                id="email"
-                name="email"
-                label="Email"
-                placeholder="exemplo@email.com"
-                type="email"
-                icon={Mail}
-                value={formData.email}
-                onChange={handleChange}
-                error={fieldErrors.email}
-              />
-
-              <Input
-                id="password"
-                name="password"
-                label="Senha"
-                placeholder="••••••••"
-                type="password"
-                icon={Lock}
-                value={formData.password}
-                onChange={handleChange}
-                error={fieldErrors.password}
-                className="bg-slate-50 text-slate-500 placeholder:text-slate-300 focus:bg-white focus:text-slate-700"
-              />
+                <div className="group transition-all">
+                  <Input
+                    id="password"
+                    name="password"
+                    label="Senha"
+                    labelClassName="text-gray-300"
+                    placeholder="••••••••"
+                    type="password"
+                    icon={Lock}
+                    value={formData.password}
+                    onChange={handleChange}
+                    error={fieldErrors.password}
+                    className="bg-slate-950/40 border-white/10 text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:bg-slate-950/60 focus:ring-blue-500/20 transition-all"
+                  />
+                </div>
+              </div>
 
               {error && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-shake">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
                   {error}
                 </div>
               )}
 
-              <div className="pt-1">
+              <div className="pt-2">
                 <Button
                   type="submit"
                   size="lg"
-                  className="w-full min-h-[44px] group"
+                  className="w-full h-14 bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/20 text-white font-bold text-lg rounded-xl transition-all active:scale-[0.98] group"
                   isLoading={status === LoginStatus.LOADING}
                 >
-                  Login
+                  Entrar no Sistema
                   {status !== LoginStatus.LOADING && (
-                    <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   )}
                 </Button>
               </div>
 
-              <div className="text-center">
-                <Link href="/esqueci-senha" className="text-sm text-slate-500 hover:text-primary-700 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 focus-visible:ring-offset-2 rounded-sm">
+              <div className="flex flex-col gap-4 items-center mt-8">
+                <Link href="/esqueci-senha" title="Recuperar senha" className="text-sm text-slate-400 hover:text-blue-400 transition-colors">
                   Esqueceu sua senha?
                 </Link>
+
+                <div className="h-px w-24 bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
+
+                <p className="text-sm text-slate-500">
+                  Não possui acesso? <Link href="/register" title="Criar conta" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">Solicite aqui</Link>
+                </p>
               </div>
             </form>
           </div>
         </div>
+      </div>
+
+      {/* Footer Branding */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-slate-600 text-xs tracking-widest uppercase flex items-center gap-4">
+        <span>© 2025 Gromit Control</span>
+        <div className="w-1 h-1 rounded-full bg-slate-800"></div>
+        <span>Security Verified</span>
       </div>
     </div>
   );
