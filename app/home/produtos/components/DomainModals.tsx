@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Trash2, Pencil, Check } from "lucide-react";
 import { ModalShell, IconBtn } from "./UIComponents";
 import { ProductService } from "@/backend/services/productService";
+import { ClientService } from "@/backend/services/clientService";
 
 export const ModalBuscaProduto: React.FC<{
     open: boolean;
@@ -186,8 +187,8 @@ export const ModalBuscaProduto: React.FC<{
                                     onClick={() => goToPage(pageNum)}
                                     disabled={loading}
                                     className={`w-10 h-10 text-sm font-semibold rounded-lg transition-colors ${currentPage === pageNum
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
                                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {pageNum}
@@ -369,20 +370,56 @@ export const ModalRevendasClientes: React.FC<{
     onClose: () => void;
     onSelect: (nome: string) => void;
 }> = ({ open, onClose, onSelect }) => {
-    // Mock list or fetch from API if we want full refinement
     const [q, setQ] = useState("");
-    const lista = [{ nome: "CASAS BAHIA" }, { nome: "MAGAZINE LUIZA" }, { nome: "MERCADO LIVRE" }].filter(x => x.nome.includes(upper(q)));
+    const [lista, setLista] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchClients = async () => {
+            if (!q || q.length < 2) {
+                setLista([]);
+                return;
+            }
+            setLoading(true);
+            try {
+                const results = await ClientService.search(q);
+                setLista(results);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        const timer = setTimeout(fetchClients, 500);
+        return () => clearTimeout(timer);
+    }, [q]);
 
     return (
         <ModalShell open={open} title="Selecionar Revenda" onClose={onClose}>
-            <input placeholder="Pesquisar..." value={q} onChange={e => setQ(e.target.value)} className="w-full border p-2 rounded mb-2" />
-            <div className="border rounded max-h-60 overflow-auto">
+            <input
+                placeholder="Pesquisar..."
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                className="w-full border p-2 rounded mb-2 font-bold uppercase"
+                autoFocus
+            />
+            <div className="border rounded max-h-60 overflow-auto bg-slate-50">
                 {lista.map((x, i) => (
-                    <div key={i} onClick={() => onSelect(x.nome)} className="p-2 hover:bg-gray-100 cursor-pointer border-b text-xs flex justify-between">
-                        <span>{x.nome}</span>
-                        <Plus size={14} />
+                    <div
+                        key={i}
+                        onClick={() => onSelect(x.trade_name || x.legal_name || x.full_name || "")}
+                        className="p-3 hover:bg-slate-100 cursor-pointer border-b text-xs flex justify-between items-center transition-colors"
+                    >
+                        <span className="font-bold text-slate-700 uppercase">{x.trade_name || x.legal_name || x.full_name || "SEM NOME"}</span>
+                        <Plus size={14} className="text-slate-400" />
                     </div>
                 ))}
+                {lista.length === 0 && q.length >= 2 && !loading && (
+                    <div className="p-4 text-center text-slate-400 text-xs">Nenhum cliente encontrado.</div>
+                )}
+                {loading && (
+                    <div className="p-4 text-center text-slate-400 text-xs">Buscando...</div>
+                )}
             </div>
         </ModalShell>
     );

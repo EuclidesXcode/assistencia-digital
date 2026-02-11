@@ -79,4 +79,20 @@ export class ClientService {
         if (error) throw new Error(error.message);
         return clients || [];
     }
+
+    static async search(query: string): Promise<Client[]> {
+        if (!query || query.length < 2) return [];
+
+        const { data, error } = await supabase
+            .from('clients')
+            .select('*')
+            .or(`legal_name.ilike.%${query}%,trade_name.ilike.%${query}%,full_name.ilike.%${query}%`)
+            .limit(20);
+
+        if (error) {
+            console.error("Error searching clients:", error);
+            return [];
+        }
+        return (data as Client[]) || [];
+    }
 }

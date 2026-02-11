@@ -8,16 +8,13 @@ export class ProductService {
 
         const { error } = await supabase.from('produtos').insert([{
             ean: data.ean,
-            modelo_ref: data.modeloRef,
-            fabricante: data.marca,
+            marca: data.marca,
             manual_url: data.manualUrl,
             fotos: data.fotos,
             nfs_data: data.nfs,
-            modelo_fabricante: data.modelos,
+            modelos_data: data.modelos,
             embalagem: data.embalagem,
             acessorios: data.acessorios,
-            estetica: data.estetica,
-            funcional: data.funcional,
             funcionalidade: data.funcionalidade,
             estoque_atual: 0
         }]);
@@ -33,9 +30,9 @@ export class ProductService {
             id: data.id,
             ean: data.ean,
             modeloRef: data.modelo_ref,
-            marca: data.fabricante || 'N/A',
+            marca: data.marca || 'N/A',
             nfs: data.nfs_data || [],
-            modelos: data.modelo_fabricante || [],
+            modelos: data.modelos_data || [],
             embalagem: data.embalagem || [],
             acessorios: data.acessorios || [],
             estetica: data.estetica || [],

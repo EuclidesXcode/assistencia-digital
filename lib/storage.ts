@@ -2,27 +2,29 @@
 import { supabase } from './supabase';
 import { v4 as uuidv4 } from 'uuid';
 
-export const STORAGE_BUCKET = 'evidences';
+export const DEFAULT_BUCKET = 'evidences';
 
 export interface UploadResult {
     path: string;
     url: string;
-    error: Error | null;
+    error: any | null;
 }
 
 /**
- * Uploads a file to the 'evidences' bucket.
- * @param file The file object to upload.
- * @param folder Optional folder path within the bucket (e.g., 'orcamentos/123').
+ * Generic upload function to Supabase Storage.
  */
-export async function uploadEvidence(file: File, folder: string = 'general'): Promise<UploadResult> {
+export async function uploadFile(
+    file: File,
+    bucket: string = DEFAULT_BUCKET,
+    folder: string = 'general'
+): Promise<UploadResult> {
     try {
         const fileExt = file.name.split('.').pop();
         const fileName = `${uuidv4()}.${fileExt}`;
         const filePath = `${folder}/${fileName}`;
 
         const { data, error } = await supabase.storage
-            .from(STORAGE_BUCKET)
+            .from(bucket)
             .upload(filePath, file);
 
         if (error) {
@@ -30,7 +32,7 @@ export async function uploadEvidence(file: File, folder: string = 'general'): Pr
         }
 
         const { data: publicUrlData } = supabase.storage
-            .from(STORAGE_BUCKET)
+            .from(bucket)
             .getPublicUrl(filePath);
 
         return {
@@ -46,4 +48,20 @@ export async function uploadEvidence(file: File, folder: string = 'general'): Pr
             error: error
         };
     }
+}
+
+/**
+ * Uploads a file to the 'evidences' bucket (maintained for backward compatibility).
+ */
+export async function uploadEvidence(file: File, folder: string = 'general'): Promise<UploadResult> {
+    return uploadFile(file, 'evidences', folder);
+}
+
+/**
+ * Uploads a product image/document to the 'evidences' bucket under 'produtos' folder.
+ * (Using 'evidences' bucket for now as it is confirmed to exist/work)
+ */
+export async function uploadProductFile(file: File, type: 'image' | 'manual'): Promise<UploadResult> {
+    const folder = type === 'manual' ? 'produtos/manuais' : 'produtos/imagens';
+    return uploadFile(file, 'evidences', folder);
 }
