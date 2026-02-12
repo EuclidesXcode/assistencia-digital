@@ -1,7 +1,6 @@
-"use client";
-
-import PagePlaceholder from "@/components/PagePlaceholder";
+import RecebimentoWizardEtiquetas from '@/app/home/recebimento/_components/RecebimentoWizardEtiquetas';
 
 export default function RecebimentoSemNfPage() {
-  return <PagePlaceholder title="Recebimento - Sem NF" />;
+  return <RecebimentoWizardEtiquetas withNf={false} />;
 }
+
