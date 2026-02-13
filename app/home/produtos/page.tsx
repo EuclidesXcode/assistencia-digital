@@ -21,6 +21,8 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
+import { ProductService } from "@/backend/services/productService";
+import { CreateProductDTO, ItemVinculado, ModeloFabricante as DTOModeloFabricante } from "@/backend/models/Product";
 
 
 const PECAS_CADASTRADAS = [
@@ -210,8 +212,8 @@ const IconBtn: React.FC<{
     variant === "danger"
       ? "border-red-200 text-red-600 hover:bg-red-50"
       : variant === "primary"
-      ? "border-sky-200 text-sky-700 hover:bg-sky-50"
-      : "border-slate-200 text-slate-700 hover:bg-slate-50";
+        ? "border-sky-200 text-sky-700 hover:bg-sky-50"
+        : "border-slate-200 text-slate-700 hover:bg-slate-50";
   return (
     <button type="button" title={title} onClick={onClick} disabled={disabled} className={`${base} ${styles}`}>
       {children}
@@ -1027,104 +1029,104 @@ const ModalPecas: React.FC<{
   onRemover,
   sugestoes,
 }) => {
-  return (
-    <ModalShell
-      open={open}
-      title={title}
-      subtitle={`EAN / GTIN: ${master.ean || "-"}${modeloFabricante ? ` • Modelo Fabricante: ${modeloFabricante}` : ""}`}
-      onClose={onClose}
-      maxW="max-w-4xl"
-    >
-      <div className="grid grid-cols-12 gap-2 items-end">
-        {onChangeCodigo ? (
-          <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-slate-600 tracking-wide">CÓDIGO PEÇA</label>
+    return (
+      <ModalShell
+        open={open}
+        title={title}
+        subtitle={`EAN / GTIN: ${master.ean || "-"}${modeloFabricante ? ` • Modelo Fabricante: ${modeloFabricante}` : ""}`}
+        onClose={onClose}
+        maxW="max-w-4xl"
+      >
+        <div className="grid grid-cols-12 gap-2 items-end">
+          {onChangeCodigo ? (
+            <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
+              <label className="text-[11px] font-medium text-slate-600 tracking-wide">CÓDIGO PEÇA</label>
+              <input
+                value={form.codigoPeca || ""}
+                onChange={(e) => onChangeCodigo(e.target.value)}
+                className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
+              />
+            </div>
+          ) : null}
+
+          <div className={`col-span-12 ${onChangeCodigo ? "md:col-span-7" : "md:col-span-9"} flex flex-col gap-1.5`}>
+            <label className="text-[11px] font-medium text-slate-600 tracking-wide">DESCRIÇÃO</label>
             <input
-              value={form.codigoPeca || ""}
-              onChange={(e) => onChangeCodigo(e.target.value)}
-              className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
+              value={form.descricao}
+              onChange={(e) => onChangeDescricao(e.target.value)}
+              className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
             />
           </div>
-        ) : null}
 
-        <div className={`col-span-12 ${onChangeCodigo ? "md:col-span-7" : "md:col-span-9"} flex flex-col gap-1.5`}>
-          <label className="text-[11px] font-medium text-slate-600 tracking-wide">DESCRIÇÃO</label>
-          <input
-            value={form.descricao}
-            onChange={(e) => onChangeDescricao(e.target.value)}
-            className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-          />
-        </div>
-
-        <div className={`col-span-12 ${onChangeCodigo ? "md:col-span-2" : "md:col-span-3"} flex sm:justify-end`}>
-          <button
-            type="button"
-            onClick={onAdd}
-            className="w-full sm:w-auto px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2"
-          >
-            <Plus size={16} />
-            {addLabel}
-          </button>
-        </div>
-      </div>
-
-      {!!sugestoes?.length && (
-        <div className="flex flex-wrap gap-2">
-          {sugestoes.map((s) => (
+          <div className={`col-span-12 ${onChangeCodigo ? "md:col-span-2" : "md:col-span-3"} flex sm:justify-end`}>
             <button
               type="button"
-              key={s}
-              onClick={() => onChangeDescricao(s)}
-              className="px-2 h-8 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50"
+              onClick={onAdd}
+              className="w-full sm:w-auto px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2"
             >
-              {s}
+              <Plus size={16} />
+              {addLabel}
             </button>
-          ))}
+          </div>
         </div>
-      )}
 
-      {mensagem && <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{mensagem}</div>}
-
-      <div className="rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px]">
-        <table className="w-full border-collapse text-xs min-w-[760px]">
-          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
-            <tr>
-              <th className="px-2 py-1.5 text-left w-10">#</th>
-              <th className="px-1.5 py-1 text-left w-24">Data</th>
-              <th className="px-1.5 py-1 text-left w-24">Incluído por</th>
-              {onChangeCodigo ? <th className="px-1.5 py-1 text-left w-24">Código peça</th> : null}
-              <th className="px-2 py-1.5 text-left">Descrição</th>
-              <th className="px-2 py-1.5 text-right w-14">Excluir</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!lista.length && (
-              <tr>
-                <td colSpan={onChangeCodigo ? 6 : 5} className="px-3 py-3 text-center text-[11px] text-slate-400">
-                  {emptyText}
-                </td>
-              </tr>
-            )}
-            {lista.map((x, i) => (
-              <tr key={x.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                <td className="px-2 py-1.5 align-middle text-[11px] text-slate-500">{i + 1}</td>
-                <td className="px-1.5 py-1 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.createdAt || "-"}</td>
-                <td className="px-1.5 py-1 align-middle text-[11px] font-medium text-slate-800 whitespace-nowrap">{x.createdBy || "-"}</td>
-                {onChangeCodigo ? <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800">{x.codigoPeca}</td> : null}
-                <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800">{x.descricao}</td>
-                <td className="px-2 py-1.5 align-middle text-right">
-                  <IconBtn title="Excluir" variant="danger" onClick={() => onRemover(x.id)}>
-                    <Trash2 size={16} />
-                  </IconBtn>
-                </td>
-              </tr>
+        {!!sugestoes?.length && (
+          <div className="flex flex-wrap gap-2">
+            {sugestoes.map((s) => (
+              <button
+                type="button"
+                key={s}
+                onClick={() => onChangeDescricao(s)}
+                className="px-2 h-8 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50"
+              >
+                {s}
+              </button>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </ModalShell>
-  );
-};
+          </div>
+        )}
+
+        {mensagem && <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{mensagem}</div>}
+
+        <div className="rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px]">
+          <table className="w-full border-collapse text-xs min-w-[760px]">
+            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
+              <tr>
+                <th className="px-2 py-1.5 text-left w-10">#</th>
+                <th className="px-1.5 py-1 text-left w-24">Data</th>
+                <th className="px-1.5 py-1 text-left w-24">Incluído por</th>
+                {onChangeCodigo ? <th className="px-1.5 py-1 text-left w-24">Código peça</th> : null}
+                <th className="px-2 py-1.5 text-left">Descrição</th>
+                <th className="px-2 py-1.5 text-right w-14">Excluir</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!lista.length && (
+                <tr>
+                  <td colSpan={onChangeCodigo ? 6 : 5} className="px-3 py-3 text-center text-[11px] text-slate-400">
+                    {emptyText}
+                  </td>
+                </tr>
+              )}
+              {lista.map((x, i) => (
+                <tr key={x.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                  <td className="px-2 py-1.5 align-middle text-[11px] text-slate-500">{i + 1}</td>
+                  <td className="px-1.5 py-1 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.createdAt || "-"}</td>
+                  <td className="px-1.5 py-1 align-middle text-[11px] font-medium text-slate-800 whitespace-nowrap">{x.createdBy || "-"}</td>
+                  {onChangeCodigo ? <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800">{x.codigoPeca}</td> : null}
+                  <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800">{x.descricao}</td>
+                  <td className="px-2 py-1.5 align-middle text-right">
+                    <IconBtn title="Excluir" variant="danger" onClick={() => onRemover(x.id)}>
+                      <Trash2 size={16} />
+                    </IconBtn>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ModalShell>
+    );
+  };
 
 const CadastroNF_EAN_Modelo = () => {
   const [registros, setRegistros] = useState<any[]>([]);
@@ -1692,8 +1694,8 @@ const CadastroNF_EAN_Modelo = () => {
         title: "",
         accept: "",
         files: [] as FileMeta[],
-        onAdd: (_: FileList) => {},
-        onRemove: (_: number) => {},
+        onAdd: (_: FileList) => { },
+        onRemove: (_: number) => { },
       };
 
     const baseAdd = (arr: FileMeta[], fl: FileList) => {
@@ -1804,36 +1806,107 @@ const CadastroNF_EAN_Modelo = () => {
     });
   };
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!masterPreenchido) return setMensagem("Preencha EAN / GTIN e Modelo Referência.");
     if (!norm(master.fabricante)) return setMensagem("Informe o Fabricante.");
-    if (existeDuplicidadeMaster()) return setMensagem("EAN / GTIN já cadastrado.");
+    // if (existeDuplicidadeMaster()) return setMensagem("EAN / GTIN já cadastrado."); // Permitir múltiplos registros (estoque/unidades)
 
-    const payload = {
-      ...master,
-      codigosNF,
-      modelosFabricante,
-      modeloSelecionadoId,
-      embalagens,
-      acessorios,
-      esteticas,
-      funcionaisPeca,
-      funcionalidades,
-      produtoDocs: Object.fromEntries(Object.entries(produtoDocs).map(([k, v]) => [k, v.length])),
-      modeloDocs: Object.fromEntries(
-        Object.entries(modeloDocs).map(([mid, docs]) => [
-          mid,
-          Object.fromEntries(Object.entries(docs as any).map(([k, v]) => [k, (v as any[])?.length || 0])),
-        ])
-      ),
-      itemFotos: Object.fromEntries(Object.entries(itemFotos).map(([k, v]) => [k, v.length])),
-      criadoEm: agoraBR(),
-      criadoPor: USUARIO_ATUAL,
-    };
+    try {
+      setMensagem("Salvando...");
 
-    setRegistros((p) => [...p, payload]);
-    setMensagem("Registro salvo.");
-    console.log("SALVO", payload);
+      const mapPeca = (p: PecaBase, tipo: ItemVinculado['tipo']): ItemVinculado => ({
+        tipo,
+        nome: p.descricao,
+        codigo: p.codigoPeca,
+        quantidade: 1,
+        fotos: itemFotos[`${tipo === 'embalagem' ? 'EMBALAGEM' : 'ACESSORIO'}|${upper(p.codigoPeca || '')}|0`]
+          ?.map(f => f.name) || [] // TODO: Upload real URLs
+      });
+
+      const mapFuncionalidade = (p: PecaBase): ItemVinculado => ({
+        tipo: 'funcionalidade',
+        nome: p.descricao,
+        quantidade: 1
+      });
+
+      const mappedModelos: DTOModeloFabricante[] = modelosFabricante.map(m => {
+        const ests = esteticas.filter(e => e.modeloId === m.id);
+        const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
+
+        return {
+          id: String(m.id),
+          nome: m.nome,
+          categoria: 'Geral', // Default
+          codigoTipo: m.codigoProduto,
+          linha: m.linha,
+          estetica: ests.map(e => ({
+            tipo: 'estetica',
+            nome: e.descricao,
+            codigo: e.codigoPeca,
+            quantidade: 1,
+            fotos: itemFotos[`PECA|${upper(e.codigoPeca || '')}|${m.id}`]?.map(f => f.name) || []
+          })),
+          funcional: funcs.map(f => ({
+            tipo: 'funcional',
+            nome: f.descricao,
+            codigo: f.codigoPeca,
+            quantidade: 1,
+            fotos: itemFotos[`PECA|${upper(f.codigoPeca || '')}|${m.id}`]?.map(f => f.name) || []
+          })),
+          funcionalidades: [] // Not mapped in local state
+        };
+      });
+
+      const dto: CreateProductDTO = {
+        ean: master.ean,
+        modeloRef: master.modeloReferencia,
+        marca: master.fabricante,
+        nfs: codigosNF.map(nf => ({ codigo: nf.codigo, revenda: nf.revenda })),
+        modelos: mappedModelos,
+        embalagem: embalagens.map(e => mapPeca(e, 'embalagem')),
+        acessorios: acessorios.map(a => mapPeca(a, 'acessorio')),
+        estetica: [], // Root level empty as they are in models
+        funcional: [], // Root level empty
+        funcionalidade: funcionalidades.map(mapFuncionalidade),
+        fotos: produtoDocs.fotoProduto.map(f => f.name), // TODO: URLs
+        manualUrl: produtoDocs.manualUsuario[0]?.name // TODO: URL
+      };
+
+      await ProductService.createProduct(dto);
+
+      // Restore payload for local cache compatibility
+      const payload = {
+        ...master,
+        codigosNF,
+        modelosFabricante,
+        modeloSelecionadoId,
+        embalagens,
+        acessorios,
+        esteticas,
+        funcionaisPeca,
+        funcionalidades,
+        produtoDocs: Object.fromEntries(Object.entries(produtoDocs).map(([k, v]) => [k, v.length])),
+        modeloDocs: Object.fromEntries(
+          Object.entries(modeloDocs).map(([mid, docs]) => [
+            mid,
+            Object.fromEntries(Object.entries(docs as any).map(([k, v]) => [k, (v as any[])?.length || 0])),
+          ])
+        ),
+        itemFotos: Object.fromEntries(Object.entries(itemFotos).map(([k, v]) => [k, v.length])),
+        criadoEm: agoraBR(),
+        criadoPor: USUARIO_ATUAL,
+      };
+
+      setRegistros((p) => [...p, payload]);
+      setMensagem("Produto salvo com sucesso!");
+      console.log("SALVO NO BANCO", dto);
+
+      // Opcional: Limpar formulário após salvar?
+      // limpar(); 
+    } catch (err: any) {
+      console.error(err);
+      setMensagem("Erro ao salvar: " + (err.message || String(err)));
+    }
   };
 
   const limpar = () => {
@@ -1996,624 +2069,622 @@ const CadastroNF_EAN_Modelo = () => {
             </button>
           </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 md:p-5 space-y-4">
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-3 lg:col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">PESQUISAR</label>
-                  <button
-                    type="button"
-                    onClick={() => setMostrarLookupEAN(true)}
-                    className="h-9 w-full rounded-full border border-slate-300 bg-white px-4 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center gap-2"
-                  >
-                    <Search size={16} />
-                    PESQUISAR
-                  </button>
-                </div>
-                <div className="col-span-12 md:col-span-3 lg:col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">EAN / GTIN</label>
-                  <input
-                    type="text"
-                    name="ean"
-                    value={master.ean}
-                    onChange={handleChangeMaster}
-                    className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4 lg:col-span-6 flex flex-col gap-1.5">
-                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">MODELO REFERÊNCIA</label>
-                  <input
-                    type="text"
-                    value={master.modeloReferencia}
-                    readOnly
-                    className="h-9 rounded-xl border border-slate-300 bg-slate-50 px-3 text-[12px] text-slate-800 cursor-not-allowed"
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-2 lg:col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">FABRICANTE</label>
-                  <input
-                    type="text"
-                    value={master.fabricante}
-                    readOnly
-                    className="h-9 rounded-xl border border-slate-300 bg-slate-50 px-3 text-[12px] text-slate-800 uppercase cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={abrirCodigosNF} className={`${btnBase} border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100`}>
-                    <Receipt size={16} />
-                    CÓDIGOS NF<CountPill n={codigosNF.length} />
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={abrirEmbalagem}
-                    className={`${btnBase} border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100`}
-                  >
-                    <PackageIcon size={16} />
-                    EMBALAGEM<CountPill n={embalagens.length} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={abrirAcessorios}
-                    className={`${btnBase} border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100`}
-                  >
-                    <Cable size={16} />
-                    ACESSÓRIOS<CountPill n={acessorios.length} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={abrirFuncionalidade}
-                    className={`${btnBase} border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100`}
-                  >
-                    <Sparkles size={16} />
-                    FUNCIONALIDADE<CountPill n={funcionalidades.length} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/80">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-[12px] font-semibold text-slate-800">Anexos do produto</div>
-                    <div className="text-[10px] text-slate-500">Use para auxiliar Pré-Análise, Embalagem e Análise Técnica.</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openArquivos({ kind: "produto", doc: "fotoProduto" })}
-                    className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
-                  >
-                    <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
-                      <ImageIcon size={16} /> Foto do produto
-                    </span>
-                    <CountPill n={produtoDocs.fotoProduto.length} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openArquivos({ kind: "produto", doc: "etiquetaProcel" })}
-                    className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
-                  >
-                    <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
-                      <Tag size={16} /> Etiqueta Procel
-                    </span>
-                    <CountPill n={produtoDocs.etiquetaProcel.length} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openArquivos({ kind: "produto", doc: "kitAcessorio" })}
-                    className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
-                  >
-                    <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
-                      <Paperclip size={16} /> Kit acessório
-                    </span>
-                    <CountPill n={produtoDocs.kitAcessorio.length} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openArquivos({ kind: "produto", doc: "manualUsuario" })}
-                    className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
-                  >
-                    <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
-                      <FileText size={16} /> Manual (PDF)
-                    </span>
-                    <CountPill n={produtoDocs.manualUsuario.length} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="border border-slate-200 rounded-2xl p-4 bg-white">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-[12px] font-semibold text-slate-800">Modelos Fabricante vinculados</div>
-                    <div className="text-[10px] text-slate-500">Selecione um modelo para vincular Estética e Funcional.</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-12 md:col-span-5 flex flex-col gap-1.5">
-                    <label className="text-[11px] font-medium text-slate-600 tracking-wide">MODELO FABRICANTE</label>
-                    <input
-                      type="text"
-                      value={modeloAtual}
-                      onChange={(e) => {
-                        setModeloAtual(e.target.value);
-                        if (!linhaAtual) setLinhaAtual(detectarLinhaDoModeloFabricante(e.target.value));
-                        setMensagemModelo("");
-                      }}
-                      className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                    />
-                  </div>
-                  <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                    <label className="text-[11px] font-medium text-slate-600 tracking-wide">CÓDIGO DO PRODUTO</label>
-                    <input
-                      type="text"
-                      value={codigoProdutoAtual}
-                      onChange={(e) => {
-                        setCodigoProdutoAtual(e.target.value);
-                        setMensagemModelo("");
-                      }}
-                      className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
-                    />
-                  </div>
-                  <div className="col-span-12 md:col-span-2 flex flex-col gap-1.5">
-                    <label className="text-[11px] font-medium text-slate-600 tracking-wide">LINHA</label>
-                    <input
-                      type="text"
-                      value={linhaAtual}
-                      onChange={(e) => {
-                        setLinhaAtual(e.target.value);
-                        setMensagemModelo("");
-                      }}
-                      className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
-                    />
-                  </div>
-                  <div className="col-span-12 md:col-span-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={addModelo}
-                      className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      INCLUIR
-                    </button>
-                  </div>
-                </div>
-
-                {mensagemModelo && (
-                  <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-2">{mensagemModelo}</div>
-                )}
-
-                <div className="mt-3 rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[260px]">
-                  <table className="w-full border-collapse text-[11px] min-w-[860px]">
-                    <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
-                      <tr>
-                        <th className="px-3 py-2 text-left w-10">#</th>
-                        <th className="px-2 py-1.5 text-left">Modelo fabricante</th>
-                        <th className="px-2 py-1.5 text-left w-32">Código do produto</th>
-                        <th className="px-2 py-1.5 text-left w-16">Linha</th>
-                        <th className="px-2 py-1.5 text-center w-16">Vista explodida</th>
-                        <th className="px-2 py-1.5 text-center w-16">Boletim técnico</th>
-                        <th className="px-2 py-1.5 text-center w-16">Manual técnico</th>
-                        <th className="px-3 py-2 text-right w-16">Alterar</th>
-                        <th className="px-3 py-2 text-right w-16">Remover</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {!modelosFabricante.length && (
-                        <tr>
-                          <td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-400">
-                            Nenhum Modelo Fabricante cadastrado.
-                          </td>
-                        </tr>
-                      )}
-                      {modelosFabricante.map((m, i) => {
-                        const sel = m.id === modeloSelecionadoId;
-                        const docs = modeloDocs[m.id] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
-                        return (
-                          <tr
-                            key={m.id}
-                            className={`${i % 2 === 0 ? "bg-white" : "bg-slate-50"} ${sel ? "ring-1 ring-sky-500" : ""} cursor-pointer`}
-                            onClick={() => setModeloSelecionadoId(m.id)}
-                          >
-                            <td className="px-2 py-1.5 align-middle text-[11px] text-slate-500">{i + 1}</td>
-                            <td className="px-2 py-1.5 align-middle text-[11px] font-semibold text-slate-800">{m.nome}</td>
-                            <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800 whitespace-nowrap">{m.codigoProduto}</td>
-                            <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800 whitespace-nowrap">{m.linha}</td>
-
-                            <td className="px-2 py-1.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                              <IconBtn
-                                title="Vista explodida"
-                                badge={docs.vistaExplodida?.length || 0}
-                                onClick={() => openArquivos({ kind: "modelo", modeloId: m.id, doc: "vistaExplodida" })}
-                              >
-                                <Layers size={16} />
-                              </IconBtn>
-                            </td>
-                            <td className="px-2 py-1.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                              <IconBtn
-                                title="Boletim técnico"
-                                badge={docs.boletimTecnico?.length || 0}
-                                onClick={() => openArquivos({ kind: "modelo", modeloId: m.id, doc: "boletimTecnico" })}
-                              >
-                                <FileSearch size={16} />
-                              </IconBtn>
-                            </td>
-                            <td className="px-2 py-1.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                              <IconBtn
-                                title="Manual técnico"
-                                badge={docs.manualTecnico?.length || 0}
-                                onClick={() => openArquivos({ kind: "modelo", modeloId: m.id, doc: "manualTecnico" })}
-                              >
-                                <BookText size={16} />
-                              </IconBtn>
-                            </td>
-
-                            <td className="px-2 py-1.5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
-                              <IconBtn title="Alterar" variant="primary" onClick={() => editarModelo(m.id)}>
-                                <Pencil size={16} />
-                              </IconBtn>
-                            </td>
-                            <td className="px-2 py-1.5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
-                              <IconBtn title="Excluir" variant="danger" onClick={() => removerModelo(m.id)}>
-                                <Trash2 size={16} />
-                              </IconBtn>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={abrirEstetica}
-                    className={`${btnBase} border-fuchsia-200 text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100`}
-                  >
-                    <Sparkles size={16} />
-                    ESTÉTICA<CountPill n={esteticas.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0)).length} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={abrirFuncionalPeca}
-                    className={`${btnBase} border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100`}
-                  >
-                    <Sparkles size={16} />
-                    FUNCIONAL<CountPill n={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0)).length} />
-                  </button>
-                  {modeloSelecionado && (
-                    <div className="ml-auto text-[11px] text-slate-600 inline-flex items-center gap-2">
-                      <span className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200">
-                        Selecionado: <span className="font-semibold">{modeloSelecionado.nome}</span>
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/80">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-[12px] font-semibold text-slate-800 inline-flex items-center">
-                      Itens vinculados ao produto<CountPill n={itensFiltrados.length} />
-                    </div>
-                    <div className="text-[10px] text-slate-500">Emb. + Acess. + Peças + Funcionalidades. Inclua fotos dos itens quando necessário.</div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFiltroModeloReferencia((v) => !v)}
-                        className={`px-3 h-8 rounded-xl text-[11px] font-semibold border transition ${
-                          filtroModeloReferencia
-                            ? "bg-slate-900 text-white border-slate-900"
-                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        MODELO REFERÊNCIA
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFiltroModeloFabricante((v) => !v)}
-                        className={`px-3 h-8 rounded-xl text-[11px] font-semibold border transition ${
-                          filtroModeloFabricante
-                            ? "bg-slate-900 text-white border-slate-900"
-                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        MODELO FABRICANTE
-                      </button>
-                      {filtroModeloFabricante && (
-                        <select
-                          value={filtroModeloFabricanteId}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setFiltroModeloFabricanteId(v === "TODOS" ? "TODOS" : Number(v));
-                          }}
-                          className="h-8 rounded-xl border border-slate-200 bg-white px-2 text-[11px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                        >
-                          <option value="TODOS">TODOS OS MODELOS</option>
-                          {modelosFabricante.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.nome}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px] bg-white">
-                  <table className="w-full border-collapse text-[11px] min-w-[760px]">
-                    <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
-                      <tr>
-                        <th className="px-2 py-2 text-left w-8">#</th>
-                        <th className="px-2 py-2 text-left w-28">Tipo</th>
-                        <th className="px-2 py-2 text-left w-72">Modelo</th>
-                        <th className="px-2 py-2 text-left w-28">Código peça</th>
-                        <th className="px-2 py-2 text-left">Descrição</th>
-                        <th className="px-2 py-2 text-right w-20">Fotos</th>
-                        <th className="px-2 py-2 text-right w-20">Excluir</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {!itensFiltrados.length && (
-                        <tr>
-                          <td colSpan={7} className="px-3 py-3 text-center text-[11px] text-slate-400">
-                            Nenhum item vinculado ainda.
-                          </td>
-                        </tr>
-                      )}
-                      {itensFiltrados.map((r, i) => {
-                        const n = (itemFotos[r.rowKey] || []).length;
-                        return (
-                          <tr key={r.rowKey} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                            <td className="px-2 py-2 align-middle text-[11px] text-slate-500">{i + 1}</td>
-                            <td className="px-2 py-2 align-middle text-[11px] font-semibold text-slate-700">{r.tipo}</td>
-                            <td className="px-2 py-2 align-middle text-[11px] text-slate-700 truncate max-w-[280px]" title={r.vinculo}>
-                              {r.vinculo}
-                            </td>
-                            <td className="px-2 py-2 align-middle text-[11px] text-slate-800 whitespace-nowrap">{r.codigoPeca || "-"}</td>
-                            <td className="px-2 py-2 align-middle text-[11px] text-slate-800">{r.descricao}</td>
-                            <td className="px-2 py-2 align-middle text-right">
-                              <IconBtn
-                                title="Incluir/alterar fotos"
-                                badge={n}
-                                onClick={() =>
-                                  openArquivos({ kind: "item", rowKey: r.rowKey, title: `Fotos — ${r.tipo} — ${r.codigoPeca || r.descricao}` })
-                                }
-                              >
-                                <ImageIcon size={16} />
-                              </IconBtn>
-                            </td>
-                            <td className="px-2 py-2 align-middle text-right">
-                              <IconBtn title="Excluir" variant="danger" onClick={() => excluirItemVinculado(r)}>
-                                <Trash2 size={16} />
-                              </IconBtn>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {mensagem && <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{mensagem}</div>}
-
-              <div className="flex flex-wrap justify-end gap-2">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 md:p-5 space-y-4">
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12 md:col-span-3 lg:col-span-2 flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-600 tracking-wide">PESQUISAR</label>
                 <button
                   type="button"
-                  onClick={limpar}
-                  className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2"
+                  onClick={() => setMostrarLookupEAN(true)}
+                  className="h-9 w-full rounded-full border border-slate-300 bg-white px-4 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center gap-2"
                 >
-                  <X size={16} />
-                  LIMPAR
+                  <Search size={16} />
+                  PESQUISAR
+                </button>
+              </div>
+              <div className="col-span-12 md:col-span-3 lg:col-span-2 flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-600 tracking-wide">EAN / GTIN</label>
+                <input
+                  type="text"
+                  name="ean"
+                  value={master.ean}
+                  onChange={handleChangeMaster}
+                  className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                />
+              </div>
+              <div className="col-span-12 md:col-span-4 lg:col-span-6 flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-600 tracking-wide">MODELO REFERÊNCIA</label>
+                <input
+                  type="text"
+                  value={master.modeloReferencia}
+                  readOnly
+                  className="h-9 rounded-xl border border-slate-300 bg-slate-50 px-3 text-[12px] text-slate-800 cursor-not-allowed"
+                />
+              </div>
+              <div className="col-span-12 md:col-span-2 lg:col-span-2 flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-600 tracking-wide">FABRICANTE</label>
+                <input
+                  type="text"
+                  value={master.fabricante}
+                  readOnly
+                  className="h-9 rounded-xl border border-slate-300 bg-slate-50 px-3 text-[12px] text-slate-800 uppercase cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={abrirCodigosNF} className={`${btnBase} border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100`}>
+                  <Receipt size={16} />
+                  CÓDIGOS NF<CountPill n={codigosNF.length} />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={abrirEmbalagem}
+                  className={`${btnBase} border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100`}
+                >
+                  <PackageIcon size={16} />
+                  EMBALAGEM<CountPill n={embalagens.length} />
                 </button>
                 <button
                   type="button"
-                  onClick={simular}
-                  className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2"
+                  onClick={abrirAcessorios}
+                  className={`${btnBase} border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100`}
+                >
+                  <Cable size={16} />
+                  ACESSÓRIOS<CountPill n={acessorios.length} />
+                </button>
+                <button
+                  type="button"
+                  onClick={abrirFuncionalidade}
+                  className={`${btnBase} border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100`}
                 >
                   <Sparkles size={16} />
-                  SIMULAR
-                </button>
-                <button
-                  type="button"
-                  onClick={salvar}
-                  className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  SALVAR
+                  FUNCIONALIDADE<CountPill n={funcionalidades.length} />
                 </button>
               </div>
             </div>
 
-            <ModalEanGtins
-              open={mostrarLookupEAN}
-              onClose={() => setMostrarLookupEAN(false)}
-              eans={eansCad}
-              onAdd={(m) => setEansCad((p) => [...p, m])}
-              onSelect={(m) => {
-                setMaster(m);
-                setMensagem("");
-                setMostrarLookupEAN(false);
-              }}
-            />
+            <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/80">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[12px] font-semibold text-slate-800">Anexos do produto</div>
+                  <div className="text-[10px] text-slate-500">Use para auxiliar Pré-Análise, Embalagem e Análise Técnica.</div>
+                </div>
+              </div>
 
-            <ModalCodigosNF
-              open={mostrarPopupNF}
-              master={master}
-              codigosNF={codigosNF}
-              nfAtual={nfAtual}
-              revendaAtual={revendaNFAtual}
-              mensagem={mensagemNF}
-              onClose={() => {
-                setMostrarPopupNF(false);
-                setMostrarLookupRevenda(false);
-                setEditNfId(null);
-                setNfAtual("");
-                setRevendaNFAtual("");
-                setMensagemNF("");
-              }}
-              onChangeNF={setNfAtual}
-              onPesquisarRevenda={() => setMostrarLookupRevenda(true)}
-              onAdd={addCodigoNF}
-              onRemover={removerCodigoNF}
-              onEditar={editarCodigoNF}
-            />
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => openArquivos({ kind: "produto", doc: "fotoProduto" })}
+                  className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+                >
+                  <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
+                    <ImageIcon size={16} /> Foto do produto
+                  </span>
+                  <CountPill n={produtoDocs.fotoProduto.length} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openArquivos({ kind: "produto", doc: "etiquetaProcel" })}
+                  className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+                >
+                  <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
+                    <Tag size={16} /> Etiqueta Procel
+                  </span>
+                  <CountPill n={produtoDocs.etiquetaProcel.length} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openArquivos({ kind: "produto", doc: "kitAcessorio" })}
+                  className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+                >
+                  <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
+                    <Paperclip size={16} /> Kit acessório
+                  </span>
+                  <CountPill n={produtoDocs.kitAcessorio.length} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openArquivos({ kind: "produto", doc: "manualUsuario" })}
+                  className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+                >
+                  <span className="text-[11px] font-semibold text-slate-700 inline-flex items-center gap-2">
+                    <FileText size={16} /> Manual (PDF)
+                  </span>
+                  <CountPill n={produtoDocs.manualUsuario.length} />
+                </button>
+              </div>
+            </div>
 
-            <ModalRevendasClientes
-              open={mostrarLookupRevenda}
-              onClose={() => setMostrarLookupRevenda(false)}
-              onSelect={(nome) => {
-                setRevendaNFAtual(nome);
-                setMostrarLookupRevenda(false);
-                setMensagemNF("");
-              }}
-            />
+            <div className="border border-slate-200 rounded-2xl p-4 bg-white">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[12px] font-semibold text-slate-800">Modelos Fabricante vinculados</div>
+                  <div className="text-[10px] text-slate-500">Selecione um modelo para vincular Estética e Funcional.</div>
+                </div>
+              </div>
 
-            <ModalPecas
-              open={mostrarPopupEmbalagem}
-              title="Cadastro de Embalagem Referente"
-              master={master}
-              form={formEmbalagem}
-              mensagem={mensagemEmbalagem}
-              emptyText="Nenhum item de embalagem cadastrado ainda."
-              addLabel="INCLUIR"
-              onClose={() => {
-                setMostrarPopupEmbalagem(false);
-                setMensagemEmbalagem("");
-              }}
-              onChangeCodigo={(v) => setCodigoComDescricao(setFormEmbalagem, setMensagemEmbalagem, v)}
-              onChangeDescricao={(v) => {
-                setFormEmbalagem((p) => ({ ...p, descricao: v }));
-                setMensagemEmbalagem("");
-              }}
-              onAdd={() => addItemGenerico(formEmbalagem, setFormEmbalagem, setEmbalagens, setMensagemEmbalagem)}
-              lista={embalagens}
-              onRemover={(id) => setEmbalagens((p) => p.filter((x) => x.id !== id))}
-              sugestoes={EMBALAGENS_PADRAO}
-            />
+              <div className="mt-3 grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-12 md:col-span-5 flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">MODELO FABRICANTE</label>
+                  <input
+                    type="text"
+                    value={modeloAtual}
+                    onChange={(e) => {
+                      setModeloAtual(e.target.value);
+                      if (!linhaAtual) setLinhaAtual(detectarLinhaDoModeloFabricante(e.target.value));
+                      setMensagemModelo("");
+                    }}
+                    className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">CÓDIGO DO PRODUTO</label>
+                  <input
+                    type="text"
+                    value={codigoProdutoAtual}
+                    onChange={(e) => {
+                      setCodigoProdutoAtual(e.target.value);
+                      setMensagemModelo("");
+                    }}
+                    className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium text-slate-600 tracking-wide">LINHA</label>
+                  <input
+                    type="text"
+                    value={linhaAtual}
+                    onChange={(e) => {
+                      setLinhaAtual(e.target.value);
+                      setMensagemModelo("");
+                    }}
+                    className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={addModelo}
+                    className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    INCLUIR
+                  </button>
+                </div>
+              </div>
 
-            <ModalPecas
-              open={mostrarPopupAcessorios}
-              title="Cadastro de Acessórios Referentes"
-              master={master}
-              form={formAcessorio}
-              mensagem={mensagemAcessorio}
-              emptyText="Nenhum acessório cadastrado ainda."
-              addLabel="INCLUIR"
-              onClose={() => {
-                setMostrarPopupAcessorios(false);
-                setMensagemAcessorio("");
-              }}
-              onChangeCodigo={(v) => setCodigoComDescricao(setFormAcessorio, setMensagemAcessorio, v)}
-              onChangeDescricao={(v) => {
-                setFormAcessorio((p) => ({ ...p, descricao: v }));
-                setMensagemAcessorio("");
-              }}
-              onAdd={() => addItemGenerico(formAcessorio, setFormAcessorio, setAcessorios, setMensagemAcessorio)}
-              lista={acessorios}
-              onRemover={(id) => setAcessorios((p) => p.filter((x) => x.id !== id))}
-            />
+              {mensagemModelo && (
+                <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-2">{mensagemModelo}</div>
+              )}
 
-            <ModalPecas
-              open={mostrarPopupEstetica}
-              title="Cadastro de Peças Estéticas Referentes"
-              master={master}
-              modeloFabricante={modeloSelecionado?.nome || ""}
-              form={formEstetica}
-              mensagem={mensagemEstetica}
-              emptyText="Nenhuma peça estética cadastrada ainda."
-              addLabel="INCLUIR"
-              onClose={() => {
-                setMostrarPopupEstetica(false);
-                setMensagemEstetica("");
-              }}
-              onChangeCodigo={(v) => setCodigoComDescricao(setFormEstetica, setMensagemEstetica, v)}
-              onChangeDescricao={(v) => {
-                setFormEstetica((p) => ({ ...p, descricao: v }));
-                setMensagemEstetica("");
-              }}
-              onAdd={() =>
-                addItemGenerico(formEstetica, setFormEstetica, setEsteticas, setMensagemEstetica, { vincularModelo: true, dupWithin: esteticas })
-              }
-              lista={esteticas.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
-              onRemover={(id) => setEsteticas((p) => p.filter((x) => x.id !== id))}
-              sugestoes={ESTETICAS_PADRAO}
-            />
+              <div className="mt-3 rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[260px]">
+                <table className="w-full border-collapse text-[11px] min-w-[860px]">
+                  <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left w-10">#</th>
+                      <th className="px-2 py-1.5 text-left">Modelo fabricante</th>
+                      <th className="px-2 py-1.5 text-left w-32">Código do produto</th>
+                      <th className="px-2 py-1.5 text-left w-16">Linha</th>
+                      <th className="px-2 py-1.5 text-center w-16">Vista explodida</th>
+                      <th className="px-2 py-1.5 text-center w-16">Boletim técnico</th>
+                      <th className="px-2 py-1.5 text-center w-16">Manual técnico</th>
+                      <th className="px-3 py-2 text-right w-16">Alterar</th>
+                      <th className="px-3 py-2 text-right w-16">Remover</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!modelosFabricante.length && (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-400">
+                          Nenhum Modelo Fabricante cadastrado.
+                        </td>
+                      </tr>
+                    )}
+                    {modelosFabricante.map((m, i) => {
+                      const sel = m.id === modeloSelecionadoId;
+                      const docs = modeloDocs[m.id] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
+                      return (
+                        <tr
+                          key={m.id}
+                          className={`${i % 2 === 0 ? "bg-white" : "bg-slate-50"} ${sel ? "ring-1 ring-sky-500" : ""} cursor-pointer`}
+                          onClick={() => setModeloSelecionadoId(m.id)}
+                        >
+                          <td className="px-2 py-1.5 align-middle text-[11px] text-slate-500">{i + 1}</td>
+                          <td className="px-2 py-1.5 align-middle text-[11px] font-semibold text-slate-800">{m.nome}</td>
+                          <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800 whitespace-nowrap">{m.codigoProduto}</td>
+                          <td className="px-2 py-1.5 align-middle text-[11px] text-slate-800 whitespace-nowrap">{m.linha}</td>
 
-            <ModalPecas
-              open={mostrarPopupFuncionalPeca}
-              title="Cadastro de Peças Funcionais Referentes"
-              master={master}
-              modeloFabricante={modeloSelecionado?.nome || ""}
-              form={formFuncionalPeca}
-              mensagem={mensagemFuncionalPeca}
-              emptyText="Nenhuma peça funcional cadastrada ainda."
-              addLabel="INCLUIR"
-              onClose={() => {
-                setMostrarPopupFuncionalPeca(false);
-                setMensagemFuncionalPeca("");
-              }}
-              onChangeCodigo={(v) => setCodigoComDescricao(setFormFuncionalPeca, setMensagemFuncionalPeca, v)}
-              onChangeDescricao={(v) => {
-                setFormFuncionalPeca((p) => ({ ...p, descricao: v }));
-                setMensagemFuncionalPeca("");
-              }}
-              onAdd={() =>
-                addItemGenerico(formFuncionalPeca, setFormFuncionalPeca, setFuncionaisPeca, setMensagemFuncionalPeca, {
-                  vincularModelo: true,
-                  dupWithin: funcionaisPeca,
-                })
-              }
-              lista={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
-              onRemover={(id) => setFuncionaisPeca((p) => p.filter((x) => x.id !== id))}
-            />
+                          <td className="px-2 py-1.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                            <IconBtn
+                              title="Vista explodida"
+                              badge={docs.vistaExplodida?.length || 0}
+                              onClick={() => openArquivos({ kind: "modelo", modeloId: m.id, doc: "vistaExplodida" })}
+                            >
+                              <Layers size={16} />
+                            </IconBtn>
+                          </td>
+                          <td className="px-2 py-1.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                            <IconBtn
+                              title="Boletim técnico"
+                              badge={docs.boletimTecnico?.length || 0}
+                              onClick={() => openArquivos({ kind: "modelo", modeloId: m.id, doc: "boletimTecnico" })}
+                            >
+                              <FileSearch size={16} />
+                            </IconBtn>
+                          </td>
+                          <td className="px-2 py-1.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                            <IconBtn
+                              title="Manual técnico"
+                              badge={docs.manualTecnico?.length || 0}
+                              onClick={() => openArquivos({ kind: "modelo", modeloId: m.id, doc: "manualTecnico" })}
+                            >
+                              <BookText size={16} />
+                            </IconBtn>
+                          </td>
 
-            <ModalPecas
-              open={mostrarPopupFuncionalidade}
-              title="Cadastro de Funcionalidades"
-              master={master}
-              form={{ descricao: formFuncionalidade.descricao }}
-              mensagem={mensagemFuncionalidade}
-              emptyText="Nenhuma funcionalidade cadastrada ainda."
-              addLabel="INCLUIR"
-              onClose={() => {
-                setMostrarPopupFuncionalidade(false);
-                setMensagemFuncionalidade("");
-              }}
-              onChangeDescricao={(v) => {
-                setFormFuncionalidade({ descricao: v });
-                setMensagemFuncionalidade("");
-              }}
-              onAdd={addFuncionalidade}
-              lista={funcionalidades}
-              onRemover={(id) => setFuncionalidades((p) => p.filter((x) => x.id !== id))}
-              sugestoes={FUNCS_PADRAO}
-            />
+                          <td className="px-2 py-1.5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
+                            <IconBtn title="Alterar" variant="primary" onClick={() => editarModelo(m.id)}>
+                              <Pencil size={16} />
+                            </IconBtn>
+                          </td>
+                          <td className="px-2 py-1.5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
+                            <IconBtn title="Excluir" variant="danger" onClick={() => removerModelo(m.id)}>
+                              <Trash2 size={16} />
+                            </IconBtn>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-            <ModalArquivos
-              open={getArquivosInfo.open}
-              title={getArquivosInfo.title}
-              accept={getArquivosInfo.accept}
-              files={getArquivosInfo.files}
-              onClose={closeArquivos}
-              onAdd={getArquivosInfo.onAdd}
-              onRemove={getArquivosInfo.onRemove}
-            />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={abrirEstetica}
+                  className={`${btnBase} border-fuchsia-200 text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100`}
+                >
+                  <Sparkles size={16} />
+                  ESTÉTICA<CountPill n={esteticas.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0)).length} />
+                </button>
+                <button
+                  type="button"
+                  onClick={abrirFuncionalPeca}
+                  className={`${btnBase} border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100`}
+                >
+                  <Sparkles size={16} />
+                  FUNCIONAL<CountPill n={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0)).length} />
+                </button>
+                {modeloSelecionado && (
+                  <div className="ml-auto text-[11px] text-slate-600 inline-flex items-center gap-2">
+                    <span className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200">
+                      Selecionado: <span className="font-semibold">{modeloSelecionado.nome}</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-            <ModalAjuda open={mostrarAjuda} onClose={() => setMostrarAjuda(false)} />
+            <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/80">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[12px] font-semibold text-slate-800 inline-flex items-center">
+                    Itens vinculados ao produto<CountPill n={itensFiltrados.length} />
+                  </div>
+                  <div className="text-[10px] text-slate-500">Emb. + Acess. + Peças + Funcionalidades. Inclua fotos dos itens quando necessário.</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFiltroModeloReferencia((v) => !v)}
+                      className={`px-3 h-8 rounded-xl text-[11px] font-semibold border transition ${filtroModeloReferencia
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                      MODELO REFERÊNCIA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroModeloFabricante((v) => !v)}
+                      className={`px-3 h-8 rounded-xl text-[11px] font-semibold border transition ${filtroModeloFabricante
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                      MODELO FABRICANTE
+                    </button>
+                    {filtroModeloFabricante && (
+                      <select
+                        value={filtroModeloFabricanteId}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFiltroModeloFabricanteId(v === "TODOS" ? "TODOS" : Number(v));
+                        }}
+                        className="h-8 rounded-xl border border-slate-200 bg-white px-2 text-[11px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                      >
+                        <option value="TODOS">TODOS OS MODELOS</option>
+                        {modelosFabricante.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.nome}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px] bg-white">
+                <table className="w-full border-collapse text-[11px] min-w-[760px]">
+                  <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
+                    <tr>
+                      <th className="px-2 py-2 text-left w-8">#</th>
+                      <th className="px-2 py-2 text-left w-28">Tipo</th>
+                      <th className="px-2 py-2 text-left w-72">Modelo</th>
+                      <th className="px-2 py-2 text-left w-28">Código peça</th>
+                      <th className="px-2 py-2 text-left">Descrição</th>
+                      <th className="px-2 py-2 text-right w-20">Fotos</th>
+                      <th className="px-2 py-2 text-right w-20">Excluir</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!itensFiltrados.length && (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-3 text-center text-[11px] text-slate-400">
+                          Nenhum item vinculado ainda.
+                        </td>
+                      </tr>
+                    )}
+                    {itensFiltrados.map((r, i) => {
+                      const n = (itemFotos[r.rowKey] || []).length;
+                      return (
+                        <tr key={r.rowKey} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="px-2 py-2 align-middle text-[11px] text-slate-500">{i + 1}</td>
+                          <td className="px-2 py-2 align-middle text-[11px] font-semibold text-slate-700">{r.tipo}</td>
+                          <td className="px-2 py-2 align-middle text-[11px] text-slate-700 truncate max-w-[280px]" title={r.vinculo}>
+                            {r.vinculo}
+                          </td>
+                          <td className="px-2 py-2 align-middle text-[11px] text-slate-800 whitespace-nowrap">{r.codigoPeca || "-"}</td>
+                          <td className="px-2 py-2 align-middle text-[11px] text-slate-800">{r.descricao}</td>
+                          <td className="px-2 py-2 align-middle text-right">
+                            <IconBtn
+                              title="Incluir/alterar fotos"
+                              badge={n}
+                              onClick={() =>
+                                openArquivos({ kind: "item", rowKey: r.rowKey, title: `Fotos — ${r.tipo} — ${r.codigoPeca || r.descricao}` })
+                              }
+                            >
+                              <ImageIcon size={16} />
+                            </IconBtn>
+                          </td>
+                          <td className="px-2 py-2 align-middle text-right">
+                            <IconBtn title="Excluir" variant="danger" onClick={() => excluirItemVinculado(r)}>
+                              <Trash2 size={16} />
+                            </IconBtn>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {mensagem && <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{mensagem}</div>}
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={limpar}
+                className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2"
+              >
+                <X size={16} />
+                LIMPAR
+              </button>
+              <button
+                type="button"
+                onClick={simular}
+                className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2"
+              >
+                <Sparkles size={16} />
+                SIMULAR
+              </button>
+              <button
+                type="button"
+                onClick={salvar}
+                className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-2"
+              >
+                <Plus size={16} />
+                SALVAR
+              </button>
+            </div>
           </div>
+
+          <ModalEanGtins
+            open={mostrarLookupEAN}
+            onClose={() => setMostrarLookupEAN(false)}
+            eans={eansCad}
+            onAdd={(m) => setEansCad((p) => [...p, m])}
+            onSelect={(m) => {
+              setMaster(m);
+              setMensagem("");
+              setMostrarLookupEAN(false);
+            }}
+          />
+
+          <ModalCodigosNF
+            open={mostrarPopupNF}
+            master={master}
+            codigosNF={codigosNF}
+            nfAtual={nfAtual}
+            revendaAtual={revendaNFAtual}
+            mensagem={mensagemNF}
+            onClose={() => {
+              setMostrarPopupNF(false);
+              setMostrarLookupRevenda(false);
+              setEditNfId(null);
+              setNfAtual("");
+              setRevendaNFAtual("");
+              setMensagemNF("");
+            }}
+            onChangeNF={setNfAtual}
+            onPesquisarRevenda={() => setMostrarLookupRevenda(true)}
+            onAdd={addCodigoNF}
+            onRemover={removerCodigoNF}
+            onEditar={editarCodigoNF}
+          />
+
+          <ModalRevendasClientes
+            open={mostrarLookupRevenda}
+            onClose={() => setMostrarLookupRevenda(false)}
+            onSelect={(nome) => {
+              setRevendaNFAtual(nome);
+              setMostrarLookupRevenda(false);
+              setMensagemNF("");
+            }}
+          />
+
+          <ModalPecas
+            open={mostrarPopupEmbalagem}
+            title="Cadastro de Embalagem Referente"
+            master={master}
+            form={formEmbalagem}
+            mensagem={mensagemEmbalagem}
+            emptyText="Nenhum item de embalagem cadastrado ainda."
+            addLabel="INCLUIR"
+            onClose={() => {
+              setMostrarPopupEmbalagem(false);
+              setMensagemEmbalagem("");
+            }}
+            onChangeCodigo={(v) => setCodigoComDescricao(setFormEmbalagem, setMensagemEmbalagem, v)}
+            onChangeDescricao={(v) => {
+              setFormEmbalagem((p) => ({ ...p, descricao: v }));
+              setMensagemEmbalagem("");
+            }}
+            onAdd={() => addItemGenerico(formEmbalagem, setFormEmbalagem, setEmbalagens, setMensagemEmbalagem)}
+            lista={embalagens}
+            onRemover={(id) => setEmbalagens((p) => p.filter((x) => x.id !== id))}
+            sugestoes={EMBALAGENS_PADRAO}
+          />
+
+          <ModalPecas
+            open={mostrarPopupAcessorios}
+            title="Cadastro de Acessórios Referentes"
+            master={master}
+            form={formAcessorio}
+            mensagem={mensagemAcessorio}
+            emptyText="Nenhum acessório cadastrado ainda."
+            addLabel="INCLUIR"
+            onClose={() => {
+              setMostrarPopupAcessorios(false);
+              setMensagemAcessorio("");
+            }}
+            onChangeCodigo={(v) => setCodigoComDescricao(setFormAcessorio, setMensagemAcessorio, v)}
+            onChangeDescricao={(v) => {
+              setFormAcessorio((p) => ({ ...p, descricao: v }));
+              setMensagemAcessorio("");
+            }}
+            onAdd={() => addItemGenerico(formAcessorio, setFormAcessorio, setAcessorios, setMensagemAcessorio)}
+            lista={acessorios}
+            onRemover={(id) => setAcessorios((p) => p.filter((x) => x.id !== id))}
+          />
+
+          <ModalPecas
+            open={mostrarPopupEstetica}
+            title="Cadastro de Peças Estéticas Referentes"
+            master={master}
+            modeloFabricante={modeloSelecionado?.nome || ""}
+            form={formEstetica}
+            mensagem={mensagemEstetica}
+            emptyText="Nenhuma peça estética cadastrada ainda."
+            addLabel="INCLUIR"
+            onClose={() => {
+              setMostrarPopupEstetica(false);
+              setMensagemEstetica("");
+            }}
+            onChangeCodigo={(v) => setCodigoComDescricao(setFormEstetica, setMensagemEstetica, v)}
+            onChangeDescricao={(v) => {
+              setFormEstetica((p) => ({ ...p, descricao: v }));
+              setMensagemEstetica("");
+            }}
+            onAdd={() =>
+              addItemGenerico(formEstetica, setFormEstetica, setEsteticas, setMensagemEstetica, { vincularModelo: true, dupWithin: esteticas })
+            }
+            lista={esteticas.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
+            onRemover={(id) => setEsteticas((p) => p.filter((x) => x.id !== id))}
+            sugestoes={ESTETICAS_PADRAO}
+          />
+
+          <ModalPecas
+            open={mostrarPopupFuncionalPeca}
+            title="Cadastro de Peças Funcionais Referentes"
+            master={master}
+            modeloFabricante={modeloSelecionado?.nome || ""}
+            form={formFuncionalPeca}
+            mensagem={mensagemFuncionalPeca}
+            emptyText="Nenhuma peça funcional cadastrada ainda."
+            addLabel="INCLUIR"
+            onClose={() => {
+              setMostrarPopupFuncionalPeca(false);
+              setMensagemFuncionalPeca("");
+            }}
+            onChangeCodigo={(v) => setCodigoComDescricao(setFormFuncionalPeca, setMensagemFuncionalPeca, v)}
+            onChangeDescricao={(v) => {
+              setFormFuncionalPeca((p) => ({ ...p, descricao: v }));
+              setMensagemFuncionalPeca("");
+            }}
+            onAdd={() =>
+              addItemGenerico(formFuncionalPeca, setFormFuncionalPeca, setFuncionaisPeca, setMensagemFuncionalPeca, {
+                vincularModelo: true,
+                dupWithin: funcionaisPeca,
+              })
+            }
+            lista={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
+            onRemover={(id) => setFuncionaisPeca((p) => p.filter((x) => x.id !== id))}
+          />
+
+          <ModalPecas
+            open={mostrarPopupFuncionalidade}
+            title="Cadastro de Funcionalidades"
+            master={master}
+            form={{ descricao: formFuncionalidade.descricao }}
+            mensagem={mensagemFuncionalidade}
+            emptyText="Nenhuma funcionalidade cadastrada ainda."
+            addLabel="INCLUIR"
+            onClose={() => {
+              setMostrarPopupFuncionalidade(false);
+              setMensagemFuncionalidade("");
+            }}
+            onChangeDescricao={(v) => {
+              setFormFuncionalidade({ descricao: v });
+              setMensagemFuncionalidade("");
+            }}
+            onAdd={addFuncionalidade}
+            lista={funcionalidades}
+            onRemover={(id) => setFuncionalidades((p) => p.filter((x) => x.id !== id))}
+            sugestoes={FUNCS_PADRAO}
+          />
+
+          <ModalArquivos
+            open={getArquivosInfo.open}
+            title={getArquivosInfo.title}
+            accept={getArquivosInfo.accept}
+            files={getArquivosInfo.files}
+            onClose={closeArquivos}
+            onAdd={getArquivosInfo.onAdd}
+            onRemove={getArquivosInfo.onRemove}
+          />
+
+          <ModalAjuda open={mostrarAjuda} onClose={() => setMostrarAjuda(false)} />
         </div>
       </div>
+    </div>
   );
 };
 

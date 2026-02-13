@@ -8,6 +8,7 @@ export class ProductService {
 
         const { error } = await supabase.from('produtos').insert([{
             ean: data.ean,
+            modelo_ref: data.modeloRef,
             marca: data.marca,
             manual_url: data.manualUrl,
             fotos: data.fotos,
@@ -15,6 +16,8 @@ export class ProductService {
             modelos_data: data.modelos,
             embalagem: data.embalagem,
             acessorios: data.acessorios,
+            estetica: data.estetica,
+            funcional: data.funcional,
             funcionalidade: data.funcionalidade,
             estoque_atual: 0
         }]);
