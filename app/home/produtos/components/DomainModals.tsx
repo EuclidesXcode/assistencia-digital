@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Trash2, Pencil, Check } from "lucide-react";
 import { ModalShell, IconBtn } from "./UIComponents";
-import { ProductService } from "@/backend/services/productService";
+import { ProductApiService } from "@/lib/productApiService";
 import { ClientService } from "@/backend/services/clientService";
 
 export const ModalBuscaProduto: React.FC<{
@@ -51,7 +51,7 @@ export const ModalBuscaProduto: React.FC<{
         setLoading(true);
         try {
             console.log('[Modal] Fetching latest products...');
-            const data = await ProductService.getLatestProducts();
+            const data = await ProductApiService.getLatestProducts();
             setResults(data);
             setTotalResults(data.length);
             setTotalPages(1);
@@ -67,8 +67,8 @@ export const ModalBuscaProduto: React.FC<{
         console.log(`[Modal] Starting search for: "${q}" - Page ${page}`);
         setLoading(true);
         try {
-            console.log('[Modal] Calling ProductService...');
-            const response = await ProductService.searchProducts(q, page, pageSize);
+            console.log('[Modal] Calling ProductApiService...');
+            const response = await ProductApiService.searchProducts(q, page, pageSize);
             console.log(`[Modal] Received ${response.data.length} results of ${response.total} total.`);
             setResults(response.data);
             setTotalResults(response.total);

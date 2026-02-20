@@ -21,7 +21,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { ProductService } from "@/backend/services/productService";
+import { ProductApiService } from "@/lib/productApiService";
 import { CreateProductDTO, ItemVinculado, ModeloFabricante as DTOModeloFabricante } from "@/backend/models/Product";
 
 
@@ -1136,6 +1136,7 @@ const CadastroNF_EAN_Modelo = () => {
 
   const [master, setMaster] = useState<Master>({ ean: "", modeloReferencia: "", fabricante: "" });
   const [mensagem, setMensagem] = useState("");
+  const [mostrarModalSucesso, setMostrarModalSucesso] = useState(false);
 
   const [mostrarAjuda, setMostrarAjuda] = useState(false);
 
@@ -1829,6 +1830,14 @@ const CadastroNF_EAN_Modelo = () => {
         quantidade: 1
       });
 
+      const mapPecaModelo = (p: PecaBase, tipo: 'estetica' | 'funcional'): ItemVinculado => ({
+        tipo,
+        nome: p.descricao,
+        codigo: p.codigoPeca,
+        quantidade: 1,
+        fotos: itemFotos[`PECA|${upper(p.codigoPeca || '')}|${p.modeloId || 0}`]?.map(f => f.name) || []
+      });
+
       const mappedModelos: DTOModeloFabricante[] = modelosFabricante.map(m => {
         const ests = esteticas.filter(e => e.modeloId === m.id);
         const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
@@ -1865,14 +1874,14 @@ const CadastroNF_EAN_Modelo = () => {
         modelos: mappedModelos,
         embalagem: embalagens.map(e => mapPeca(e, 'embalagem')),
         acessorios: acessorios.map(a => mapPeca(a, 'acessorio')),
-        estetica: [], // Root level empty as they are in models
-        funcional: [], // Root level empty
+        estetica: esteticas.map(e => mapPecaModelo(e, 'estetica')),
+        funcional: funcionaisPeca.map(f => mapPecaModelo(f, 'funcional')),
         funcionalidade: funcionalidades.map(mapFuncionalidade),
         fotos: produtoDocs.fotoProduto.map(f => f.name), // TODO: URLs
         manualUrl: produtoDocs.manualUsuario[0]?.name // TODO: URL
       };
 
-      await ProductService.createProduct(dto);
+      await ProductApiService.createProduct(dto);
 
       // Restore payload for local cache compatibility
       const payload = {
@@ -1898,7 +1907,8 @@ const CadastroNF_EAN_Modelo = () => {
       };
 
       setRegistros((p) => [...p, payload]);
-      setMensagem("Produto salvo com sucesso!");
+      setMensagem("");
+      setMostrarModalSucesso(true);
       console.log("SALVO NO BANCO", dto);
 
       // Opcional: Limpar formulário após salvar?
@@ -2680,6 +2690,40 @@ const CadastroNF_EAN_Modelo = () => {
             onAdd={getArquivosInfo.onAdd}
             onRemove={getArquivosInfo.onRemove}
           />
+
+          <ModalShell
+            open={mostrarModalSucesso}
+            title="Produto salvo com sucesso"
+            subtitle="Cadastro concluido"
+            onClose={() => setMostrarModalSucesso(false)}
+            maxW="max-w-md"
+          >
+            <div className="space-y-4">
+              <div className="text-[12px] text-slate-600">O produto foi salvo no banco de dados.</div>
+
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-[11px] text-slate-700 space-y-1">
+                <div>
+                  <span className="font-semibold">EAN / GTIN:</span> {master.ean || "-"}
+                </div>
+                <div>
+                  <span className="font-semibold">Modelo Referencia:</span> {master.modeloReferencia || "-"}
+                </div>
+                <div>
+                  <span className="font-semibold">Fabricante:</span> {master.fabricante || "-"}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalSucesso(false)}
+                  className="h-9 px-3 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </ModalShell>
 
           <ModalAjuda open={mostrarAjuda} onClose={() => setMostrarAjuda(false)} />
         </div>
