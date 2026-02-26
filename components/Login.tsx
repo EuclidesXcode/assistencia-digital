@@ -15,47 +15,6 @@ interface LoginProps {
 
 type FieldName = 'email' | 'password';
 
-type MockLoginEntry = {
-  login: string;
-  password: string;
-  user: User;
-};
-
-// Mock login for local tests only.
-// In production build this stays disabled by default.
-const MOCK_LOGIN_ENABLED = process.env.NODE_ENV !== 'production';
-
-const MOCK_LOGIN_USERS: MockLoginEntry[] = [
-  {
-    login: 'admin',
-    password: '123456',
-    user: {
-      id: 'mock-admin-1',
-      name: 'Administrador Teste',
-      email: 'admin@teste.local',
-      username: 'admin',
-      branchId: 'MATRIZ',
-      role: 'Administrador',
-      permissions: ['admin', 'cadastro', 'orcamentos', 'recebimento', 'pre-analise', 'nfe'],
-      active: true
-    }
-  },
-  {
-    login: 'operador',
-    password: '123456',
-    user: {
-      id: 'mock-operador-1',
-      name: 'Operador Teste',
-      email: 'operador@teste.local',
-      username: 'operador',
-      branchId: 'FILIAL-01',
-      role: 'Atendente',
-      permissions: ['recebimento', 'pre-analise'],
-      active: true
-    }
-  }
-];
-
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [formData, setFormData] = useState({
     email: '',
@@ -103,37 +62,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
 
     setFieldErrors({});
-
-    if (MOCK_LOGIN_ENABLED) {
-      const loginInput = formData.email.trim().toLowerCase();
-      const mockUser = MOCK_LOGIN_USERS.find((entry) => {
-        const username = entry.user.username?.toLowerCase() || '';
-        const email = entry.user.email.toLowerCase();
-        const login = entry.login.toLowerCase();
-        return (
-          (loginInput === login || loginInput === username || loginInput === email) &&
-          formData.password === entry.password
-        );
-      });
-
-      if (mockUser) {
-        const user: User = {
-          ...mockUser.user,
-          lastLogin: new Date()
-        };
-
-        await createAuditLog({
-          userId: user.id || '',
-          action: 'LOGIN',
-          resource: 'auth',
-          details: { method: 'mock_login' }
-        });
-
-        setStatus(LoginStatus.SUCCESS);
-        onLogin(user);
-        return;
-      }
-    }
 
     try {
       const payload = {
@@ -278,14 +206,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   )}
                 </Button>
               </div>
-
-              {MOCK_LOGIN_ENABLED && (
-                <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                  <p className="font-semibold mb-1">Acesso de teste (mock)</p>
-                  <p>Usuario: <b>admin</b> | Senha: <b>123456</b></p>
-                  <p>Usuario: <b>operador</b> | Senha: <b>123456</b></p>
-                </div>
-              )}
 
               <div className="flex flex-col gap-4 items-center mt-8">
                 <Link href="/esqueci-senha" title="Recuperar senha" className="text-sm text-slate-400 hover:text-blue-400 transition-colors">

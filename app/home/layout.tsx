@@ -198,6 +198,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       return;
     }
     const currentUser = JSON.parse(userData);
+    if (typeof currentUser?.id === 'string' && currentUser.id.startsWith('mock-')) {
+      localStorage.removeItem('user');
+      router.push('/');
+      return;
+    }
     setUser(currentUser);
 
     const loadUnreadCount = async () => {

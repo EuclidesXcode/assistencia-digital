@@ -82,9 +82,9 @@ export default function GlobalSearch() {
             await Promise.allSettled([
                 // 1) Cadastro / Produtos
                 (async () => {
-                    const { ProductService } = await import("@/backend/services/productService");
+                    const { ProductApiService } = await import("@/lib/productApiService");
                     // @ts-ignore
-                    const produtosResult = await ProductService.searchProducts(q);
+                    const produtosResult = await ProductApiService.searchProducts(q);
 
                     const items = produtosResult?.data ?? [];
                     for (const prod of items) {

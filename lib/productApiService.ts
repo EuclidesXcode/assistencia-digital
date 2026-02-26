@@ -107,4 +107,28 @@ export class ProductApiService {
     const data = await response.json();
     return Array.isArray(data?.data) ? data.data : [];
   }
+
+  static async getProductByEan(ean: string): Promise<any | null> {
+    const value = String(ean || '').trim();
+    if (!value) return null;
+
+    const params = new URLSearchParams({
+      ean: value
+    });
+
+    const response = await fetch(`/api/products/lookup?${params.toString()}`, {
+      method: 'GET'
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao buscar produto por EAN.');
+    }
+
+    return response.json();
+  }
 }

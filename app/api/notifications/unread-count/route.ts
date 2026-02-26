@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { hasSupabaseAdminConfig, supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'userId obrigatorio.' }, { status: 400 });
     }
 
+    if (!hasSupabaseAdminConfig) {
+      return NextResponse.json({ count: 0 });
+    }
+
     const { count, error } = await supabaseAdmin
       .from('notifications')
       .select('*', { count: 'exact', head: true })
@@ -16,12 +20,13 @@ export async function GET(req: NextRequest) {
       .eq('read', false);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      console.warn('Unread count query error:', error.message);
+      return NextResponse.json({ count: 0 });
     }
 
     return NextResponse.json({ count: count || 0 });
   } catch (error) {
     console.error('Unread count error:', error);
-    return NextResponse.json({ error: 'Erro ao buscar contador.' }, { status: 500 });
+    return NextResponse.json({ count: 0 });
   }
 }

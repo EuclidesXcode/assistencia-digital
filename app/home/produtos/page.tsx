@@ -35,6 +35,8 @@ const PECAS_CADASTRADAS = [
 const FUNCS_PADRAO = ["TELA", "ÁUDIO", "HDMI", "WI-FI", "BLUETOOTH", "USB", "SINTONIZADOR"];
 const ESTETICAS_PADRAO = ["TELA", "GABINETE FRONTAL", "TAMPA TRASEIRA"];
 const EMBALAGENS_PADRAO = ["EMBALAGEM", "FUNDO", "CALÇO SUPERIOR", "CALÇO INFERIOR"];
+const ACESSORIOS_PADRAO = ["Controle remoto", "Cabo de energia", "Base/Pedestal", "Manual", "Parafusos"];
+const PECAS_FUNCIONAIS_PADRAO = ["Placa principal", "Fonte", "PCI WI-FI", "Display"];
 
 const SIMULACAO_GROMIT = [
   {
@@ -197,6 +199,130 @@ type ModalArquivosKey =
   | { kind: "produto"; doc: ProdutoDocKey }
   | { kind: "modelo"; modeloId: number; doc: ModeloDocKey }
   | { kind: "item"; rowKey: string; title: string };
+
+const toMasterFromRegistro = (r: any): Master => ({
+  ean: String(r?.ean || ""),
+  modeloReferencia: String(r?.modeloReferencia || ""),
+  fabricante: String(r?.fabricante || ""),
+  createdAt: String(r?.createdAt || agoraBR()),
+  createdBy: String(r?.createdBy || USUARIO_ATUAL),
+});
+
+const mapApiProductToRegistro = (data: any) => {
+  const now = Date.now();
+  const createdAt = agoraBR();
+  const createdBy = USUARIO_ATUAL;
+
+  const ean = String(data?.ean || "").trim();
+  const modeloReferencia = String(data?.modeloRef || data?.modeloReferencia || "").trim();
+  const fabricante = String(data?.marca || data?.fabricante || "").trim();
+
+  const nfs: any[] = Array.isArray(data?.nfs) ? data.nfs : [];
+  const modelosRaw: any[] = Array.isArray(data?.modelos) ? data.modelos : [];
+  const embalagemRaw: any[] = Array.isArray(data?.embalagem) ? data.embalagem : [];
+  const acessoriosRaw: any[] = Array.isArray(data?.acessorios) ? data.acessorios : [];
+  const esteticaRootRaw: any[] = Array.isArray(data?.estetica) ? data.estetica : [];
+  const funcionalRootRaw: any[] = Array.isArray(data?.funcional) ? data.funcional : [];
+  const funcionalidadesRaw: any[] = Array.isArray(data?.funcionalidade) ? data.funcionalidade : [];
+
+  const codigosNF: CodigoNF[] = nfs
+    .map((nf: any, i: number) => ({
+      id: now + 10 + i,
+      codigo: upper(nf?.codigo || ""),
+      revenda: upper(nf?.revenda || ""),
+      createdAt,
+      createdBy,
+    }))
+    .filter((nf) => !!nf.codigo || !!nf.revenda);
+
+  const modelosFabricante: ModeloFabricante[] = modelosRaw
+    .map((m: any, i: number) => {
+      const nome = norm(m?.nome);
+      return {
+        id: now + 100 + i,
+        nome,
+        codigoProduto: upper(m?.codigoTipo || m?.codigoProduto || ""),
+        linha: upper(m?.linha || detectarLinhaDoModeloFabricante(nome) || ""),
+        createdAt,
+        createdBy,
+      };
+    })
+    .filter((m) => !!m.nome);
+
+  const modeloSelecionadoId = modelosFabricante[0]?.id || null;
+
+  const mapPecaBase = (item: any, id: number, extra?: Partial<PecaBase>): PecaBase => ({
+    id,
+    codigoPeca: upper(item?.codigo || item?.codigoPeca || ""),
+    descricao: norm(item?.nome || item?.descricao || ""),
+    createdAt,
+    createdBy,
+    ...extra,
+  });
+
+  const embalagens: PecaBase[] = embalagemRaw
+    .map((item: any, i: number) => mapPecaBase(item, now + 200 + i))
+    .filter((item) => !!item.codigoPeca || !!item.descricao);
+
+  const acessorios: PecaBase[] = acessoriosRaw
+    .map((item: any, i: number) => mapPecaBase(item, now + 300 + i))
+    .filter((item) => !!item.codigoPeca || !!item.descricao);
+
+  const esteticasFromModelos: PecaBase[] = [];
+  const funcionaisFromModelos: PecaBase[] = [];
+  modelosRaw.forEach((modelo: any, idxModelo: number) => {
+    const modeloId = modelosFabricante[idxModelo]?.id || 0;
+    const ests = Array.isArray(modelo?.estetica) ? modelo.estetica : [];
+    const funcs = Array.isArray(modelo?.funcional) ? modelo.funcional : [];
+
+    ests.forEach((item: any, i: number) =>
+      esteticasFromModelos.push(mapPecaBase(item, now + 400 + idxModelo * 100 + i, { modeloId }))
+    );
+    funcs.forEach((item: any, i: number) =>
+      funcionaisFromModelos.push(mapPecaBase(item, now + 500 + idxModelo * 100 + i, { modeloId }))
+    );
+  });
+
+  const defaultModeloId = modeloSelecionadoId || 0;
+  const esteticas: PecaBase[] =
+    esteticasFromModelos.length > 0
+      ? esteticasFromModelos
+      : esteticaRootRaw
+          .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
+          .filter((item) => !!item.codigoPeca || !!item.descricao);
+
+  const funcionaisPeca: PecaBase[] =
+    funcionaisFromModelos.length > 0
+      ? funcionaisFromModelos
+      : funcionalRootRaw
+          .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
+          .filter((item) => !!item.codigoPeca || !!item.descricao);
+
+  const funcionalidades: PecaBase[] = funcionalidadesRaw
+    .map((item: any, i: number) => ({
+      id: now + 800 + i,
+      descricao: norm(typeof item === "string" ? item : item?.nome || item?.descricao),
+      createdAt,
+      createdBy,
+    }))
+    .filter((item) => !!item.descricao);
+
+  return {
+    ean,
+    modeloReferencia,
+    fabricante,
+    codigosNF,
+    modelosFabricante,
+    modeloSelecionadoId,
+    embalagens,
+    acessorios,
+    esteticas,
+    funcionaisPeca,
+    funcionalidades,
+    createdAt: String(data?.createdAt || createdAt),
+    createdBy,
+  };
+};
 
 const IconBtn: React.FC<{
   title: string;
@@ -1206,6 +1332,62 @@ const CadastroNF_EAN_Modelo = () => {
 
   const [arquivosCtx, setArquivosCtx] = useState<ModalArquivosKey | null>(null);
 
+  const upsertRegistroCache = (registro: any) => {
+    const eanKey = upper(registro?.ean);
+    if (!eanKey) return;
+    setRegistros((prev) => {
+      const semMesmoEan = prev.filter((item) => upper(item?.ean) !== eanKey);
+      return [registro, ...semMesmoEan];
+    });
+  };
+
+  const upsertMasterCache = (item: Master) => {
+    const eanKey = upper(item?.ean);
+    if (!eanKey) return;
+    setEansCad((prev) => {
+      const semMesmoEan = prev.filter((m) => upper(m?.ean) !== eanKey);
+      return [item, ...semMesmoEan];
+    });
+  };
+
+  useEffect(() => {
+    let active = true;
+    const carregarUltimosProdutos = async () => {
+      try {
+        const latest: any[] = await ProductApiService.getLatestProducts(200);
+        if (!active || !Array.isArray(latest) || latest.length === 0) return;
+
+        const mapped = latest.map(mapApiProductToRegistro).filter((item) => !!norm(item?.ean));
+        if (mapped.length === 0) return;
+
+        setRegistros((prev) => {
+          const map = new Map<string, any>();
+          [...prev, ...mapped].forEach((item) => {
+            const key = upper(item?.ean);
+            if (key) map.set(key, item);
+          });
+          return Array.from(map.values());
+        });
+
+        setEansCad((prev) => {
+          const map = new Map<string, Master>();
+          [...prev, ...mapped.map(toMasterFromRegistro)].forEach((item) => {
+            const key = upper(item?.ean);
+            if (key) map.set(key, item);
+          });
+          return Array.from(map.values());
+        });
+      } catch (error) {
+        console.error("Falha ao carregar produtos salvos:", error);
+      }
+    };
+
+    void carregarUltimosProdutos();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const lookupDescricao = (codigoPeca: string) => {
     const cod = upper(codigoPeca);
     if (!cod) return "";
@@ -1384,7 +1566,7 @@ const CadastroNF_EAN_Modelo = () => {
     setMensagem("Dados carregados automaticamente.");
   };
 
-  const carregarPorEan = (ean: string) => {
+  const carregarPorEan = async (ean: string) => {
     const ue = upper(ean);
     if (!ue) return;
 
@@ -1395,11 +1577,24 @@ const CadastroNF_EAN_Modelo = () => {
     if (sim) return carregarSimulacao(sim);
 
     const m = eansCad.find((x) => upper(x.ean) === ue);
-    if (!m) return;
+    if (m) {
+      limparVinculos();
+      setMaster({ ean: m.ean, modeloReferencia: m.modeloReferencia, fabricante: m.fabricante });
+      setMensagem("Dados carregados automaticamente.");
+      return;
+    }
 
-    limparVinculos();
-    setMaster({ ean: m.ean, modeloReferencia: m.modeloReferencia, fabricante: m.fabricante });
-    setMensagem("Dados carregados automaticamente.");
+    try {
+      const remoto = await ProductApiService.getProductByEan(ue);
+      if (!remoto) return;
+
+      const registroMapeado = mapApiProductToRegistro(remoto);
+      carregarRegistro(registroMapeado);
+      upsertRegistroCache(registroMapeado);
+      upsertMasterCache(toMasterFromRegistro(registroMapeado));
+    } catch (error) {
+      console.error("Falha ao carregar produto por EAN:", error);
+    }
   };
 
   useEffect(() => {
@@ -1414,11 +1609,12 @@ const CadastroNF_EAN_Modelo = () => {
       SIMULACAO_GROMIT.some((s) => upper(s?.ean) === e) ||
       eansCad.some((m) => upper(m.ean) === e);
 
-    if (!hit) return;
+    const shouldTryLookup = hit || e.length >= 8;
+    if (!shouldTryLookup) return;
     if (autoLoadRef.current === e) return;
 
     autoLoadRef.current = e;
-    carregarPorEan(e);
+    void carregarPorEan(e);
   }, [master.ean, registros, eansCad]);
 
   const abrirCodigosNF = () => {
@@ -1906,7 +2102,12 @@ const CadastroNF_EAN_Modelo = () => {
         criadoPor: USUARIO_ATUAL,
       };
 
-      setRegistros((p) => [...p, payload]);
+      upsertRegistroCache(payload);
+      upsertMasterCache({
+        ...master,
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      });
       setMensagem("");
       setMostrarModalSucesso(true);
       console.log("SALVO NO BANCO", dto);
@@ -1960,90 +2161,6 @@ const CadastroNF_EAN_Modelo = () => {
     setItemFotos({});
 
     setMensagem("");
-  };
-
-  const simular = () => {
-    const s = SIMULACAO_GROMIT[0];
-    if (!s) return;
-
-    const fabricante = detectarFabricanteDoModelo(s.modeloReferencia) || "PHILCO";
-    setMaster({ ean: s.ean, modeloReferencia: s.modeloReferencia, fabricante });
-
-    setCodigosNF(
-      s.codigosNF.map((x, i) => ({
-        id: Date.now() + i,
-        codigo: x.codigo,
-        revenda: x.revenda,
-        createdAt: agoraBR(),
-        createdBy: USUARIO_ATUAL,
-      }))
-    );
-
-    const base = Date.now() + 100;
-    const mods = s.modelosFabricante.map((m, i) => ({
-      id: base + i,
-      nome: m.nome,
-      codigoProduto: m.codigoProduto,
-      linha: m.linha || detectarLinhaDoModeloFabricante(m.nome) || "TV",
-      createdAt: agoraBR(),
-      createdBy: USUARIO_ATUAL,
-    }));
-    setModelosFabricante(mods);
-    const selId = mods[0]?.id || null;
-    setModeloSelecionadoId(selId);
-
-    setEmbalagens(
-      s.embalagens.map((x, i) => ({
-        id: Date.now() + 200 + i,
-        codigoPeca: upper(x.codigo),
-        descricao: x.descricao,
-        createdAt: agoraBR(),
-        createdBy: USUARIO_ATUAL,
-      }))
-    );
-    setAcessorios(
-      s.acessorios.map((x, i) => ({
-        id: Date.now() + 300 + i,
-        codigoPeca: upper(x.codigo),
-        descricao: x.descricao,
-        createdAt: agoraBR(),
-        createdBy: USUARIO_ATUAL,
-      }))
-    );
-    setEsteticas(
-      s.esteticas.map((x, i) => ({
-        id: Date.now() + 400 + i,
-        codigoPeca: upper(x.codigo),
-        descricao: x.descricao,
-        modeloId: selId || 0,
-        createdAt: agoraBR(),
-        createdBy: USUARIO_ATUAL,
-      }))
-    );
-    setFuncionaisPeca(
-      s.funcionaisPeca.map((x, i) => ({
-        id: Date.now() + 500 + i,
-        codigoPeca: upper(x.codigo),
-        descricao: x.descricao,
-        modeloId: selId || 0,
-        createdAt: agoraBR(),
-        createdBy: USUARIO_ATUAL,
-      }))
-    );
-    setFuncionalidades(
-      s.funcionalidades.map((d, i) => ({
-        id: Date.now() + 600 + i,
-        descricao: d,
-        createdAt: agoraBR(),
-        createdBy: USUARIO_ATUAL,
-      }))
-    );
-
-    setProdutoDocs({ fotoProduto: [], etiquetaProcel: [], kitAcessorio: [], manualUsuario: [] });
-    setModeloDocs({});
-    setItemFotos({});
-
-    setMensagem("Dados preenchidos pela simulação.");
   };
 
   const btnBase = "inline-flex items-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold border transition";
@@ -2499,14 +2616,6 @@ const CadastroNF_EAN_Modelo = () => {
               </button>
               <button
                 type="button"
-                onClick={simular}
-                className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2"
-              >
-                <Sparkles size={16} />
-                SIMULAR
-              </button>
-              <button
-                type="button"
                 onClick={salvar}
                 className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-2"
               >
@@ -2520,7 +2629,7 @@ const CadastroNF_EAN_Modelo = () => {
             open={mostrarLookupEAN}
             onClose={() => setMostrarLookupEAN(false)}
             eans={eansCad}
-            onAdd={(m) => setEansCad((p) => [...p, m])}
+            onAdd={upsertMasterCache}
             onSelect={(m) => {
               setMaster(m);
               setMensagem("");
@@ -2603,6 +2712,7 @@ const CadastroNF_EAN_Modelo = () => {
             onAdd={() => addItemGenerico(formAcessorio, setFormAcessorio, setAcessorios, setMensagemAcessorio)}
             lista={acessorios}
             onRemover={(id) => setAcessorios((p) => p.filter((x) => x.id !== id))}
+            sugestoes={ACESSORIOS_PADRAO}
           />
 
           <ModalPecas
@@ -2657,6 +2767,7 @@ const CadastroNF_EAN_Modelo = () => {
             }
             lista={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
             onRemover={(id) => setFuncionaisPeca((p) => p.filter((x) => x.id !== id))}
+            sugestoes={PECAS_FUNCIONAIS_PADRAO}
           />
 
           <ModalPecas

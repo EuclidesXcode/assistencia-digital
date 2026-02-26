@@ -52,6 +52,22 @@ npm install
 npm run dev
 ```
 
+## Environment setup
+
+Antes de rodar `npm run dev`, crie um arquivo `.env.local` na raiz do projeto com base no `.env.example`.
+
+Variaveis obrigatorias para rotas de API:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Variaveis obrigatorias para cliente:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Depois de criar ou editar o `.env.local`, reinicie o servidor Next.js.
+
 Acesse `http://localhost:3000`
 
 ## 📱 Responsividade

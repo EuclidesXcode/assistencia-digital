@@ -35,7 +35,29 @@ export async function createAuditLog({
 
         if (!response.ok) {
             const text = await response.text();
-            console.error('Error creating audit log:', text);
+            if (!text) {
+                console.error('Error creating audit log:', `HTTP ${response.status}`);
+                return;
+            }
+
+            try {
+                const data = JSON.parse(text);
+                console.error('Error creating audit log:', data?.error || data?.message || text);
+                return;
+            } catch {
+                if (/<(html|!doctype)/i.test(text)) {
+                    const nextErrorMessage = text.match(/"message":"([^"]+)"/)?.[1];
+                    console.error(
+                        'Error creating audit log:',
+                        nextErrorMessage
+                            ? nextErrorMessage.replace(/\\n/g, ' ').trim()
+                            : `HTTP ${response.status}`
+                    );
+                    return;
+                }
+
+                console.error('Error creating audit log:', text);
+            }
         }
     } catch (err) {
         console.error('Unexpected error creating audit log:', err);

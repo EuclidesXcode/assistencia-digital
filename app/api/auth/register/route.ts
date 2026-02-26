@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(req: NextRequest) {
   try {
+    if (!SUPABASE_URL || !SERVICE_KEY) {
+      return NextResponse.json(
+        {
+          error:
+            'Configuracao do servidor incompleta. Defina SUPABASE_URL (ou NEXT_PUBLIC_SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY.'
+        },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
     const name = String(body?.name || '').trim();
     const email = String(body?.email || '').trim();
@@ -30,11 +40,12 @@ export async function POST(req: NextRequest) {
     // 2. Verifica se a filial existe (se fornecida)
     let branchId = null;
     if (branchCode) {
+      const encodedBranchCode = encodeURIComponent(branchCode);
       const bResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/branches?or=(branch_code.eq.${branchCode},branch_name.eq.${branchCode})&select=id`,
+        `${SUPABASE_URL}/rest/v1/branches?or=(branch_code.eq.${encodedBranchCode},branch_name.eq.${encodedBranchCode})&select=id`,
         {
           headers: {
-            'apikey': SERVICE_KEY || '',
+            'apikey': SERVICE_KEY,
             'Authorization': `Bearer ${SERVICE_KEY}`
           }
         }
@@ -47,7 +58,7 @@ export async function POST(req: NextRequest) {
     const userResp = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: 'POST',
       headers: {
-        'apikey': SERVICE_KEY || '',
+        'apikey': SERVICE_KEY,
         'Authorization': `Bearer ${SERVICE_KEY}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
@@ -74,7 +85,7 @@ export async function POST(req: NextRequest) {
     const profileResp = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
       method: 'POST',
       headers: {
-        'apikey': SERVICE_KEY || '',
+        'apikey': SERVICE_KEY,
         'Authorization': `Bearer ${SERVICE_KEY}`,
         'Content-Type': 'application/json'
       },
