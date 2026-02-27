@@ -1,4 +1,4 @@
-
+import { StorageError } from '@supabase/storage-js';
 import { supabase } from './supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -7,7 +7,7 @@ export const DEFAULT_BUCKET = 'evidences';
 export interface UploadResult {
     path: string;
     url: string;
-    error: any | null;
+    error: StorageError | null;
 }
 
 /**
@@ -23,45 +23,30 @@ export async function uploadFile(
         const fileName = `${uuidv4()}.${fileExt}`;
         const filePath = `${folder}/${fileName}`;
 
-        const { data, error } = await supabase.storage
-            .from(bucket)
-            .upload(filePath, file);
+        const { error } = await supabase.storage.from(bucket).upload(filePath, file);
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
-        const { data: publicUrlData } = supabase.storage
-            .from(bucket)
-            .getPublicUrl(filePath);
+        const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
-        return {
-            path: filePath,
-            url: publicUrlData.publicUrl,
-            error: null
-        };
-    } catch (error: any) {
+        return { path: filePath, url: publicUrlData.publicUrl, error: null };
+    } catch (error) {
         console.error('Error uploading file:', error);
-        return {
-            path: '',
-            url: '',
-            error: error
-        };
+        return { path: '', url: '', error: error as StorageError };
     }
 }
 
 /**
- * Uploads a file to the 'evidences' bucket (maintained for backward compatibility).
+ * Uploads a file to the 'evidences' bucket.
  */
-export async function uploadEvidence(file: File, folder: string = 'general'): Promise<UploadResult> {
+export function uploadEvidence(file: File, folder: string = 'general'): Promise<UploadResult> {
     return uploadFile(file, 'evidences', folder);
 }
 
 /**
- * Uploads a product image/document to the 'evidences' bucket under 'produtos' folder.
- * (Using 'evidences' bucket for now as it is confirmed to exist/work)
+ * Uploads a product image or manual to the 'evidences' bucket.
  */
-export async function uploadProductFile(file: File, type: 'image' | 'manual'): Promise<UploadResult> {
+export function uploadProductFile(file: File, type: 'image' | 'manual'): Promise<UploadResult> {
     const folder = type === 'manual' ? 'produtos/manuais' : 'produtos/imagens';
     return uploadFile(file, 'evidences', folder);
 }

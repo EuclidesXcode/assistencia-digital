@@ -20,69 +20,47 @@ export interface AuthResult {
   error?: string;
 }
 
+/** Shared JSON headers for API requests. */
+const JSON_HEADERS: HeadersInit = { 'Content-Type': 'application/json' };
+
+/** Posts JSON to a given path and returns parsed body + ok flag. */
+async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; data: T }> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+  const data: T = await response.json().catch(() => ({}) as T);
+  return { ok: response.ok, data };
+}
+
 export async function login(payload: LoginPayload): Promise<AuthResult> {
   try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: data?.error || 'Falha ao autenticar.'
-      };
-    }
-
-    return {
-      ok: true,
-      user: data.user,
-      token: data.token
-    };
+    const { ok, data } = await postJson<{ user?: User; token?: string; error?: string }>(
+      '/api/auth/login',
+      payload
+    );
+    if (!ok) return { ok: false, error: (data as { error?: string }).error || 'Falha ao autenticar.' };
+    return { ok: true, user: data.user, token: data.token };
   } catch (error) {
     console.error('AuthService.login error:', error);
-    return {
-      ok: false,
-      error: 'Erro ao conectar com o servidor.'
-    };
+    return { ok: false, error: 'Erro ao conectar com o servidor.' };
   }
 }
 
 export async function registerUser(payload: RegisterPayload): Promise<AuthResult> {
   try {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: data?.error || 'Falha ao criar conta.'
-      };
-    }
-
-    return {
-      ok: true,
-      user: data.user
-    };
+    const { ok, data } = await postJson<{ user?: User; error?: string }>(
+      '/api/auth/register',
+      payload
+    );
+    if (!ok) return { ok: false, error: (data as { error?: string }).error || 'Falha ao criar conta.' };
+    return { ok: true, user: data.user };
   } catch (error) {
     console.error('AuthService.registerUser error:', error);
-    return {
-      ok: false,
-      error: 'Erro ao conectar com o servidor.'
-    };
+    return { ok: false, error: 'Erro ao conectar com o servidor.' };
   }
 }
 
-export async function logout(): Promise<void> {
-  return;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+export async function logout(): Promise<void> { }

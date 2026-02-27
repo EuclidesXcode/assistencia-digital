@@ -1,63 +1,43 @@
-
 export interface AuditLogParams {
     userId: string;
     action: string;
     resource: string;
     resourceId?: string;
-    details?: any;
+    details?: unknown;
     ipAddress?: string;
     userAgent?: string;
 }
 
-export async function createAuditLog({
-    userId,
-    action,
-    resource,
-    resourceId,
-    details,
-    ipAddress,
-    userAgent
-}: AuditLogParams) {
+/** Extracts a human-readable message from an error HTTP response. */
+async function extractErrorMessage(response: Response): Promise<string> {
+    const text = await response.text();
+    if (!text) return `HTTP ${response.status}`;
+
+    try {
+        const json = JSON.parse(text);
+        return json?.error || json?.message || text;
+    } catch {
+        if (/<(html|!doctype)/i.test(text)) {
+            const nextMessage = text.match(/"message":"([^"]+)"/)?.[1];
+            return nextMessage
+                ? nextMessage.replace(/\\n/g, ' ').trim()
+                : `HTTP ${response.status}`;
+        }
+        return text;
+    }
+}
+
+export async function createAuditLog(params: AuditLogParams): Promise<void> {
     try {
         const response = await fetch('/api/audit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                userId,
-                action,
-                resource,
-                resourceId,
-                details,
-                ipAddress,
-                userAgent
-            })
+            body: JSON.stringify(params),
         });
 
         if (!response.ok) {
-            const text = await response.text();
-            if (!text) {
-                console.error('Error creating audit log:', `HTTP ${response.status}`);
-                return;
-            }
-
-            try {
-                const data = JSON.parse(text);
-                console.error('Error creating audit log:', data?.error || data?.message || text);
-                return;
-            } catch {
-                if (/<(html|!doctype)/i.test(text)) {
-                    const nextErrorMessage = text.match(/"message":"([^"]+)"/)?.[1];
-                    console.error(
-                        'Error creating audit log:',
-                        nextErrorMessage
-                            ? nextErrorMessage.replace(/\\n/g, ' ').trim()
-                            : `HTTP ${response.status}`
-                    );
-                    return;
-                }
-
-                console.error('Error creating audit log:', text);
-            }
+            const message = await extractErrorMessage(response);
+            console.error('Error creating audit log:', message);
         }
     } catch (err) {
         console.error('Unexpected error creating audit log:', err);

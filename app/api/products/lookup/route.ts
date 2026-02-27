@@ -1,41 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-
-function mapProduct(data: any) {
-  const brand =
-    data.marca ??
-    data.fabricante ??
-    data.modelo_fabricante ??
-    data.brand ??
-    data.manufacturer ??
-    null;
-
-  return {
-    id: data.id,
-    ean: data.ean ?? data.gtin ?? '',
-    modeloRef: data.modelo_ref ?? data.modelo ?? data.modelo_fabricante ?? '',
-    marca: brand || 'N/A',
-    nfs: data.nfs_data ?? data.nfs ?? [],
-    modelos: data.modelos_data ?? data.modelos ?? [],
-    embalagem: data.embalagem || [],
-    acessorios: data.acessorios || [],
-    estetica: data.estetica || [],
-    funcional: data.funcional || [],
-    funcionalidade: data.funcionalidade || [],
-    fotos: data.fotos || [],
-    manualUrl: data.manual_url ?? data.manual ?? null,
-    estoqueAtual: data.estoque_atual ?? data.estoque ?? 0,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
-}
+import { mapProduct } from '@/lib/productMapper';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const ean = searchParams.get('ean');
 
   if (!ean) {
-    return NextResponse.json({ error: 'EAN is required' }, { status: 400 });
+    return NextResponse.json({ error: 'EAN obrigatório.' }, { status: 400 });
   }
 
   try {
@@ -48,6 +20,7 @@ export async function GET(request: Request) {
       .single();
 
     if (error) {
+      // PGRST116 = "no rows" — produto não encontrado
       if (error.code === 'PGRST116') {
         return NextResponse.json({ found: false }, { status: 404 });
       }
@@ -56,6 +29,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(mapProduct(data));
   } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao buscar produto.' }, { status: 500 });
   }
 }

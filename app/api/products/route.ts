@@ -5,40 +5,12 @@ import {
   supabaseAdminConfigError
 } from '@/lib/supabaseAdmin';
 import { CreateProductDTO } from '@/backend/models/Product';
+import { mapProduct } from '@/lib/productMapper';
 
 function toPositiveInt(value: string | null, fallback: number) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
-}
-
-function mapProduct(data: any) {
-  const brand =
-    data.marca ??
-    data.fabricante ??
-    data.modelo_fabricante ??
-    data.brand ??
-    data.manufacturer ??
-    null;
-
-  return {
-    id: data.id,
-    ean: data.ean ?? data.gtin ?? '',
-    modeloRef: data.modelo_ref ?? data.modelo ?? data.modelo_fabricante ?? '',
-    marca: brand || 'N/A',
-    nfs: data.nfs_data ?? data.nfs ?? [],
-    modelos: data.modelos_data ?? data.modelos ?? [],
-    embalagem: data.embalagem || [],
-    acessorios: data.acessorios || [],
-    estetica: data.estetica || [],
-    funcional: data.funcional || [],
-    funcionalidade: data.funcionalidade || [],
-    fotos: data.fotos || [],
-    manualUrl: data.manual_url ?? data.manual ?? null,
-    estoqueAtual: data.estoque_atual ?? data.estoque ?? 0,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
 }
 
 function isMissingColumnError(error: any) {

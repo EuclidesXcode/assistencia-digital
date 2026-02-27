@@ -1,119 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { getSupabaseRestUrl, supabaseServiceHeaders, hasSupabaseRestConfig } from '@/lib/supabaseRestClient';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const MISSING_CONFIG_RESPONSE = NextResponse.json(
+  { error: 'Configuração do servidor incompleta. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.' },
+  { status: 500 }
+);
 
 export async function POST(req: NextRequest) {
-  try {
-    if (!SUPABASE_URL || !SERVICE_KEY) {
-      return NextResponse.json(
-        {
-          error:
-            'Configuracao do servidor incompleta. Defina SUPABASE_URL (ou NEXT_PUBLIC_SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY.'
-        },
-        { status: 500 }
-      );
-    }
+  if (!hasSupabaseRestConfig) return MISSING_CONFIG_RESPONSE;
 
+  try {
     const body = await req.json();
     const name = String(body?.name || '').trim();
     const email = String(body?.email || '').trim();
     const password = String(body?.password || '');
     const branchCode = body?.branchCode ? String(body.branchCode).trim() : null;
 
-    console.log('--- MANUAL REGISTER DEBUG ---');
-    console.log('Tentativa de cadastro para:', email);
-
     if (!email || !password) {
-      return NextResponse.json({ error: 'Email e senha sao obrigatorios.' }, { status: 400 });
+      return NextResponse.json({ error: 'Email e senha são obrigatórios.' }, { status: 400 });
     }
 
-    // 1. Gera o hash da senha no servidor
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const supabaseUrl = getSupabaseRestUrl();
+    const headers = supabaseServiceHeaders();
+
+    // 1. Gerar hash de senha e identificadores únicos
+    const passwordHash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
-    // Gera username único combinando prefixo do email + sufixo aleatório
     const username = `${email.split('@')[0]}-${userId.substring(0, 4)}`;
 
-    // 2. Verifica se a filial existe (se fornecida)
-    let branchId = null;
+    // 2. Resolver branchId a partir do branchCode (se fornecido)
+    let branchId: string | null = null;
     if (branchCode) {
-      const encodedBranchCode = encodeURIComponent(branchCode);
-      const bResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/branches?or=(branch_code.eq.${encodedBranchCode},branch_name.eq.${encodedBranchCode})&select=id`,
-        {
-          headers: {
-            'apikey': SERVICE_KEY,
-            'Authorization': `Bearer ${SERVICE_KEY}`
-          }
-        }
+      const encoded = encodeURIComponent(branchCode);
+      const branchRes = await fetch(
+        `${supabaseUrl}/rest/v1/branches?or=(branch_code.eq.${encoded},branch_name.eq.${encoded})&select=id`,
+        { headers }
       );
-      const branches = await bResp.json();
-      branchId = branches[0]?.id || null;
+      const branches: { id: string }[] = await branchRes.json().catch(() => []);
+      branchId = branches[0]?.id ?? null;
     }
 
-    // 3. Insere na tabela 'users' (via REST API direto)
-    const userResp = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    // 3. Inserir usuário
+    const userRes = await fetch(`${supabaseUrl}/rest/v1/users`, {
       method: 'POST',
-      headers: {
-        'apikey': SERVICE_KEY,
-        'Authorization': `Bearer ${SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({
-        id: userId,
-        email,
-        username,
-        password_hash: passwordHash,
-        matriz_filial: branchCode,
-        ativo: true
-      })
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({ id: userId, email, username, password_hash: passwordHash, matriz_filial: branchCode, ativo: true }),
     });
 
-    if (!userResp.ok) {
-      const err = await userResp.json();
-      console.error('Erro ao criar user:', err);
-      return NextResponse.json({
-        error: err.message || err.error || JSON.stringify(err) || 'Erro desconhecido ao criar usuário.'
-      }, { status: 400 });
+    if (!userRes.ok) {
+      const err = await userRes.json().catch(() => ({}));
+      console.error('[register] Erro ao criar usuário:', err);
+      return NextResponse.json(
+        { error: err.message || err.error || 'Erro ao criar usuário.' },
+        { status: 400 }
+      );
     }
 
-    // 4. Insere na tabela 'profiles'
-    const profileResp = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+    // 4. Inserir perfil (o trigger handle_new_user já faz isso, mas garantimos aqui para consistência)
+    await fetch(`${supabaseUrl}/rest/v1/profiles`, {
       method: 'POST',
-      headers: {
-        'apikey': SERVICE_KEY,
-        'Authorization': `Bearer ${SERVICE_KEY}`,
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         id: userId,
         full_name: name,
-        email: email,
+        email,
         role: 'user',
         permissions: [],
         branch_id: branchId,
-        is_active: true
-      })
+        is_active: true,
+      }),
     });
-
-    console.log('Cadastro realizado com sucesso via modelo manual.');
 
     return NextResponse.json({
       ok: true,
-      user: {
-        id: userId,
-        name,
-        email,
-        username,
-        branchId: branchCode
-      }
+      user: { id: userId, name, email, username, branchId: branchCode },
     });
   } catch (error) {
-    console.error('Manual Register API error:', error);
+    console.error('[register] Erro interno:', error);
     return NextResponse.json({ error: 'Erro interno ao cadastrar.' }, { status: 500 });
   }
 }
