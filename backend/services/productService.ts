@@ -54,7 +54,8 @@ function extractMissingColumnName(error: any): string | null {
 }
 
 const insertColumnAliases: Record<string, string[]> = {
-  marca: ['fabricante', 'modelo_fabricante'],
+  marca: ['fabricante'],
+  fabricante: ['marca'],
   modelos_data: ['modelos'],
   nfs_data: ['nfs'],
   manual_url: ['manual'],

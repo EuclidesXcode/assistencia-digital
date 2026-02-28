@@ -38,7 +38,7 @@ export class DashboardService {
             const [
                 { count: orcamentosPendentes },
                 { count: preAnalisesEmAndamento },
-                { count: recebimentosAguardando },
+                { data: recebimentosAbertos },
                 { count: nfeProcessadas }
             ] = await Promise.all([
                 // Pending Budgets
@@ -46,11 +46,17 @@ export class DashboardService {
                 // Pending Analyses
                 // Pending Analyses
                 supabase.from('pre_analise').select('*', { count: 'exact', head: true }).eq('status', 'em_analise'), // or 'pendente' depending on definition
-                // Waiting Receipts
-                supabase.from('recebimentos').select('*', { count: 'exact', head: true }).eq('status', 'aguardando'),
+                // Open receipt lots
+                supabase.from('recebimentos').select('lote_numero').eq('lote_status', 'aberto').not('lote_numero', 'is', null),
                 // Processed NFEs
                 supabase.from('nfe_xmls').select('*', { count: 'exact', head: true }).eq('status', 'processada')
             ]);
+
+            const recebimentosAguardando = new Set(
+                Array.isArray(recebimentosAbertos)
+                    ? recebimentosAbertos.map((item: any) => String(item?.lote_numero || '')).filter(Boolean)
+                    : []
+            ).size;
 
             return {
                 orcamentosPendentes: orcamentosPendentes || 0,

@@ -1,15 +1,57 @@
 "use client";
 
+<<<<<<< Updated upstream
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+=======
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ProductApiService } from "@/lib/productApiService";
+import { RecebimentoService } from "@/backend/services/recebimentoService";
+import {
+  EtiquetasMissing,
+  FotosEtiquetas,
+  LoteStatus as DbLoteStatus,
+  RecebimentoRegistro,
+  TipoRecebimento,
+} from "@/backend/models/Recebimento";
+>>>>>>> Stashed changes
 
 type Props = { withNf: boolean };
-type LoteStatus = "ABERTO" | "FINALIZADO";
+type LoteStatusUi = "ABERTO" | "FINALIZADO";
 type LabelKey = "CODIGO_UNICO" | "VISTORIA_REVENDA" | "SAT";
 
-type LabelData = { file?: File | null; previewUrl?: string; missing?: boolean; pendencias: string[] };
-type FotoSnapshot = { key: LabelKey; title: string; previewUrl?: string; missing?: boolean };
+type LabelData = {
+  file?: File | null;
+  previewUrl?: string;
+  missing?: boolean;
+  pendencias: string[];
+};
+
+type FotoSnapshot = {
+  key: LabelKey;
+  title: string;
+  previewUrl?: string;
+  missing?: boolean;
+  fileName?: string;
+  mimeType?: string;
+  storagePath?: string;
+  capturedAt?: string;
+};
+
+type FormState = {
+  codigoUnico: string;
+  codigoNf: string;
+  ns: string;
+  modeloReferencia: string;
+  modeloFabricante: string;
+  ean: string;
+  fornecedor: string;
+  observacoes: string;
+};
+
 type Row = {
+  id: string;
   numero: number;
   recebidoPor: string;
   dataHoraIso: string;
@@ -17,69 +59,317 @@ type Row = {
   codigoUnico: string;
   codigoNf: string;
   ns: string;
+  modeloReferencia: string;
+  modeloFabricante: string;
+  ean: string;
+  fornecedor: string;
+  observacoes: string;
+  loteNumero: number;
+  loteStatus: LoteStatusUi;
+  pendencias: string[];
   fotos: FotoSnapshot[];
 };
 
+type FotoModalState = {
+  rowId: string;
+  rowNumero: number;
+  fotoKey: LabelKey;
+  title: string;
+  previewUrl?: string;
+} | null;
+
+type ConfirmModalState = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone?: "primary" | "danger";
+  onConfirm: () => void | Promise<void>;
+} | null;
+
+type ProductLookup = {
+  modeloReferencia: string;
+  ean: string;
+  marca: string;
+} | null;
+
 const LABELS: { key: LabelKey; title: string; hint: string }[] = [
-  { key: "CODIGO_UNICO", title: "Etiqueta CÓDIGO ÚNICO", hint: "Centralize o CÓDIGO ÚNICO na moldura." },
-  { key: "VISTORIA_REVENDA", title: "Etiqueta de Vistoria da Revenda", hint: "Capture filial/UF, data e carimbo." },
-  { key: "SAT", title: "Etiqueta SAT", hint: "Registre nº/OS/Carimbo quando houver." },
+  { key: "CODIGO_UNICO", title: "Etiqueta Codigo Unico", hint: "Centralize o codigo unico e evite reflexos." },
+  { key: "VISTORIA_REVENDA", title: "Etiqueta Vistoria Revenda", hint: "Mostre filial, UF, data e carimbo." },
+  { key: "SAT", title: "Etiqueta SAT", hint: "Registre numero, OS e carimbo quando existir." },
 ];
+
+const LABEL_TO_DB_KEY: Record<LabelKey, "codigo_unico" | "vistoria_revenda" | "sat"> = {
+  CODIGO_UNICO: "codigo_unico",
+  VISTORIA_REVENDA: "vistoria_revenda",
+  SAT: "sat",
+};
 
 const RX = {
   CODIGO_UNICO: /^[A-Z][A-Z0-9]{7}$/,
-  CODIGO_NF: /^[0-9]{6,10}$/,
-  NS: /^[A-Z0-9]{6,20}$/i,
+  CODIGO_NF: /^[0-9]{3,20}$/,
+  NS: /^[A-Z0-9]{3,40}$/i,
 };
 
 const STEP_TITLES = [
-  "Etiqueta CÓDIGO ÚNICO",
-  "Etiqueta de Vistoria da Revenda",
+  "Etiqueta Codigo Unico",
+  "Etiqueta Vistoria Revenda",
   "Etiqueta SAT",
   "Recebimento do Produto",
 ];
 
-const initialDados: Record<LabelKey, LabelData> = {
-  CODIGO_UNICO: { missing: false, pendencias: [] },
-  VISTORIA_REVENDA: { missing: false, pendencias: [] },
-  SAT: { missing: false, pendencias: [] },
-};
-
 const CAD_NF = new Map<string, { modeloReferencia: string }>([
   ["3551512", { modeloReferencia: 'TV 32"PHILCO LED PH32E53SG HD/DTV/USB/NET' }],
   ["1234567", { modeloReferencia: "TV 50 HISENSE 50A6K UHD SMART WIFI BT HDMI" }],
-  ["9876543", { modeloReferencia: "TV 40 BRITÂNIA BTV40G7FSA" }],
+  ["9876543", { modeloReferencia: "TV 40 BRITANIA BTV40G7FSA" }],
 ]);
 
-const stripWS = (s: string) => (s || "").replace(/\s+/g, "");
-const sanitize = (raw: string, kind: "CODIGO_UNICO" | "CODIGO_NF" | "NS") => {
-  let s = stripWS(raw).replace(/^0+/, "");
-  if (kind !== "CODIGO_NF") s = s.toUpperCase();
-  return s;
-};
+function createInitialDados(): Record<LabelKey, LabelData> {
+  return {
+    CODIGO_UNICO: { missing: false, pendencias: [] },
+    VISTORIA_REVENDA: { missing: false, pendencias: [] },
+    SAT: { missing: false, pendencias: [] },
+  };
+}
 
-const toDataURL = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(String(fr.result || ""));
-    fr.onerror = () => reject(new Error("Falha ao ler imagem"));
-    fr.readAsDataURL(file);
+function createInitialForm(): FormState {
+  return {
+    codigoUnico: "",
+    codigoNf: "",
+    ns: "",
+    modeloReferencia: "",
+    modeloFabricante: "",
+    ean: "",
+    fornecedor: "",
+    observacoes: "",
+  };
+}
+
+const stripWS = (value: string) => (value || "").replace(/\s+/g, "");
+const trimText = (value?: string | null) => String(value || "").trim();
+
+function sanitize(raw: string, kind: "CODIGO_UNICO" | "CODIGO_NF" | "NS") {
+  let value = stripWS(raw);
+  if (kind !== "CODIGO_NF") value = value.toUpperCase();
+  return value;
+}
+
+function getPendenciaLabel(key: LabelKey) {
+  if (key === "CODIGO_UNICO") return "Coletar foto da etiqueta Codigo Unico";
+  if (key === "VISTORIA_REVENDA") return "Coletar foto da etiqueta Vistoria Revenda";
+  return "Coletar foto da etiqueta SAT";
+}
+
+function toDataURL(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatDateLabel(value?: string | null) {
+  if (!value) return "Sem data";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function toUiLoteStatus(status?: DbLoteStatus | null): LoteStatusUi {
+  return status === "finalizado" ? "FINALIZADO" : "ABERTO";
+}
+
+function buildFotosEtiquetasFromDados(source: Record<LabelKey, LabelData>): FotosEtiquetas {
+  const fotos: FotosEtiquetas = {};
+  const capturedAt = new Date().toISOString();
+
+  for (const label of LABELS) {
+    const current = source[label.key];
+    if (!current?.previewUrl) continue;
+    fotos[LABEL_TO_DB_KEY[label.key]] = {
+      fileName: current.file?.name,
+      mimeType: current.file?.type,
+      previewUrl: current.previewUrl,
+      capturedAt,
+    };
+  }
+
+  return fotos;
+}
+
+function buildEtiquetasMissingFromDados(source: Record<LabelKey, LabelData>): EtiquetasMissing {
+  const missing: EtiquetasMissing = {};
+
+  for (const label of LABELS) {
+    if (source[label.key]?.missing) {
+      missing[LABEL_TO_DB_KEY[label.key]] = true;
+    }
+  }
+
+  return missing;
+}
+
+function buildPendenciasFromDados(source: Record<LabelKey, LabelData>): string[] {
+  const pendencias = new Set<string>();
+
+  for (const label of LABELS) {
+    const current = source[label.key];
+    if (current?.missing || !current?.previewUrl) {
+      pendencias.add(getPendenciaLabel(label.key));
+    }
+    for (const pendencia of current?.pendencias || []) {
+      pendencias.add(pendencia);
+    }
+  }
+
+  return Array.from(pendencias);
+}
+
+function buildFotosEtiquetasFromSnapshots(source: FotoSnapshot[]): FotosEtiquetas {
+  const fotos: FotosEtiquetas = {};
+
+  for (const foto of source) {
+    if (!foto.previewUrl) continue;
+    fotos[LABEL_TO_DB_KEY[foto.key]] = {
+      fileName: foto.fileName,
+      mimeType: foto.mimeType,
+      previewUrl: foto.previewUrl,
+      storagePath: foto.storagePath,
+      capturedAt: foto.capturedAt,
+    };
+  }
+
+  return fotos;
+}
+
+function buildEtiquetasMissingFromSnapshots(source: FotoSnapshot[]): EtiquetasMissing {
+  const missing: EtiquetasMissing = {};
+
+  for (const foto of source) {
+    if (foto.missing) {
+      missing[LABEL_TO_DB_KEY[foto.key]] = true;
+    }
+  }
+
+  return missing;
+}
+
+function buildPendenciasFromSnapshots(source: FotoSnapshot[]): string[] {
+  const pendencias = new Set<string>();
+
+  for (const foto of source) {
+    if (foto.missing || !foto.previewUrl) {
+      pendencias.add(getPendenciaLabel(foto.key));
+    }
+  }
+
+  return Array.from(pendencias);
+}
+function pickLookupFromProduct(product: any): ProductLookup {
+  if (!product) return null;
+  return {
+    modeloReferencia: String(product?.modeloRef || "").trim(),
+    ean: String(product?.ean || "").trim(),
+    marca: String(product?.marca || "").trim(),
+  };
+}
+
+function getProductNfCodes(product: any): string[] {
+  if (!Array.isArray(product?.nfs)) return [];
+  return product.nfs
+    .map((item: any) => {
+      if (item && typeof item === "object") return String(item.codigo || "").trim();
+      return String(item || "").trim();
+    })
+    .filter(Boolean);
+}
+
+function buildRow(registro: RecebimentoRegistro, withNf: boolean, usuarioFallback: string): Row {
+  const fotos = LABELS.map((label) => {
+    const dbKey = LABEL_TO_DB_KEY[label.key];
+    const fotoData = registro.fotosEtiquetas?.[dbKey];
+    return {
+      key: label.key,
+      title: label.title,
+      previewUrl: fotoData?.previewUrl,
+      missing: Boolean(registro.etiquetasMissing?.[dbKey]),
+      fileName: fotoData?.fileName,
+      mimeType: fotoData?.mimeType,
+      storagePath: fotoData?.storagePath,
+      capturedAt: fotoData?.capturedAt,
+    };
   });
 
+  return {
+    id: String(registro.id || ""),
+    numero: Number(registro.numeroItem || 0),
+    recebidoPor: String(registro.recebidoPor || registro.analisadoPor || usuarioFallback || "OPERADOR"),
+    dataHoraIso: String(registro.dataRecebimento || registro.createdAt || registro.data || new Date().toISOString()),
+    dataHoraLabel: formatDateLabel(registro.dataRecebimento || registro.createdAt || registro.data),
+    codigoUnico: String(registro.codigoUnico || ""),
+    codigoNf: withNf ? String(registro.codigoNF || registro.nf || "") : "SEM NF",
+    ns: trimText(registro.numeroSerie) || "-",
+    modeloReferencia: withNf
+      ? trimText(registro.modeloReferencia || registro.modeloFabricante) || "Aguardando cadastro"
+      : trimText(registro.modeloReferencia || registro.modeloFabricante),
+    modeloFabricante: trimText(registro.modeloFabricante),
+    ean: trimText(registro.ean),
+    fornecedor: trimText(registro.fornecedor),
+    observacoes: trimText(registro.observacoes),
+    loteNumero: Number(registro.loteNumero || 0),
+    loteStatus: toUiLoteStatus(registro.loteStatus),
+    pendencias: Array.isArray(registro.pendencias) ? registro.pendencias.map((item) => String(item || "")).filter(Boolean) : [],
+    fotos,
+  };
+}
+
+async function fetchProductLookup(codigoNf: string): Promise<ProductLookup> {
+  const normalized = sanitize(codigoNf, "CODIGO_NF");
+  if (!normalized) return null;
+
+  try {
+    const result = await ProductApiService.searchProducts(normalized, 1, 20);
+    const list = Array.isArray(result?.data) ? result.data : [];
+    const exactMatch = list.find((item) => getProductNfCodes(item).includes(normalized));
+    const found = pickLookupFromProduct(exactMatch || list[0]);
+    if (found) return found;
+  } catch (error) {
+    console.error("Erro ao consultar produto por Codigo NF:", error);
+  }
+
+  const fallback = CAD_NF.get(normalized);
+  return fallback ? { modeloReferencia: fallback.modeloReferencia, ean: "", marca: "" } : null;
+}
+
 export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
-  const storage = withNf ? "COM_NF" : "SEM_NF";
+  const searchParams = useSearchParams();
+  const requestedLoteParam = searchParams.get("lote");
+  const tipoRecebimento: TipoRecebimento = withNf ? "com_nf" : "sem_nf";
+
   const [usuarioLogado, setUsuarioLogado] = useState("EDUARDO");
   const [loteId, setLoteId] = useState(0);
-  const [loteStatus, setLoteStatus] = useState<LoteStatus>("ABERTO");
+  const [loteStatus, setLoteStatus] = useState<LoteStatusUi>("ABERTO");
   const [step, setStep] = useState(0);
-  const [dados, setDados] = useState<Record<LabelKey, LabelData>>(initialDados);
-  const [form, setForm] = useState({ codigoUnico: "", codigoNf: "", ns: "" });
+  const [dados, setDados] = useState<Record<LabelKey, LabelData>>(createInitialDados);
+  const [form, setForm] = useState<FormState>(createInitialForm);
   const [simAlt, setSimAlt] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [edit, setEdit] = useState<Row | null>(null);
-  const [editForm, setEditForm] = useState({ codigoUnico: "", codigoNf: "", ns: "" });
-  const [fotoModal, setFotoModal] = useState<{ rowNumero: number; fotoKey: LabelKey; title: string; previewUrl?: string } | null>(null);
+  const [editForm, setEditForm] = useState<FormState>(createInitialForm);
+  const [fotoModal, setFotoModal] = useState<FotoModalState>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "info" | "success" | "warn" | "danger" } | null>(null);
+  const [loadingInit, setLoadingInit] = useState(true);
+  const [busyAction, setBusyAction] = useState(false);
+  const [nfLookup, setNfLookup] = useState<ProductLookup>(null);
+  const [nfLookupBusy, setNfLookupBusy] = useState(false);
+  const [usuarioInicializado, setUsuarioInicializado] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>(null);
 
   const fileInputs = {
     CODIGO_UNICO: useRef<HTMLInputElement>(null),
@@ -87,77 +377,201 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
     SAT: useRef<HTMLInputElement>(null),
   };
   const fotoPickerRef = useRef<HTMLInputElement>(null);
-  const loaded = useRef(false);
 
-  const notify = (msg: string, kind: "info" | "success" | "warn" | "danger" = "info") => setToast({ msg, kind });
+  const notify = (msg: string, kind: "info" | "success" | "warn" | "danger" = "info") => {
+    setToast({ msg, kind });
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const userData = localStorage.getItem("user");
+      if (!userData) return;
+      const currentUser = JSON.parse(userData);
+      const userName = String(currentUser?.name || currentUser?.email || "").trim();
+      if (userName) setUsuarioLogado(userName.toUpperCase());
+    } catch {
+      // ignore invalid local user data
+    } finally {
+      setUsuarioInicializado(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 2400);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const resetFlow = () => {
-    setStep(0);
-    setForm({ codigoUnico: "", codigoNf: "", ns: "" });
-    setDados({
-      CODIGO_UNICO: { missing: false, pendencias: [] },
-      VISTORIA_REVENDA: { missing: false, pendencias: [] },
-      SAT: { missing: false, pendencias: [] },
-    });
-  };
+  useEffect(() => {
+    let active = true;
 
-  const iniciarNovoLote = () => {
-    const key = `ETCH_RECEB_LOTE_SEQ_${storage}`;
-    const next = Number(localStorage.getItem(key) || "0") + 1;
-    localStorage.setItem(key, String(next));
-    setLoteId(next);
-    setLoteStatus("ABERTO");
-    setRows([]);
-    setEdit(null);
-    setFotoModal(null);
-    resetFlow();
-    notify(`Novo lote iniciado: Lote ${next}`, "success");
-  };
+    if (!usuarioInicializado) return () => {
+      active = false;
+    };
+
+    async function loadLote() {
+      setLoadingInit(true);
+      try {
+        const requestedLote = Number(requestedLoteParam || "");
+        const hasRequestedLote = Number.isFinite(requestedLote) && requestedLote > 0;
+
+        if (hasRequestedLote) {
+          const registros = await RecebimentoService.getLote(tipoRecebimento, requestedLote);
+          if (!active) return;
+          setRows(registros.map((item) => buildRow(item, withNf, usuarioLogado)));
+          setLoteId(requestedLote);
+          setLoteStatus(registros.some((item) => item.loteStatus === "finalizado") ? "FINALIZADO" : "ABERTO");
+          return;
+        }
+
+        const loteAberto = await RecebimentoService.getUltimoLoteAberto(tipoRecebimento);
+        if (!active) return;
+        if (loteAberto) {
+          setRows(loteAberto.registros.map((item) => buildRow(item, withNf, usuarioLogado)));
+          setLoteId(loteAberto.loteNumero);
+          setLoteStatus(loteAberto.registros.some((item) => item.loteStatus === "finalizado") ? "FINALIZADO" : "ABERTO");
+          return;
+        }
+
+        const nextLote = await RecebimentoService.getNextLoteNumero();
+        if (!active) return;
+        setRows([]);
+        setLoteId(nextLote);
+        setLoteStatus("ABERTO");
+      } catch (error) {
+        console.error("Erro ao carregar lote:", error);
+        if (!active) return;
+        notify("Erro ao carregar recebimentos.", "danger");
+        setRows([]);
+        setLoteId(1);
+        setLoteStatus("ABERTO");
+      } finally {
+        if (active) setLoadingInit(false);
+      }
+    }
+
+    loadLote();
+    return () => {
+      active = false;
+    };
+  }, [requestedLoteParam, tipoRecebimento, usuarioInicializado, withNf]);
 
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    try {
-      iniciarNovoLote();
-    } catch {
-      setLoteId(1);
+    let active = true;
+    const normalized = sanitize(form.codigoNf, "CODIGO_NF");
+
+    if (!withNf || normalized.length < 3 || !RX.CODIGO_NF.test(normalized)) {
+      setNfLookup(null);
+      setNfLookupBusy(false);
+      return () => {
+        active = false;
+      };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  const setFile = async (k: LabelKey, file: File) => {
-    const url = await toDataURL(file);
-    setDados((p) => ({ ...p, [k]: { ...p[k], file, previewUrl: url, missing: false } }));
-  };
+    setNfLookupBusy(true);
+    fetchProductLookup(normalized)
+      .then((result) => {
+        if (active) setNfLookup(result);
+      })
+      .catch((error) => {
+        console.error("Erro ao buscar produto no formulario:", error);
+        if (active) setNfLookup(null);
+      })
+      .finally(() => {
+        if (active) setNfLookupBusy(false);
+      });
 
-  const markMissing = (k: LabelKey) => {
-    if (loteStatus === "FINALIZADO") return;
-    const pend = k === "CODIGO_UNICO" ? "Coletar foto da etiqueta CÓDIGO ÚNICO (Recebimento)" : k === "VISTORIA_REVENDA" ? "Coletar foto Vistoria Revenda" : "Coletar foto etiqueta SAT";
-    setDados((p) => {
-      const pendencias = [...(p[k]?.pendencias || [])];
-      if (!pendencias.includes(pend)) pendencias.push(pend);
-      return { ...p, [k]: { ...p[k], file: null, previewUrl: undefined, missing: true, pendencias } };
-    });
-  };
+    return () => {
+      active = false;
+    };
+  }, [form.codigoNf, withNf]);
 
+  const ordered = useMemo(() => [...rows].sort((a, b) => a.numero - b.numero), [rows]);
   const bloqueado = loteStatus === "FINALIZADO";
+  const actionDisabled = loadingInit || busyAction;
   const codigoUnicoVal = sanitize(form.codigoUnico, "CODIGO_UNICO");
   const nfVal = sanitize(form.codigoNf, "CODIGO_NF");
   const nsVal = sanitize(form.ns, "NS");
   const codigoUnicoOk = !codigoUnicoVal || RX.CODIGO_UNICO.test(codigoUnicoVal);
   const nfOk = !nfVal || RX.CODIGO_NF.test(nfVal);
   const nsOk = !nsVal || RX.NS.test(nsVal);
-  const nfCadastro = useMemo(() => (withNf && nfOk && nfVal ? CAD_NF.get(nfVal) || null : null), [withNf, nfOk, nfVal]);
-  const ordered = useMemo(() => [...rows].sort((a, b) => a.numero - b.numero), [rows]);
+  const fallbackLookup = useMemo(() => {
+    const fallback = CAD_NF.get(nfVal);
+    return fallback ? { modeloReferencia: fallback.modeloReferencia, ean: "", marca: "" } : null;
+  }, [nfVal]);
+  const currentLookup = nfLookup || fallbackLookup;
+  const curLabel = step >= 1 && step <= 3 ? LABELS[step - 1] : null;
+  const curDados = curLabel ? dados[curLabel.key] : null;
+  const emptyCols = withNf ? 10 : 9;
+  const iconBtn = "inline-flex items-center justify-center w-7 h-7 rounded-xl border";
 
-  const nextNumero = () => rows.reduce((m, r) => Math.max(m, r.numero), 0) + 1;
-  const snapshotFotos = (): FotoSnapshot[] => LABELS.map((l) => ({ key: l.key, title: l.title, previewUrl: dados[l.key]?.previewUrl, missing: !!dados[l.key]?.missing }));
+  const resetFlow = () => {
+    setStep(0);
+    setForm(createInitialForm());
+    setDados(createInitialDados());
+  };
+
+  const nextNumero = () => rows.reduce((max, row) => Math.max(max, row.numero), 0) + 1;
+
+  const openConfirmModal = (config: Exclude<ConfirmModalState, null>) => {
+    setConfirmModal(config);
+  };
+
+  const closeConfirmModal = () => {
+    if (busyAction) return;
+    setConfirmModal(null);
+  };
+
+  const handleConfirmModal = async () => {
+    if (!confirmModal) return;
+    const current = confirmModal;
+    setConfirmModal(null);
+    await current.onConfirm();
+  };
+
+  const setFile = async (key: LabelKey, file: File) => {
+    if (bloqueado || actionDisabled) return;
+    try {
+      const previewUrl = await toDataURL(file);
+      setDados((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], file, previewUrl, missing: false, pendencias: [] },
+      }));
+    } catch (error) {
+      console.error("Erro ao processar foto:", error);
+      notify("Nao foi possivel ler a imagem.", "danger");
+    }
+  };
+
+  const markMissing = (key: LabelKey) => {
+    if (bloqueado || actionDisabled) return;
+    const pendencia = getPendenciaLabel(key);
+    setDados((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], file: null, previewUrl: undefined, missing: true, pendencias: [pendencia] },
+    }));
+  };
+
+  const iniciarNovoLote = async () => {
+    if (actionDisabled) return;
+    setBusyAction(true);
+    try {
+      const nextLote = await RecebimentoService.getNextLoteNumero();
+      setLoteId(nextLote);
+      setLoteStatus("ABERTO");
+      setRows([]);
+      setEdit(null);
+      setFotoModal(null);
+      resetFlow();
+      notify(`Novo lote iniciado: ${nextLote}`, "success");
+    } catch (error) {
+      console.error("Erro ao iniciar novo lote:", error);
+      notify("Nao foi possivel iniciar um novo lote.", "danger");
+    } finally {
+      setBusyAction(false);
+    }
+  };
 
   const simularEtapa4 = () => {
     const next = !simAlt;
@@ -167,10 +581,16 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
       codigoUnico: next ? "A1234567" : "B2345678",
       codigoNf: withNf ? (next ? "3551512" : "7777777") : "",
       ns: next ? "ZX9K88" : "",
+      modeloReferencia: withNf ? "" : next ? 'TV 32"PHILCO LED PH32E53SG HD/DTV/USB/NET' : "AIR FRYER MONDIAL AFN-40",
+      modeloFabricante: withNf ? "" : next ? "PHILCO" : "MONDIAL",
+      ean: withNf ? "" : next ? "7899466405923" : "7898578154567",
+      fornecedor: withNf ? "" : next ? "PHILCO" : "ESTOQUE LOCAL",
+      observacoes: withNf ? "" : next ? "Recebimento sem NF com etiqueta legivel." : "Recebido sem NF; conferir procedencia no cadastro.",
     });
   };
 
   const salvarFinalizar = async () => {
+<<<<<<< Updated upstream
     if (bloqueado) return notify(`O Lote ${loteId} está finalizado. Inicie um novo lote.`, "warn");
     const errs: string[] = [];
     if (!usuarioLogado.trim()) errs.push("Usuário logado inválido.");
@@ -212,117 +632,269 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
         recebidoPor: usuarioLogado.trim(),
         dataHoraIso: now.toISOString(),
         dataHoraLabel: now.toLocaleDateString("pt-BR", { dateStyle: "short" }),
+=======
+    if (bloqueado) return notify(`O lote ${loteId} esta finalizado. Inicie um novo lote.`, "warn");
+    if (actionDisabled) return;
+
+    const erros: string[] = [];
+    const usuario = usuarioLogado.trim();
+    const modeloReferencia = trimText(form.modeloReferencia);
+    const modeloFabricante = trimText(form.modeloFabricante);
+    const ean = trimText(form.ean);
+    const fornecedor = trimText(form.fornecedor);
+    const observacoes = trimText(form.observacoes);
+    if (!usuario) erros.push("Usuario logado invalido.");
+    if (!codigoUnicoVal) erros.push("Codigo unico e obrigatorio.");
+    if (codigoUnicoVal && !RX.CODIGO_UNICO.test(codigoUnicoVal)) erros.push("Codigo unico invalido.");
+    if (withNf && !nfVal) erros.push("Codigo NF e obrigatorio.");
+    if (withNf && nfVal && !RX.CODIGO_NF.test(nfVal)) erros.push("Codigo NF invalido.");
+    if (nsVal && !RX.NS.test(nsVal)) erros.push("Numero de serie invalido.");
+    if (!loteId) erros.push("Lote nao carregado.");
+    if (erros.length) return notify(erros.join(" "), "danger");
+
+    setBusyAction(true);
+    try {
+      const produto = withNf ? await fetchProductLookup(nfVal) : null;
+      const created = await RecebimentoService.createRecebimento({
+        tipoRecebimento,
+        loteNumero: loteId,
+        loteStatus: "aberto",
+        loteCriadoPor: usuario,
+        numeroItem: nextNumero(),
+        recebidoPor: usuario,
+>>>>>>> Stashed changes
         codigoUnico: codigoUnicoVal,
-        codigoNf: withNf ? nfVal : "SEM NF",
-        ns: nsVal || "—",
-        fotos: snapshotFotos(),
-      },
-    ]);
-    resetFlow();
-    notify("Recebimento salvo.", "success");
+        codigoNF: withNf ? nfVal : undefined,
+        numeroSerie: nsVal || "",
+        modeloReferencia: withNf ? produto?.modeloReferencia || "Aguardando cadastro" : modeloReferencia,
+        modeloFabricante: withNf ? produto?.marca || "" : modeloFabricante,
+        ean: withNf ? produto?.ean || "" : ean,
+        nf: withNf ? nfVal : "",
+        fornecedor: withNf ? produto?.marca || "" : fornecedor,
+        status: "recebido",
+        observacoes,
+        fotosEtiquetas: buildFotosEtiquetasFromDados(dados),
+        etiquetasMissing: buildEtiquetasMissingFromDados(dados),
+        pendencias: buildPendenciasFromDados(dados),
+      });
+
+      setRows((prev) => [...prev, buildRow(created, withNf, usuarioLogado)]);
+      resetFlow();
+      notify("Recebimento salvo.", "success");
+    } catch (error: any) {
+      console.error("Erro ao salvar recebimento:", error);
+      notify(error?.message || "Nao foi possivel salvar o recebimento.", "danger");
+    } finally {
+      setBusyAction(false);
+    }
   };
 
-  const abrirEdicao = (r: Row) => {
-    if (bloqueado) return notify("Lote finalizado: não é possível alterar.", "warn");
-    setEdit(r);
-    setEditForm({ codigoUnico: r.codigoUnico, codigoNf: withNf ? r.codigoNf : "", ns: r.ns === "—" ? "" : r.ns });
+  const abrirEdicao = (row: Row) => {
+    if (bloqueado) return notify("Lote finalizado: alteracoes bloqueadas.", "warn");
+    if (actionDisabled) return;
+    setEdit(row);
+    setEditForm({
+      codigoUnico: row.codigoUnico,
+      codigoNf: withNf ? row.codigoNf : "",
+      ns: row.ns === "-" ? "" : row.ns,
+      modeloReferencia: row.modeloReferencia,
+      modeloFabricante: row.modeloFabricante,
+      ean: row.ean,
+      fornecedor: row.fornecedor,
+      observacoes: row.observacoes,
+    });
   };
 
-  const salvarEdicao = () => {
+  const salvarEdicao = async () => {
     if (!edit) return;
-    if (bloqueado) return notify("Lote finalizado: não é possível salvar.", "warn");
+    if (bloqueado) return notify("Lote finalizado: alteracoes bloqueadas.", "warn");
+    if (actionDisabled) return;
+
     const codigoUnico = sanitize(editForm.codigoUnico, "CODIGO_UNICO");
     const codigoNf = sanitize(editForm.codigoNf, "CODIGO_NF");
-    const ns = sanitize(editForm.ns, "NS");
-    const errs: string[] = [];
-    if (!codigoUnico || !RX.CODIGO_UNICO.test(codigoUnico)) errs.push("CÓDIGO ÚNICO inválido.");
-    if (withNf && (!codigoNf || !RX.CODIGO_NF.test(codigoNf))) errs.push("CÓDIGO NF inválido.");
-    if (errs.length) return notify(errs.join(" "), "danger");
-    setRows((p) =>
-      p.map((x) =>
-        x.numero === edit.numero
-          ? { ...x, codigoUnico, codigoNf: withNf ? codigoNf : "SEM NF", ns: ns || "—" }
-          : x
-      )
-    );
-    setEdit(null);
-    notify("Alterações salvas.", "success");
+    const numeroSerie = sanitize(editForm.ns, "NS");
+    const modeloReferencia = trimText(editForm.modeloReferencia);
+    const modeloFabricante = trimText(editForm.modeloFabricante);
+    const ean = trimText(editForm.ean);
+    const fornecedor = trimText(editForm.fornecedor);
+    const observacoes = trimText(editForm.observacoes);
+    const erros: string[] = [];
+    if (!codigoUnico || !RX.CODIGO_UNICO.test(codigoUnico)) erros.push("Codigo unico invalido.");
+    if (withNf && (!codigoNf || !RX.CODIGO_NF.test(codigoNf))) erros.push("Codigo NF invalido.");
+    if (numeroSerie && !RX.NS.test(numeroSerie)) erros.push("Numero de serie invalido.");
+    if (erros.length) return notify(erros.join(" "), "danger");
+
+    setBusyAction(true);
+    try {
+      const produto = withNf ? await fetchProductLookup(codigoNf) : null;
+      const updated = await RecebimentoService.updateRecebimento(edit.id, {
+        codigoUnico,
+        codigoNF: withNf ? codigoNf : "",
+        numeroSerie: numeroSerie || "",
+        modeloReferencia: withNf ? produto?.modeloReferencia || edit.modeloReferencia : modeloReferencia,
+        modeloFabricante: withNf ? produto?.marca || "" : modeloFabricante,
+        ean: withNf ? produto?.ean || "" : ean,
+        nf: withNf ? codigoNf : "",
+        fornecedor: withNf ? produto?.marca || "" : fornecedor,
+        observacoes,
+      });
+
+      const nextRow = buildRow(updated, withNf, usuarioLogado);
+      setRows((prev) => prev.map((item) => (item.id === edit.id ? nextRow : item)));
+      setEdit(null);
+      notify("Alteracoes salvas.", "success");
+    } catch (error: any) {
+      console.error("Erro ao alterar recebimento:", error);
+      notify(error?.message || "Nao foi possivel salvar a alteracao.", "danger");
+    } finally {
+      setBusyAction(false);
+    }
   };
 
-  const excluirRecebimento = (r: Row) => {
-    if (bloqueado) return notify("Lote finalizado: não é possível excluir.", "warn");
-    if (!window.confirm(`Excluir o recebimento Nº ${r.numero}?`)) return;
-    setRows((p) => p.filter((x) => x.numero !== r.numero));
-    if (edit?.numero === r.numero) setEdit(null);
-    if (fotoModal?.rowNumero === r.numero) setFotoModal(null);
-    notify(`Recebimento Nº ${r.numero} excluído.`, "success");
+  const excluirRecebimento = (row: Row) => {
+    if (bloqueado) return notify("Lote finalizado: exclusao bloqueada.", "warn");
+    if (actionDisabled) return;
+    openConfirmModal({
+      title: "Excluir recebimento",
+      message: `Excluir o recebimento ${row.numero}?`,
+      confirmLabel: "Excluir",
+      tone: "danger",
+      onConfirm: async () => {
+        setBusyAction(true);
+        try {
+          await RecebimentoService.deleteRecebimento(row.id);
+          setRows((prev) => prev.filter((item) => item.id !== row.id));
+          if (edit?.id === row.id) setEdit(null);
+          if (fotoModal?.rowId === row.id) setFotoModal(null);
+          notify(`Recebimento ${row.numero} excluido.`, "success");
+        } catch (error: any) {
+          console.error("Erro ao excluir recebimento:", error);
+          notify(error?.message || "Nao foi possivel excluir o recebimento.", "danger");
+        } finally {
+          setBusyAction(false);
+        }
+      },
+    });
   };
 
   const applyFotoToRow = async (file: File) => {
-    if (!fotoModal || bloqueado) return;
-    const url = await toDataURL(file);
-    const { rowNumero, fotoKey, title } = fotoModal;
-    setRows((p) =>
-      p.map((r) => {
-        if (r.numero !== rowNumero) return r;
-        return { ...r, fotos: r.fotos.map((f) => (f.key === fotoKey ? { ...f, title, previewUrl: url, missing: false } : f)) };
-      })
-    );
-    setFotoModal((m) => (m ? { ...m, previewUrl: url } : m));
-    notify("Foto atualizada.", "success");
+    if (!fotoModal || bloqueado || actionDisabled) return;
+
+    setBusyAction(true);
+    try {
+      const previewUrl = await toDataURL(file);
+      const target = rows.find((row) => row.id === fotoModal.rowId);
+      if (!target) throw new Error("Recebimento nao encontrado.");
+
+      const nextFotos = target.fotos.map((foto) =>
+        foto.key === fotoModal.fotoKey
+          ? { ...foto, previewUrl, missing: false, fileName: file.name, mimeType: file.type, capturedAt: new Date().toISOString() }
+          : foto
+      );
+      const updated = await RecebimentoService.updateRecebimento(target.id, {
+        fotosEtiquetas: buildFotosEtiquetasFromSnapshots(nextFotos),
+        etiquetasMissing: buildEtiquetasMissingFromSnapshots(nextFotos),
+        pendencias: buildPendenciasFromSnapshots(nextFotos),
+      });
+
+      const nextRow = buildRow(updated, withNf, usuarioLogado);
+      setRows((prev) => prev.map((item) => (item.id === target.id ? nextRow : item)));
+      setFotoModal({ rowId: target.id, rowNumero: nextRow.numero, fotoKey: fotoModal.fotoKey, title: fotoModal.title, previewUrl });
+      notify("Foto atualizada.", "success");
+    } catch (error: any) {
+      console.error("Erro ao atualizar foto:", error);
+      notify(error?.message || "Nao foi possivel atualizar a foto.", "danger");
+    } finally {
+      setBusyAction(false);
+    }
   };
 
   const excluirFotoAtual = () => {
-    if (!fotoModal?.previewUrl || bloqueado) return;
-    if (!window.confirm("Excluir esta foto?")) return;
-    const { rowNumero, fotoKey, title } = fotoModal;
-    setRows((p) =>
-      p.map((r) => {
-        if (r.numero !== rowNumero) return r;
-        return { ...r, fotos: r.fotos.map((f) => (f.key === fotoKey ? { ...f, title, previewUrl: undefined, missing: false } : f)) };
-      })
-    );
-    setFotoModal((m) => (m ? { ...m, previewUrl: undefined } : m));
-    notify("Foto excluída.", "success");
+    if (!fotoModal?.previewUrl || bloqueado || actionDisabled) return;
+    openConfirmModal({
+      title: "Excluir foto",
+      message: "Excluir esta foto?",
+      confirmLabel: "Excluir",
+      tone: "danger",
+      onConfirm: async () => {
+        setBusyAction(true);
+        try {
+          const target = rows.find((row) => row.id === fotoModal.rowId);
+          if (!target) throw new Error("Recebimento nao encontrado.");
+
+          const nextFotos = target.fotos.map((foto) =>
+            foto.key === fotoModal.fotoKey
+              ? { ...foto, previewUrl: undefined, missing: true, fileName: undefined, mimeType: undefined, storagePath: undefined, capturedAt: undefined }
+              : foto
+          );
+          const updated = await RecebimentoService.updateRecebimento(target.id, {
+            fotosEtiquetas: buildFotosEtiquetasFromSnapshots(nextFotos),
+            etiquetasMissing: buildEtiquetasMissingFromSnapshots(nextFotos),
+            pendencias: buildPendenciasFromSnapshots(nextFotos),
+          });
+
+          const nextRow = buildRow(updated, withNf, usuarioLogado);
+          setRows((prev) => prev.map((item) => (item.id === target.id ? nextRow : item)));
+          setFotoModal({ rowId: target.id, rowNumero: nextRow.numero, fotoKey: fotoModal.fotoKey, title: fotoModal.title, previewUrl: undefined });
+          notify("Foto excluida.", "success");
+        } catch (error: any) {
+          console.error("Erro ao excluir foto:", error);
+          notify(error?.message || "Nao foi possivel excluir a foto.", "danger");
+        } finally {
+          setBusyAction(false);
+        }
+      },
+    });
   };
 
   const finalizarLote = () => {
-    if (!rows.length) return notify("Não há recebimentos neste lote.", "warn");
-    if (!window.confirm(`Finalizar Lote ${loteId}? Depois não será possível alterar.`)) return;
-    setLoteStatus("FINALIZADO");
-    notify(`Lote ${loteId} finalizado.`, "success");
+    if (!rows.length) return notify("Nao ha recebimentos neste lote.", "warn");
+    if (actionDisabled) return;
+    openConfirmModal({
+      title: "Finalizar lote",
+      message: `Finalizar lote ${loteId}? Depois nao sera possivel alterar.`,
+      confirmLabel: "Finalizar",
+      tone: "primary",
+      onConfirm: async () => {
+        setBusyAction(true);
+        try {
+          await RecebimentoService.finalizarLote(tipoRecebimento, loteId);
+          setLoteStatus("FINALIZADO");
+          setRows((prev) => prev.map((item) => ({ ...item, loteStatus: "FINALIZADO" })));
+          notify(`Lote ${loteId} finalizado.`, "success");
+        } catch (error: any) {
+          console.error("Erro ao finalizar lote:", error);
+          notify(error?.message || "Nao foi possivel finalizar o lote.", "danger");
+        } finally {
+          setBusyAction(false);
+        }
+      },
+    });
   };
-
-  const curLabel = step >= 1 && step <= 3 ? LABELS[step - 1] : null;
-  const curDados = curLabel ? dados[curLabel.key] : null;
-  const getModelo = (codigoNf: string) => (withNf ? CAD_NF.get(codigoNf)?.modeloReferencia || "Aguardando cadastro" : "Não se aplica");
-  const hasModelo = (codigoNf: string) => (withNf ? !!CAD_NF.get(codigoNf)?.modeloReferencia : false);
-  const emptyCols = withNf ? 10 : 8;
-
-  const iconBtn = "inline-flex items-center justify-center w-7 h-7 rounded-xl border";
 
   return (
     <div className="min-h-screen w-full bg-slate-100 p-4">
-      <div className="max-w-6xl mx-auto text-slate-800">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-          <div className="flex items-center gap-3 flex-wrap">
+      <div className="mx-auto max-w-6xl text-slate-800">
+        <div className="mb-2 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold">RECEBIMENTO DE PRODUTO</h1>
-            <span className="inline-flex items-center px-3 py-1 rounded-2xl bg-slate-100 text-slate-800 text-xs font-semibold">Lote {loteId || "—"}</span>
-            <span className={`inline-flex items-center px-3 py-1 rounded-2xl text-xs font-semibold border ${loteStatus === "ABERTO" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>{loteStatus}</span>
-            {!withNf ? <span className="inline-flex items-center px-3 py-1 rounded-2xl text-xs font-semibold border bg-sky-50 text-sky-800 border-sky-200">SEM NF</span> : null}
+            <span className="inline-flex items-center rounded-2xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">Lote {loteId || "-"}</span>
+            <span className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs font-semibold ${loteStatus === "ABERTO" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{loteStatus}</span>
+            <span className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs font-semibold ${withNf ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>{withNf ? "COM NF" : "SEM NF"}</span>
+            {loadingInit ? <span className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">Carregando lote...</span> : null}
           </div>
         </div>
 
         {step === 0 ? (
-          <div className="rounded-2xl border bg-white p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border bg-white p-6 shadow-sm sm:flex-row">
             <div>
-              <div className="font-semibold text-lg mb-1">Fluxo guiado de 4 etapas</div>
-              <div className="text-sm text-slate-600">CÓDIGO ÚNICO → Vistoria Revenda → SAT → Recebimento do Produto.</div>
-              <div className="text-xs text-slate-500 mt-2">Etapas: {STEP_TITLES.join(" → ")}</div>
+              <div className="mb-1 text-lg font-semibold">Fluxo guiado de 4 etapas</div>
+              <div className="text-sm text-slate-600">Codigo unico - Vistoria Revenda - SAT - Recebimento do Produto.</div>
+              <div className="mt-2 text-xs text-slate-500">Etapas: {STEP_TITLES.join(" - ")}</div>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" className={`px-5 py-3 rounded-2xl border text-white ${loteStatus === "ABERTO" ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-300 cursor-not-allowed"}`} onClick={() => (bloqueado ? notify(`O Lote ${loteId} está finalizado. Inicie um novo lote.`, "warn") : setStep(1))} disabled={bloqueado}>Efetuar Recebimento</button>
-              {bloqueado ? <button type="button" className="px-5 py-3 rounded-2xl border hover:bg-slate-50" onClick={iniciarNovoLote}>Novo Lote</button> : null}
+              <button type="button" className={`rounded-2xl border px-5 py-3 text-white ${bloqueado || actionDisabled ? "cursor-not-allowed bg-slate-300" : "bg-blue-600 hover:bg-blue-700"}`} onClick={() => { if (bloqueado) return notify(`O lote ${loteId} esta finalizado. Inicie um novo lote.`, "warn"); if (!actionDisabled) setStep(1); }} disabled={bloqueado || actionDisabled}>Efetuar Recebimento</button>
+              {bloqueado ? <button type="button" className="rounded-2xl border px-5 py-3 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={iniciarNovoLote} disabled={actionDisabled}>Novo Lote</button> : null}
             </div>
           </div>
         ) : null}
@@ -330,298 +902,238 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
         {step >= 1 && step <= 3 && curLabel && curDados ? (
           <div className="rounded-2xl border bg-white p-4 shadow-sm">
             <div className="mb-1 text-sm text-slate-500">Passo {step} de 4</div>
-            <div className="text-xl font-bold mb-2">{curLabel.title}</div>
-            <div className="border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-white shadow-sm">
-              <div className="w-full max-w-md aspect-[4/3] bg-slate-50 rounded-xl flex items-center justify-center mb-3">
-                {curDados.previewUrl ? <img src={curDados.previewUrl} alt="Preview" className="w-full h-full object-contain rounded-xl" /> : <div className="text-slate-400 text-sm px-6"><div className="font-semibold mb-1">Mantenha a etiqueta centralizada e legível</div><div className="opacity-80">Use boa iluminação, evite reflexos e tremores.</div></div>}
+            <div className="mb-2 text-xl font-bold">{curLabel.title}</div>
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white p-4 text-center shadow-sm">
+              <div className="mb-3 flex aspect-[4/3] w-full max-w-md items-center justify-center rounded-xl bg-slate-50">
+                {curDados.previewUrl ? <img src={curDados.previewUrl} alt="Preview" className="h-full w-full rounded-xl object-contain" /> : <div className="px-6 text-sm text-slate-400"><div className="mb-1 font-semibold">Mantenha a etiqueta centralizada e legivel</div><div className="opacity-80">Use boa iluminacao e evite reflexos.</div></div>}
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border bg-blue-600 text-white hover:bg-blue-700" onClick={() => fileInputs[curLabel.key].current?.click()}>Abrir Câmera</button>
-                <input ref={fileInputs[curLabel.key]} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(curLabel.key, f); }} />
-                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border ${curDados.missing ? "bg-rose-600 text-white border-rose-600 hover:bg-rose-700" : "hover:bg-slate-50"}`} onClick={() => markMissing(curLabel.key)}>Etiqueta não disponível</button>
+                <button type="button" className="inline-flex items-center gap-2 rounded-xl border bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => fileInputs[curLabel.key].current?.click()} disabled={bloqueado || actionDisabled}>Abrir Camera</button>
+                <input ref={fileInputs[curLabel.key]} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) setFile(curLabel.key, file); event.currentTarget.value = ""; }} />
+                <button type="button" className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 ${curDados.missing ? "border-rose-600 bg-rose-600 text-white hover:bg-rose-700" : "hover:bg-slate-50"} disabled:cursor-not-allowed disabled:opacity-60`} onClick={() => markMissing(curLabel.key)} disabled={bloqueado || actionDisabled}>Etiqueta nao disponivel</button>
               </div>
-              <div className="mt-3 text-left w-full max-w-md text-sm text-slate-600"><div className="font-semibold">Dica:</div><div className="opacity-90">{curLabel.hint}</div></div>
-              <div className="mt-4 w-full max-w-md flex items-center justify-between gap-2">
-                <button type="button" className="px-4 py-2 rounded-xl border hover:bg-slate-50" onClick={() => setStep((s) => Math.max(0, s - 1))}>Voltar</button>
-                <button type="button" className="px-4 py-2 rounded-xl border bg-blue-600 text-white hover:bg-blue-700" onClick={() => setStep((s) => Math.min(4, s + 1))}>{step < 3 ? "Avançar" : "Ir para Recebimento"}</button>
+              <div className="mt-3 w-full max-w-md text-left text-sm text-slate-600"><div className="font-semibold">Dica:</div><div className="opacity-90">{curLabel.hint}</div></div>
+              <div className="mt-4 flex w-full max-w-md items-center justify-between gap-2">
+                <button type="button" className="rounded-xl border px-4 py-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={actionDisabled}>Voltar</button>
+                <button type="button" className="rounded-xl border bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setStep((current) => Math.min(4, current + 1))} disabled={actionDisabled}>{step < 3 ? "Avancar" : "Ir para Recebimento"}</button>
               </div>
             </div>
           </div>
         ) : null}
-
         {step === 4 ? (
           <div className="rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div className="text-xl font-bold">Recebimento do Produto</div>
               <div className="flex items-center gap-2">
-                <button type="button" className="px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm" onClick={() => setStep(3)}>Voltar</button>
-                <button type="button" className="px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm" onClick={simularEtapa4}>Simular</button>
+                <button type="button" className="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setStep(3)} disabled={actionDisabled}>Voltar</button>
+                <button type="button" className="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={simularEtapa4} disabled={actionDisabled}>Simular</button>
               </div>
             </div>
 
-            <div className={`grid grid-cols-1 ${withNf ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}>
+            <div className={`grid grid-cols-1 gap-4 ${withNf ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium">CÓDIGO ÚNICO<span className="text-red-600"> *</span></label>
-                <input
-                  className={`px-3 py-2 rounded-lg border ${form.codigoUnico && !codigoUnicoOk ? "border-red-500" : "border-slate-300"}`}
-                  placeholder="Digite o CÓDIGO ÚNICO (ex.: A1234567)"
-                  value={form.codigoUnico}
-                  onChange={(e) => setForm({ ...form, codigoUnico: sanitize(e.target.value, "CODIGO_UNICO") })}
-                />
-                {form.codigoUnico && !codigoUnicoOk ? <div className="text-xs text-red-600">Formato inválido (8 caracteres, começa com letra).</div> : null}
+                <label className="text-sm font-medium">Codigo Unico<span className="text-red-600"> *</span></label>
+                <input className={`rounded-lg border px-3 py-2 ${form.codigoUnico && !codigoUnicoOk ? "border-red-500" : "border-slate-300"}`} placeholder="Digite o codigo unico" value={form.codigoUnico} onChange={(event) => setForm({ ...form, codigoUnico: sanitize(event.target.value, "CODIGO_UNICO") })} />
+                {form.codigoUnico && !codigoUnicoOk ? <div className="text-xs text-red-600">Formato invalido. Exemplo: A1234567.</div> : null}
               </div>
 
               {withNf ? (
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium">CÓDIGO NF<span className="text-red-600"> *</span></label>
-                  <input
-                    className={`px-3 py-2 rounded-lg border ${form.codigoNf && !nfOk ? "border-red-500" : "border-slate-300"}`}
-                    placeholder="Digite o Código NF"
-                    value={form.codigoNf}
-                    onChange={(e) => setForm({ ...form, codigoNf: sanitize(e.target.value, "CODIGO_NF") })}
-                  />
-                  {form.codigoNf && !nfOk ? <div className="text-xs text-red-600">Somente números (6-10 dígitos).</div> : null}
-                  {nfVal && nfOk ? (
-                    nfCadastro?.modeloReferencia ? (
-                      <div className="text-xs mt-1 text-green-700">Modelo Referência: <b>{nfCadastro.modeloReferencia}</b></div>
-                    ) : (
-                      <div className="text-xs mt-1 text-amber-700"><b>Modelo Referência não cadastrado</b> • Aguardando cadastro.</div>
-                    )
-                  ) : null}
+                  <label className="text-sm font-medium">Codigo NF<span className="text-red-600"> *</span></label>
+                  <input className={`rounded-lg border px-3 py-2 ${form.codigoNf && !nfOk ? "border-red-500" : "border-slate-300"}`} placeholder="Digite o Codigo NF" value={form.codigoNf} onChange={(event) => setForm({ ...form, codigoNf: sanitize(event.target.value, "CODIGO_NF") })} />
+                  {form.codigoNf && !nfOk ? <div className="text-xs text-red-600">Somente numeros.</div> : null}
+                  {nfLookupBusy && nfVal ? <div className="text-xs text-slate-500">Buscando produto...</div> : null}
+                  {nfVal && nfOk && !nfLookupBusy ? (currentLookup?.modeloReferencia ? <div className="mt-1 text-xs text-green-700">Modelo referencia: <b>{currentLookup.modeloReferencia}</b></div> : <div className="mt-1 text-xs text-amber-700">Modelo referencia nao encontrado. O recebimento sera salvo mesmo assim.</div>) : null}
                 </div>
               ) : null}
 
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium">Número de Série</label>
-                <input
-                  className={`px-3 py-2 rounded-lg border ${form.ns && !nsOk ? "border-amber-500" : "border-slate-300"}`}
-                  placeholder="Digite o Número de Série"
-                  value={form.ns}
-                  onChange={(e) => setForm({ ...form, ns: sanitize(e.target.value, "NS") })}
-                />
-                {form.ns && !nsOk ? <div className="text-xs text-amber-700">Formato incomum (alfa-numérico 6-20). Não bloqueia.</div> : null}
+                <label className="text-sm font-medium">Numero de Serie</label>
+                <input className={`rounded-lg border px-3 py-2 ${form.ns && !nsOk ? "border-amber-500" : "border-slate-300"}`} placeholder="Digite o numero de serie" value={form.ns} onChange={(event) => setForm({ ...form, ns: sanitize(event.target.value, "NS") })} />
+                {form.ns && !nsOk ? <div className="text-xs text-amber-700">Formato incomum. Use letras e numeros.</div> : null}
               </div>
+
+              {!withNf ? (
+                <>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-sm font-medium">Modelo Referencia</label>
+                    <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Informe o modelo de referencia" value={form.modeloReferencia} onChange={(event) => setForm({ ...form, modeloReferencia: event.target.value })} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium">Modelo Fabricante</label>
+                    <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Opcional" value={form.modeloFabricante} onChange={(event) => setForm({ ...form, modeloFabricante: event.target.value })} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium">EAN</label>
+                    <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Opcional" value={form.ean} onChange={(event) => setForm({ ...form, ean: event.target.value })} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium">Fornecedor</label>
+                    <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Opcional" value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} />
+                  </div>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-sm font-medium">Observacoes</label>
+                    <textarea className="min-h-28 rounded-lg border border-slate-300 px-3 py-2" placeholder="Detalhes adicionais do recebimento" value={form.observacoes} onChange={(event) => setForm({ ...form, observacoes: event.target.value })} />
+                  </div>
+                </>
+              ) : null}
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-2">
-              <button type="button" className="px-4 py-2 rounded-xl border hover:bg-slate-50" onClick={() => setStep(3)}>Voltar</button>
-              <button type="button" className="px-5 py-3 rounded-2xl border bg-blue-600 text-white hover:bg-blue-700" onClick={salvarFinalizar}>Salvar e Finalizar Recebimento</button>
+              <button type="button" className="rounded-xl border px-4 py-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setStep(3)} disabled={actionDisabled}>Voltar</button>
+              <button type="button" className="rounded-2xl border bg-blue-600 px-5 py-3 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={salvarFinalizar} disabled={actionDisabled}>Salvar Recebimento</button>
             </div>
           </div>
         ) : null}
 
-        {step > 0 ? <div className="mt-4 text-xs text-slate-500">Etapas: {STEP_TITLES.join(" → ")}</div> : null}
+        {step > 0 ? <div className="mt-4 text-xs text-slate-500">Etapas: {STEP_TITLES.join(" - ")}</div> : null}
 
-        <div className="mt-6 rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm">
+          <div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
             <div>
-              <div className="text-lg font-bold">Recebimentos do Lote {loteId}</div>
-              <div className="text-sm text-slate-600">Lista dos produtos que já tiveram o recebimento finalizado.</div>
+              <div className="text-lg font-bold">Recebimentos do Lote {loteId || "-"}</div>
+              <div className="text-sm text-slate-600">Itens persistidos no banco para este lote.</div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-xs text-slate-500">Total: <b>{rows.length}</b></div>
-              {loteStatus === "ABERTO" ? (
-                <button
-                  type="button"
-                  className={`px-3 py-2 rounded-xl border text-sm ${rows.length ? "bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}
-                  onClick={finalizarLote}
-                  disabled={!rows.length}
-                >
-                  Finalizar Lote
-                </button>
-              ) : (
-                <button type="button" className="px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm" onClick={iniciarNovoLote}>Novo Lote</button>
-              )}
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <div className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                Total: <b className="ml-1 text-slate-900">{rows.length}</b>
+              </div>
+              {loteStatus === "ABERTO" ? <button type="button" className={`rounded-xl border px-3 py-2 text-sm ${rows.length ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700" : "cursor-not-allowed bg-slate-100 text-slate-400"} disabled:cursor-not-allowed disabled:opacity-60`} onClick={finalizarLote} disabled={!rows.length || actionDisabled}>Finalizar Lote</button> : <button type="button" className="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={iniciarNovoLote} disabled={actionDisabled}>Novo Lote</button>}
             </div>
           </div>
 
-          <div className="hidden md:block px-2 pb-2">
-            <table className="w-full table-fixed">
+          <div className="hidden px-2 pb-2 xl:block">
+            <div className="overflow-x-auto">
+            <table className="min-w-[1180px] w-full table-auto">
               <thead>
-                <tr className="text-center text-[11px] font-semibold uppercase text-slate-600 bg-slate-50">
-                  <th className="px-2 py-2 border-b">Alterar</th>
-                  <th className="px-2 py-2 border-b">Nº</th>
-                  <th className="px-2 py-2 border-b">Recebido por</th>
-                  <th className="px-2 py-2 border-b">Data</th>
-                  <th className="px-2 py-2 border-b">CD. ÚNICO</th>
-                  {withNf ? <th className="px-2 py-2 border-b">CÓDIGO NF</th> : null}
-                  <th className="px-2 py-2 border-b">Nº SÉRIE</th>
-                  {withNf ? <th className="px-2 py-2 border-b">MODELO REFERÊNCIA</th> : null}
-                  <th className="px-2 py-2 border-b">FOTOS</th>
-                  <th className="px-2 py-2 border-b">EXCLUIR</th>
+                <tr className="bg-slate-50 text-center text-[11px] font-semibold uppercase text-slate-600">
+                  <th className="border-b px-2 py-2 whitespace-nowrap">Alterar</th>
+                  <th className="border-b px-2 py-2 whitespace-nowrap">No</th>
+                  <th className="border-b px-2 py-2 whitespace-nowrap text-left">Recebido por</th>
+                  <th className="border-b px-2 py-2 whitespace-nowrap">Data</th>
+                  <th className="border-b px-2 py-2 whitespace-nowrap">Cd. Unico</th>
+                  {withNf ? <th className="border-b px-2 py-2 whitespace-nowrap">Codigo NF</th> : null}
+                  <th className="border-b px-2 py-2 whitespace-nowrap">No Serie</th>
+                  <th className="border-b px-2 py-2 text-left">Modelo Referencia</th>
+                  <th className="border-b px-2 py-2 whitespace-nowrap">Fotos</th>
+                  <th className="border-b px-2 py-2 whitespace-nowrap">Excluir</th>
                 </tr>
               </thead>
               <tbody>
                 {!ordered.length ? (
-                  <tr><td className="px-3 py-6 text-sm text-slate-500" colSpan={emptyCols}>Nenhum recebimento finalizado ainda.</td></tr>
+                  <tr><td className="px-3 py-6 text-sm text-slate-500" colSpan={emptyCols}>{loadingInit ? "Carregando recebimentos..." : "Nenhum recebimento salvo neste lote."}</td></tr>
                 ) : (
-                  ordered.map((r) => {
-                    const modelo = getModelo(r.codigoNf);
-                    const modeloOk = hasModelo(r.codigoNf);
-                    return (
-                      <tr key={`${r.numero}-${r.dataHoraIso}`} className="hover:bg-slate-50/60 text-center text-[11px]">
-                        <td className="px-2 py-2 border-b">
-                          <button type="button" className={`${iconBtn} ${bloqueado ? "bg-slate-50 text-slate-300 cursor-not-allowed" : "hover:bg-slate-50"}`} onClick={() => (bloqueado ? notify("Lote finalizado: alterações bloqueadas.", "warn") : abrirEdicao(r))} disabled={bloqueado}>Alt</button>
-                        </td>
-                        <td className="px-2 py-2 border-b"><span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-100 font-semibold">{r.numero}</span></td>
-                        <td className="px-2 py-2 border-b font-semibold">{r.recebidoPor}</td>
-                        <td className="px-2 py-2 border-b">{r.dataHoraLabel}</td>
-                        <td className="px-2 py-2 border-b font-mono">{r.codigoUnico}</td>
-                        {withNf ? <td className="px-2 py-2 border-b font-mono">{r.codigoNf}</td> : null}
-                        <td className="px-2 py-2 border-b font-mono">{r.ns}</td>
-                        {withNf ? <td className={`px-2 py-2 border-b ${modeloOk ? "text-slate-800" : "text-amber-700"}`}>{modelo}</td> : null}
-                        <td className="px-2 py-2 border-b">
-                          <div className="flex items-center justify-center gap-1">
-                            {r.fotos.map((f) => (
-                              <button
-                                key={f.key}
-                                type="button"
-                                className={`rounded-lg border overflow-hidden w-6 h-6 ${bloqueado ? "bg-slate-50 text-slate-300 cursor-not-allowed" : "hover:ring-2 hover:ring-blue-300"} ${f.previewUrl ? "bg-slate-100" : f.missing ? "bg-amber-50 border-amber-200" : "bg-slate-50"}`}
-                                onClick={() => (bloqueado ? notify("Lote finalizado: alterações bloqueadas.", "warn") : setFotoModal({ rowNumero: r.numero, fotoKey: f.key, title: f.title, previewUrl: f.previewUrl }))}
-                                disabled={bloqueado}
-                              >
-                                {f.previewUrl ? <img src={f.previewUrl} alt={f.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full flex items-center justify-center text-[9px] font-semibold ${f.missing ? "text-amber-800" : "text-slate-400"}`}>{f.missing ? "N/D" : "—"}</div>}
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-2 py-2 border-b">
-                          <button type="button" className={`${iconBtn} ${bloqueado ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed" : "hover:bg-rose-50 text-rose-700 border-rose-200"}`} onClick={() => excluirRecebimento(r)} disabled={bloqueado}>Del</button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  ordered.map((row) => (
+                    <tr key={row.id} className="align-top text-center text-[11px] hover:bg-slate-50/60">
+                      <td className="border-b px-2 py-3"><button type="button" className={`${iconBtn} ${bloqueado || actionDisabled ? "cursor-not-allowed bg-slate-50 text-slate-300" : "hover:bg-slate-50"}`} onClick={() => abrirEdicao(row)} disabled={bloqueado || actionDisabled}>Alt</button></td>
+                      <td className="border-b px-2 py-3"><span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 font-semibold">{row.numero}</span></td>
+                      <td className="border-b px-2 py-3 text-left font-semibold leading-4 break-all">{row.recebidoPor}</td>
+                      <td className="border-b px-2 py-3 whitespace-nowrap">{row.dataHoraLabel}</td>
+                      <td className="border-b px-2 py-3 font-mono whitespace-nowrap">{row.codigoUnico}</td>
+                      {withNf ? <td className="border-b px-2 py-3 font-mono whitespace-nowrap">{row.codigoNf || "-"}</td> : null}
+                      <td className="border-b px-2 py-3 font-mono whitespace-nowrap">{row.ns}</td>
+                      <td className="border-b px-2 py-3 text-left leading-5">{row.modeloReferencia || "-"}</td>
+                      <td className="border-b px-2 py-3"><div className="flex items-center justify-center gap-1 whitespace-nowrap">{row.fotos.map((foto) => <button key={`${row.id}-${foto.key}`} type="button" className={`h-6 w-6 overflow-hidden rounded-lg border ${bloqueado || actionDisabled ? "cursor-not-allowed bg-slate-50 text-slate-300" : "hover:ring-2 hover:ring-blue-300"} ${foto.previewUrl ? "bg-slate-100" : foto.missing ? "border-amber-200 bg-amber-50" : "bg-slate-50"}`} onClick={() => setFotoModal({ rowId: row.id, rowNumero: row.numero, fotoKey: foto.key, title: foto.title, previewUrl: foto.previewUrl })} disabled={bloqueado || actionDisabled}>{foto.previewUrl ? <img src={foto.previewUrl} alt={foto.title} className="h-full w-full object-cover" /> : <div className={`flex h-full w-full items-center justify-center text-[9px] font-semibold ${foto.missing ? "text-amber-800" : "text-slate-400"}`}>{foto.missing ? "N/D" : "-"}</div>}</button>)}</div></td>
+                      <td className="border-b px-2 py-3"><button type="button" className={`${iconBtn} ${bloqueado || actionDisabled ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300" : "border-rose-200 text-rose-700 hover:bg-rose-50"}`} onClick={() => excluirRecebimento(row)} disabled={bloqueado || actionDisabled}>Del</button></td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
-          <div className="md:hidden divide-y">
-            {!ordered.length ? (
-              <div className="px-4 py-6 text-sm text-slate-500">Nenhum recebimento finalizado ainda.</div>
-            ) : (
-              ordered.map((r) => {
-                const modelo = getModelo(r.codigoNf);
-                const modeloOk = hasModelo(r.codigoNf);
-                return (
-                  <div key={`${r.numero}-${r.dataHoraIso}`} className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-100 text-[11px] font-semibold">{r.numero}</span>
-                          <div className="font-mono text-slate-800 truncate">{r.codigoUnico}</div>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          <span className="font-semibold text-slate-700">{r.recebidoPor}</span> • {r.dataHoraLabel}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button type="button" className={`${iconBtn} ${bloqueado ? "bg-slate-50 text-slate-300 cursor-not-allowed" : "hover:bg-slate-50"}`} onClick={() => (bloqueado ? notify("Lote finalizado: alterações bloqueadas.", "warn") : abrirEdicao(r))} disabled={bloqueado}>Alt</button>
-                        <button type="button" className={`${iconBtn} ${bloqueado ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed" : "hover:bg-rose-50 text-rose-700 border-rose-200"}`} onClick={() => excluirRecebimento(r)} disabled={bloqueado}>Del</button>
-                      </div>
-                    </div>
+          </div>
 
-                    <div className={`mt-3 grid ${withNf ? "grid-cols-2" : "grid-cols-1"} gap-3 text-sm`}>
-                      {withNf ? (
-                        <div>
-                          <div className="text-[11px] uppercase tracking-wide text-slate-500">CÓDIGO NF</div>
-                          <div className="font-mono text-slate-800">{r.codigoNf}</div>
-                        </div>
-                      ) : null}
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500">Número de Série</div>
-                        <div className="font-mono text-slate-800">{r.ns}</div>
-                      </div>
-                      {withNf ? (
-                        <div className="col-span-2">
-                          <div className="text-[11px] uppercase tracking-wide text-slate-500">Modelo Referência</div>
-                          <div className={`text-sm ${modeloOk ? "text-slate-800" : "text-amber-700"}`}>{modelo}</div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Fotos (toque para incluir/alterar)</div>
-                      <div className="flex flex-wrap gap-2">
-                        {r.fotos.map((f) => (
-                          <button
-                            key={f.key}
-                            type="button"
-                            className={`rounded-lg border overflow-hidden w-9 h-9 ${bloqueado ? "bg-slate-50 text-slate-300 cursor-not-allowed" : "hover:ring-2 hover:ring-blue-300"} ${f.previewUrl ? "bg-slate-100" : f.missing ? "bg-amber-50 border-amber-200" : "bg-slate-50"}`}
-                            onClick={() => (bloqueado ? notify("Lote finalizado: alterações bloqueadas.", "warn") : setFotoModal({ rowNumero: r.numero, fotoKey: f.key, title: f.title, previewUrl: f.previewUrl }))}
-                            disabled={bloqueado}
-                          >
-                            {f.previewUrl ? <img src={f.previewUrl} alt={f.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full flex items-center justify-center text-[10px] font-semibold ${f.missing ? "text-amber-800" : "text-slate-400"}`}>{f.missing ? "N/D" : "—"}</div>}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <div className="grid gap-4 p-4 xl:hidden sm:grid-cols-2">
+            {!ordered.length ? <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500 sm:col-span-2">{loadingInit ? "Carregando recebimentos..." : "Nenhum recebimento salvo neste lote."}</div> : ordered.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold">{row.numero}</span><div className="break-all font-mono text-sm text-slate-800">{row.codigoUnico}</div></div><div className="mt-1 text-xs text-slate-500"><span className="break-all font-semibold text-slate-700">{row.recebidoPor}</span><span className="block sm:inline"> - {row.dataHoraLabel}</span></div></div>
+                  <div className="flex shrink-0 items-center gap-2"><button type="button" className={`${iconBtn} ${bloqueado || actionDisabled ? "cursor-not-allowed bg-slate-50 text-slate-300" : "hover:bg-slate-50"}`} onClick={() => abrirEdicao(row)} disabled={bloqueado || actionDisabled}>Alt</button><button type="button" className={`${iconBtn} ${bloqueado || actionDisabled ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300" : "border-rose-200 text-rose-700 hover:bg-rose-50"}`} onClick={() => excluirRecebimento(row)} disabled={bloqueado || actionDisabled}>Del</button></div>
+                </div>
+                <div className={`mt-3 grid gap-3 text-sm ${withNf ? "grid-cols-2" : "grid-cols-2"}`}>
+                  {withNf ? <div><div className="text-[11px] uppercase tracking-wide text-slate-500">Codigo NF</div><div className="font-mono text-slate-800">{row.codigoNf || "-"}</div></div> : null}
+                  <div><div className="text-[11px] uppercase tracking-wide text-slate-500">Numero de Serie</div><div className="font-mono text-slate-800">{row.ns}</div></div>
+                  <div className="col-span-full"><div className="text-[11px] uppercase tracking-wide text-slate-500">Modelo Referencia</div><div className="text-sm leading-6 text-slate-800">{row.modeloReferencia || "-"}</div></div>
+                  {!withNf && row.modeloFabricante ? <div><div className="text-[11px] uppercase tracking-wide text-slate-500">Modelo Fabricante</div><div className="text-sm leading-6 text-slate-800">{row.modeloFabricante}</div></div> : null}
+                  {!withNf && row.ean ? <div><div className="text-[11px] uppercase tracking-wide text-slate-500">EAN</div><div className="font-mono text-slate-800">{row.ean}</div></div> : null}
+                  {!withNf && row.fornecedor ? <div className="col-span-full"><div className="text-[11px] uppercase tracking-wide text-slate-500">Fornecedor</div><div className="text-sm leading-6 text-slate-800">{row.fornecedor}</div></div> : null}
+                  {!withNf && row.observacoes ? <div className="col-span-full"><div className="text-[11px] uppercase tracking-wide text-slate-500">Observacoes</div><div className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{row.observacoes}</div></div> : null}
+                </div>
+                <div className="mt-4"><div className="mb-2 text-[11px] uppercase tracking-wide text-slate-500">Fotos</div><div className="flex flex-wrap gap-2">{row.fotos.map((foto) => <button key={`${row.id}-${foto.key}`} type="button" className={`h-9 w-9 overflow-hidden rounded-lg border ${bloqueado || actionDisabled ? "cursor-not-allowed bg-slate-50 text-slate-300" : "hover:ring-2 hover:ring-blue-300"} ${foto.previewUrl ? "bg-slate-100" : foto.missing ? "border-amber-200 bg-amber-50" : "bg-slate-50"}`} onClick={() => setFotoModal({ rowId: row.id, rowNumero: row.numero, fotoKey: foto.key, title: foto.title, previewUrl: foto.previewUrl })} disabled={bloqueado || actionDisabled}>{foto.previewUrl ? <img src={foto.previewUrl} alt={foto.title} className="h-full w-full object-cover" /> : <div className={`flex h-full w-full items-center justify-center text-[10px] font-semibold ${foto.missing ? "text-amber-800" : "text-slate-400"}`}>{foto.missing ? "N/D" : "-"}</div>}</button>)}</div></div>
+              </div>
+            ))}
           </div>
         </div>
-
         {fotoModal ? (
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setFotoModal(null)}>
-            <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-bold text-slate-800">{fotoModal.title}</div>
-                  <div className="text-xs text-slate-500 mt-1">Recebimento Nº <b>{fotoModal.rowNumero}</b></div>
-                </div>
-                <button type="button" className="px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm" onClick={() => setFotoModal(null)}>Fechar</button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setFotoModal(null)}>
+            <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3 border-b p-4">
+                <div><div className="font-bold text-slate-800">{fotoModal.title}</div><div className="mt-1 text-xs text-slate-500">Recebimento <b>{fotoModal.rowNumero}</b></div></div>
+                <button type="button" className="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setFotoModal(null)} disabled={actionDisabled}>Fechar</button>
               </div>
               <div className="p-4">
-                <div className="bg-slate-50 rounded-2xl border overflow-hidden">
-                  <div className="w-full max-h-[55vh] flex items-center justify-center p-3">
-                    {fotoModal.previewUrl ? <img src={fotoModal.previewUrl} alt={fotoModal.title} className="w-full max-h-[52vh] object-contain rounded-xl" /> : <div className="w-full h-[240px] flex items-center justify-center text-slate-400 text-sm">Sem foto</div>}
-                  </div>
-                </div>
-                <input ref={fotoPickerRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; applyFotoToRow(f); e.currentTarget.value = ""; }} />
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-xs text-slate-500">Clique em <b>{fotoModal.previewUrl ? "Alterar" : "Incluir"}</b> para enviar uma nova foto.</div>
-                  <div className="flex items-center gap-2">
-                    {fotoModal.previewUrl ? <button type="button" className="px-3 py-2 rounded-xl border hover:bg-rose-50 text-sm text-rose-700 border-rose-200" onClick={excluirFotoAtual}>Excluir</button> : null}
-                    <button type="button" className="px-4 py-2 rounded-xl border bg-blue-600 text-white hover:bg-blue-700 text-sm" onClick={() => fotoPickerRef.current?.click()}>{fotoModal.previewUrl ? "Alterar" : "Incluir"}</button>
-                  </div>
-                </div>
+                <div className="overflow-hidden rounded-2xl border bg-slate-50"><div className="flex max-h-[55vh] w-full items-center justify-center p-3">{fotoModal.previewUrl ? <img src={fotoModal.previewUrl} alt={fotoModal.title} className="max-h-[52vh] w-full rounded-xl object-contain" /> : <div className="flex h-[240px] w-full items-center justify-center text-sm text-slate-400">Sem foto</div>}</div></div>
+                <input ref={fotoPickerRef} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; applyFotoToRow(file); event.currentTarget.value = ""; }} />
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2"><div className="text-xs text-slate-500">Clique em <b>{fotoModal.previewUrl ? "Alterar" : "Incluir"}</b> para enviar uma nova foto.</div><div className="flex items-center gap-2">{fotoModal.previewUrl ? <button type="button" className="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={excluirFotoAtual} disabled={actionDisabled}>Excluir</button> : null}<button type="button" className="rounded-xl border bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => fotoPickerRef.current?.click()} disabled={actionDisabled}>{fotoModal.previewUrl ? "Alterar" : "Incluir"}</button></div></div>
               </div>
             </div>
           </div>
         ) : null}
 
         {edit ? (
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setEdit(null)}>
-            <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b flex items-center justify-between gap-2">
-                <div>
-                  <div className="font-bold text-slate-800">Alterar recebimento</div>
-                  <div className="text-xs text-slate-500">Nº {edit.numero} • {edit.dataHoraLabel}</div>
-                </div>
-                <button type="button" className="px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm" onClick={() => setEdit(null)}>Fechar</button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEdit(null)}>
+            <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+              <div className="flex items-center justify-between gap-2 border-b p-4">
+                <div><div className="font-bold text-slate-800">Alterar recebimento</div><div className="text-xs text-slate-500">No {edit.numero} - {edit.dataHoraLabel}</div></div>
+                <button type="button" className="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setEdit(null)} disabled={actionDisabled}>Fechar</button>
               </div>
               <div className="p-4">
-                <div className={`grid grid-cols-1 ${withNf ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium">CÓDIGO ÚNICO<span className="text-red-600"> *</span></label>
-                    <input className={`px-3 py-2 rounded-lg border ${editForm.codigoUnico && !RX.CODIGO_UNICO.test(sanitize(editForm.codigoUnico, "CODIGO_UNICO")) ? "border-red-500" : "border-slate-300"}`} value={editForm.codigoUnico} onChange={(e) => setEditForm({ ...editForm, codigoUnico: sanitize(e.target.value, "CODIGO_UNICO") })} placeholder="Ex.: A1234567" />
-                  </div>
-                  {withNf ? (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium">CÓDIGO NF<span className="text-red-600"> *</span></label>
-                      <input className={`px-3 py-2 rounded-lg border ${editForm.codigoNf && !RX.CODIGO_NF.test(sanitize(editForm.codigoNf, "CODIGO_NF")) ? "border-red-500" : "border-slate-300"}`} value={editForm.codigoNf} onChange={(e) => setEditForm({ ...editForm, codigoNf: sanitize(e.target.value, "CODIGO_NF") })} placeholder="Somente números" />
-                    </div>
+                <div className={`grid grid-cols-1 gap-4 ${withNf ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                  <div className="flex flex-col gap-1"><label className="text-sm font-medium">Codigo Unico<span className="text-red-600"> *</span></label><input className={`rounded-lg border px-3 py-2 ${editForm.codigoUnico && !RX.CODIGO_UNICO.test(sanitize(editForm.codigoUnico, "CODIGO_UNICO")) ? "border-red-500" : "border-slate-300"}`} value={editForm.codigoUnico} onChange={(event) => setEditForm({ ...editForm, codigoUnico: sanitize(event.target.value, "CODIGO_UNICO") })} placeholder="Ex.: A1234567" /></div>
+                  {withNf ? <div className="flex flex-col gap-1"><label className="text-sm font-medium">Codigo NF<span className="text-red-600"> *</span></label><input className={`rounded-lg border px-3 py-2 ${editForm.codigoNf && !RX.CODIGO_NF.test(sanitize(editForm.codigoNf, "CODIGO_NF")) ? "border-red-500" : "border-slate-300"}`} value={editForm.codigoNf} onChange={(event) => setEditForm({ ...editForm, codigoNf: sanitize(event.target.value, "CODIGO_NF") })} placeholder="Somente numeros" /></div> : null}
+                  <div className="flex flex-col gap-1"><label className="text-sm font-medium">Numero de Serie</label><input className={`rounded-lg border px-3 py-2 ${editForm.ns && !RX.NS.test(sanitize(editForm.ns, "NS")) ? "border-amber-500" : "border-slate-300"}`} value={editForm.ns} onChange={(event) => setEditForm({ ...editForm, ns: sanitize(event.target.value, "NS") })} placeholder="Opcional" /></div>
+                  {!withNf ? (
+                    <>
+                      <div className="flex flex-col gap-1 md:col-span-2"><label className="text-sm font-medium">Modelo Referencia</label><input className="rounded-lg border border-slate-300 px-3 py-2" value={editForm.modeloReferencia} onChange={(event) => setEditForm({ ...editForm, modeloReferencia: event.target.value })} placeholder="Opcional" /></div>
+                      <div className="flex flex-col gap-1"><label className="text-sm font-medium">Modelo Fabricante</label><input className="rounded-lg border border-slate-300 px-3 py-2" value={editForm.modeloFabricante} onChange={(event) => setEditForm({ ...editForm, modeloFabricante: event.target.value })} placeholder="Opcional" /></div>
+                      <div className="flex flex-col gap-1"><label className="text-sm font-medium">EAN</label><input className="rounded-lg border border-slate-300 px-3 py-2" value={editForm.ean} onChange={(event) => setEditForm({ ...editForm, ean: event.target.value })} placeholder="Opcional" /></div>
+                      <div className="flex flex-col gap-1"><label className="text-sm font-medium">Fornecedor</label><input className="rounded-lg border border-slate-300 px-3 py-2" value={editForm.fornecedor} onChange={(event) => setEditForm({ ...editForm, fornecedor: event.target.value })} placeholder="Opcional" /></div>
+                      <div className="flex flex-col gap-1 md:col-span-2"><label className="text-sm font-medium">Observacoes</label><textarea className="min-h-28 rounded-lg border border-slate-300 px-3 py-2" value={editForm.observacoes} onChange={(event) => setEditForm({ ...editForm, observacoes: event.target.value })} placeholder="Detalhes adicionais" /></div>
+                    </>
                   ) : null}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium">Número de Série</label>
-                    <input className={`px-3 py-2 rounded-lg border ${editForm.ns && !RX.NS.test(sanitize(editForm.ns, "NS")) ? "border-amber-500" : "border-slate-300"}`} value={editForm.ns} onChange={(e) => setEditForm({ ...editForm, ns: sanitize(e.target.value, "NS") })} placeholder="Opcional" />
-                  </div>
                 </div>
-                <div className="mt-5 flex items-center justify-end gap-2">
-                  <button type="button" className="px-4 py-2 rounded-xl border hover:bg-slate-50" onClick={() => setEdit(null)}>Cancelar</button>
-                  <button type="button" className="px-5 py-2 rounded-xl border bg-blue-600 text-white hover:bg-blue-700" onClick={salvarEdicao}>Salvar alterações</button>
-                </div>
+                <div className="mt-5 flex items-center justify-end gap-2"><button type="button" className="rounded-xl border px-4 py-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setEdit(null)} disabled={actionDisabled}>Cancelar</button><button type="button" className="rounded-xl border bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={salvarEdicao} disabled={actionDisabled}>Salvar alteracoes</button></div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {confirmModal ? (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4" onClick={closeConfirmModal}>
+            <div className="w-full max-w-md rounded-3xl border bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+              <div className="text-lg font-black text-slate-900">{confirmModal.title}</div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{confirmModal.message}</p>
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={closeConfirmModal}
+                  disabled={busyAction}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-2xl px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
+                    confirmModal.tone === "danger"
+                      ? "bg-rose-600 hover:bg-rose-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                  onClick={handleConfirmModal}
+                  disabled={busyAction}
+                >
+                  {confirmModal.confirmLabel}
+                </button>
               </div>
             </div>
           </div>
@@ -629,9 +1141,7 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
 
         {toast ? (
           <div className="fixed bottom-4 right-4 z-[70]">
-            <div className={`rounded-2xl shadow-lg border px-4 py-3 text-sm max-w-[340px] ${toast.kind === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-900" : toast.kind === "warn" ? "bg-amber-50 border-amber-200 text-amber-900" : toast.kind === "danger" ? "bg-rose-50 border-rose-200 text-rose-900" : "bg-white border-slate-200 text-slate-900"}`}>
-              {toast.msg}
-            </div>
+            <div className={`max-w-[340px] rounded-2xl border px-4 py-3 text-sm shadow-lg ${toast.kind === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : toast.kind === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : toast.kind === "danger" ? "border-rose-200 bg-rose-50 text-rose-900" : "border-slate-200 bg-white text-slate-900"}`}>{toast.msg}</div>
           </div>
         ) : null}
       </div>
