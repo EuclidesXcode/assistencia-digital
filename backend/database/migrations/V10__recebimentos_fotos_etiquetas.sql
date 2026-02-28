@@ -1,8 +1,13 @@
 -- =============================================================================
--- V10: Adicionar suporte a fotos de etiquetas (base64) na tabela recebimentos
---      e colunas de recebimento físico.
+-- V10: Adicionar suporte a imagens base64 no sistema
+--   a) Fotos de etiquetas (base64) na tabela recebimentos + dados do wizard
+--   b) Imagens separadas por tipo na tabela produtos
 -- Execute este arquivo no Supabase SQL Editor para bancos já existentes.
 -- =============================================================================
+
+-- ----------------------------------------------------------------
+-- RECEBIMENTOS: fotos de etiquetas e dados do wizard físico
+-- ----------------------------------------------------------------
 
 -- 1. Fotos das etiquetas como JSONB base64
 --    Estrutura: { "CODIGO_UNICO": "data:image/jpeg;base64,...", "VISTORIA_REVENDA": "...", "SAT": "..." }
@@ -25,3 +30,25 @@ COMMENT ON COLUMN public.recebimentos.fotos_etiquetas IS
 
 COMMENT ON COLUMN public.recebimentos.lote_id IS
   'Número do lote de recebimento físico.';
+
+-- ----------------------------------------------------------------
+-- PRODUTOS: imagens separadas por tipo (base64 data URLs)
+-- ----------------------------------------------------------------
+
+-- 4. Etiqueta Procel como array de base64
+ALTER TABLE public.produtos
+  ADD COLUMN IF NOT EXISTS etiqueta_procel TEXT[] DEFAULT ARRAY[]::TEXT[];
+
+-- 5. Fotos do kit de acessórios como array de base64
+ALTER TABLE public.produtos
+  ADD COLUMN IF NOT EXISTS kit_acessorio TEXT[] DEFAULT ARRAY[]::TEXT[];
+
+COMMENT ON COLUMN public.produtos.fotos IS
+  'Fotos principais do produto (base64 data URLs).';
+
+COMMENT ON COLUMN public.produtos.etiqueta_procel IS
+  'Fotos das etiquetas Procel do produto (base64 data URLs).';
+
+COMMENT ON COLUMN public.produtos.kit_acessorio IS
+  'Fotos do kit de acessórios do produto (base64 data URLs).';
+

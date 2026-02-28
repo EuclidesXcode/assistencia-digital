@@ -2022,13 +2022,23 @@ const CadastroNF_EAN_Modelo = () => {
         );
       };
 
-      const mapPeca = (p: PecaBase, tipo: ItemVinculado['tipo']): ItemVinculado => ({
-        tipo,
-        nome: p.descricao,
-        codigo: p.codigoPeca,
-        quantidade: 1,
-        fotos: [] // será preenchido após conversão assíncrona abaixo
-      });
+      // Converter fotos de itens vinculados (peças/acessórios) para base64
+      const itemFotosBase64 = async (rowKey: string): Promise<string[]> => {
+        const meta = itemFotos[rowKey];
+        if (!meta?.length) return [];
+        return filesToBase64(meta);
+      };
+
+      const mapPeca = async (p: PecaBase, tipo: ItemVinculado['tipo']): Promise<ItemVinculado> => {
+        const rowKey = `${tipo === 'embalagem' ? 'EMBALAGEM' : 'ACESSORIO'}|${upper(p.codigoPeca || '')}|0`;
+        return {
+          tipo,
+          nome: p.descricao,
+          codigo: p.codigoPeca,
+          quantidade: 1,
+          fotos: await itemFotosBase64(rowKey),
+        };
+      };
 
       const mapFuncionalidade = (p: PecaBase): ItemVinculado => ({
         tipo: 'funcionalidade',
@@ -2036,44 +2046,63 @@ const CadastroNF_EAN_Modelo = () => {
         quantidade: 1
       });
 
-      const mapPecaModelo = (p: PecaBase, tipo: 'estetica' | 'funcional'): ItemVinculado => ({
-        tipo,
-        nome: p.descricao,
-        codigo: p.codigoPeca,
-        quantidade: 1,
-        fotos: itemFotos[`PECA|${upper(p.codigoPeca || '')}|${p.modeloId || 0}`]?.map(f => f.name) || []
-      });
-
-      const mappedModelos: DTOModeloFabricante[] = modelosFabricante.map(m => {
-        const ests = esteticas.filter(e => e.modeloId === m.id);
-        const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
-
+      const mapPecaModelo = async (p: PecaBase, tipo: 'estetica' | 'funcional', modeloId: number): Promise<ItemVinculado> => {
+        const rowKey = `PECA|${upper(p.codigoPeca || '')}|${modeloId}`;
         return {
-          id: String(m.id),
-          nome: m.nome,
-          categoria: 'Geral', // Default
-          codigoTipo: m.codigoProduto,
-          linha: m.linha,
-          estetica: ests.map(e => ({
-            tipo: 'estetica',
-            nome: e.descricao,
-            codigo: e.codigoPeca,
-            quantidade: 1,
-            fotos: itemFotos[`PECA|${upper(e.codigoPeca || '')}|${m.id}`]?.map(f => f.name) || []
-          })),
-          funcional: funcs.map(f => ({
-            tipo: 'funcional',
-            nome: f.descricao,
-            codigo: f.codigoPeca,
-            quantidade: 1,
-            fotos: itemFotos[`PECA|${upper(f.codigoPeca || '')}|${m.id}`]?.map(f => f.name) || []
-          })),
-          funcionalidades: [] // Not mapped in local state
+          tipo,
+          nome: p.descricao,
+          codigo: p.codigoPeca,
+          quantidade: 1,
+          fotos: await itemFotosBase64(rowKey),
         };
-      });
+      };
 
-      // Converter fotos do produto para base64
-      const fotosBase64 = await filesToBase64(produtoDocs.fotoProduto);
+      // Converter documentos de modelo (vista explodida, boletim, manual) para base64
+      const modeloDocsBase64 = async (modeloId: number) => {
+        const docs = modeloDocs[modeloId] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
+        return {
+          vistaExplodida: await filesToBase64(docs.vistaExplodida || []),
+          boletimTecnico: await filesToBase64(docs.boletimTecnico || []),
+          manualTecnico: await filesToBase64(docs.manualTecnico || []),
+        };
+      };
+
+      // Converter modelos com peças e documentos em paralelo
+      const mappedModelos: DTOModeloFabricante[] = await Promise.all(
+        modelosFabricante.map(async (m) => {
+          const ests = esteticas.filter(e => e.modeloId === m.id);
+          const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
+          const docsBas64 = await modeloDocsBase64(m.id);
+
+          return {
+            id: String(m.id),
+            nome: m.nome,
+            categoria: 'Geral',
+            codigoTipo: m.codigoProduto,
+            linha: m.linha,
+            // Documentos do modelo como base64
+            vistaExplodida: docsBas64.vistaExplodida,
+            boletimTecnico: docsBas64.boletimTecnico,
+            manualTecnico: docsBas64.manualTecnico,
+            estetica: await Promise.all(ests.map(e => mapPecaModelo(e, 'estetica', m.id))),
+            funcional: await Promise.all(funcs.map(f => mapPecaModelo(f, 'funcional', m.id))),
+            funcionalidades: [],
+          };
+        })
+      );
+
+      // Converter todas as imagens do produto em paralelo
+      const [fotosBase64, etiquetaBase64, kitBase64] = await Promise.all([
+        filesToBase64(produtoDocs.fotoProduto),
+        filesToBase64(produtoDocs.etiquetaProcel),
+        filesToBase64(produtoDocs.kitAcessorio),
+      ]);
+
+      // Converter peças em paralelo
+      const [embalagemMapped, acessoriosMapped] = await Promise.all([
+        Promise.all(embalagens.map(e => mapPeca(e, 'embalagem'))),
+        Promise.all(acessorios.map(a => mapPeca(a, 'acessorio'))),
+      ]);
 
       const dto: CreateProductDTO = {
         ean: master.ean,
@@ -2081,12 +2110,14 @@ const CadastroNF_EAN_Modelo = () => {
         marca: master.fabricante,
         nfs: codigosNF.map(nf => ({ codigo: nf.codigo, revenda: nf.revenda })),
         modelos: mappedModelos,
-        embalagem: embalagens.map(e => mapPeca(e, 'embalagem')),
-        acessorios: acessorios.map(a => mapPeca(a, 'acessorio')),
-        estetica: esteticas.map(e => mapPecaModelo(e, 'estetica')),
-        funcional: funcionaisPeca.map(f => mapPecaModelo(f, 'funcional')),
+        embalagem: embalagemMapped,
+        acessorios: acessoriosMapped,
+        estetica: await Promise.all(esteticas.map(e => mapPecaModelo(e, 'estetica', e.modeloId || 0))),
+        funcional: await Promise.all(funcionaisPeca.map(f => mapPecaModelo(f, 'funcional', f.modeloId || 0))),
         funcionalidade: funcionalidades.map(mapFuncionalidade),
-        fotos: fotosBase64,  // base64 data URLs
+        fotos: fotosBase64,           // Fotos principais em base64
+        etiquetaProcel: etiquetaBase64, // Etiquetas Procel em base64
+        kitAcessorio: kitBase64,        // Kit de acessórios em base64
         manualUrl: produtoDocs.manualUsuario[0]?.name
       };
 

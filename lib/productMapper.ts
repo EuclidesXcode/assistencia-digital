@@ -15,7 +15,9 @@ export interface MappedProduct {
     estetica: unknown[];
     funcional: unknown[];
     funcionalidade: unknown[];
-    fotos: string[];
+    fotos: string[];           // Fotos principais (base64 data URLs)
+    etiquetaProcel: string[];  // Etiquetas Procel (base64 data URLs)
+    kitAcessorio: string[];    // Fotos do kit de acessórios (base64 data URLs)
     manualUrl: string | null;
     estoqueAtual: number;
     createdAt: string;
@@ -45,6 +47,8 @@ export function mapProduct(data: Record<string, any>): MappedProduct {
         funcional: data.funcional || [],
         funcionalidade: data.funcionalidade || [],
         fotos: data.fotos || [],
+        etiquetaProcel: data.etiqueta_procel || [],
+        kitAcessorio: data.kit_acessorio || [],
         manualUrl: data.manual_url ?? data.manual ?? null,
         estoqueAtual: data.estoque_atual ?? data.estoque ?? 0,
         createdAt: data.created_at,

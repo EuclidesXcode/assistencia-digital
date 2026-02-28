@@ -26,7 +26,7 @@ export interface ModeloFabricante {
   codigoTipo?: string; // Código/Tipo extra
   linha?: string; // Linha do produto
 
-  // Anexos do modelo (múltiplos)
+  // Anexos do modelo (múltiplos) — armazenados como base64 data URLs
   vistaExplodida?: string[];
   boletimTecnico?: string[];
   manualTecnico?: string[];
@@ -55,7 +55,9 @@ export interface Product {
   modelos: ModeloFabricante[];
 
   // Assets
-  fotos: string[];
+  fotos: string[];             // Fotos principais (base64 data URLs)
+  etiquetaProcel?: string[];   // Etiquetas Procel (base64 data URLs)
+  kitAcessorio?: string[];     // Fotos do kit de acessórios (base64 data URLs)
   manualUrl?: string;
 
   estoqueAtual: number;
@@ -74,7 +76,11 @@ export interface CreateProductDTO {
   estetica: ItemVinculado[];
   funcional: ItemVinculado[];
   funcionalidade: ItemVinculado[];
-  fotos: string[];
-  manualUrl?: string;
+
+  // Imagens do produto como base64 data URLs
+  fotos: string[];          // Fotos principais (fotoProduto)
+  etiquetaProcel?: string[]; // Etiquetas Procel
+  kitAcessorio?: string[];   // Fotos do kit de acessórios
+  manualUrl?: string;        // Nome/URL do manual PDF
 }
 

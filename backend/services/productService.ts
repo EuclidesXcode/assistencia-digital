@@ -81,6 +81,8 @@ function isLikelyArrayColumn(column: string) {
     column === 'codigo_nf' ||
     column === 'modelo_fabricante' ||
     column === 'fotos' ||
+    column === 'etiqueta_procel' ||
+    column === 'kit_acessorio' ||
     column === 'embalagem' ||
     column === 'acessorios' ||
     column === 'estetica' ||
@@ -119,7 +121,9 @@ function adaptPayloadForArrayLiteral(payload: Record<string, unknown>, error: an
     'estetica',
     'funcional',
     'funcionalidade',
-    'fotos'
+    'fotos',
+    'etiqueta_procel',
+    'kit_acessorio'
   ];
 
   for (const key of candidateKeys) {
@@ -206,6 +210,8 @@ export class ProductService {
       codigo_nf: firstCodigoNf,
       manual_url: data.manualUrl,
       fotos: Array.isArray(data.fotos) ? data.fotos : [],
+      etiqueta_procel: Array.isArray(data.etiquetaProcel) ? data.etiquetaProcel : [],
+      kit_acessorio: Array.isArray(data.kitAcessorio) ? data.kitAcessorio : [],
       nfs_data: nfs,
       modelos_data: modelos,
       embalagem: Array.isArray(data.embalagem) ? data.embalagem : [],
@@ -281,6 +287,8 @@ export class ProductService {
       funcional: data.funcional || [],
       funcionalidade: data.funcionalidade || [],
       fotos: data.fotos || [],
+      etiquetaProcel: data.etiqueta_procel || [],
+      kitAcessorio: data.kit_acessorio || [],
       manualUrl: data.manual_url ?? data.manual ?? null,
       estoqueAtual: data.estoque_atual ?? data.estoque ?? 0,
       createdAt: data.created_at,

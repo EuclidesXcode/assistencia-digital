@@ -230,7 +230,9 @@ CREATE TABLE IF NOT EXISTS public.produtos (
   funcionalidade  JSONB DEFAULT '[]'::jsonb,      -- adicionado em V9
 
   -- Assets
-  fotos           TEXT[] DEFAULT ARRAY[]::TEXT[],
+  fotos           TEXT[] DEFAULT ARRAY[]::TEXT[], -- Fotos principais do produto (base64 data URLs)
+  etiqueta_procel TEXT[] DEFAULT ARRAY[]::TEXT[], -- Etiquetas Procel (base64 data URLs)
+  kit_acessorio   TEXT[] DEFAULT ARRAY[]::TEXT[], -- Fotos do kit de acessórios (base64 data URLs)
   manual_url      TEXT,
 
   -- Metadata
