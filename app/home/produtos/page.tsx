@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ProductApiService } from "@/lib/productApiService";
 import { CreateProductDTO, ItemVinculado, ModeloFabricante as DTOModeloFabricante } from "@/backend/models/Product";
+import { processImageToBase64 } from "@/lib/image";
 
 
 const PECAS_CADASTRADAS = [
@@ -288,15 +289,15 @@ const mapApiProductToRegistro = (data: any) => {
     esteticasFromModelos.length > 0
       ? esteticasFromModelos
       : esteticaRootRaw
-          .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
-          .filter((item) => !!item.codigoPeca || !!item.descricao);
+        .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
+        .filter((item) => !!item.codigoPeca || !!item.descricao);
 
   const funcionaisPeca: PecaBase[] =
     funcionaisFromModelos.length > 0
       ? funcionaisFromModelos
       : funcionalRootRaw
-          .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
-          .filter((item) => !!item.codigoPeca || !!item.descricao);
+        .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
+        .filter((item) => !!item.codigoPeca || !!item.descricao);
 
   const funcionalidades: PecaBase[] = funcionalidadesRaw
     .map((item: any, i: number) => ({
@@ -2011,13 +2012,22 @@ const CadastroNF_EAN_Modelo = () => {
     try {
       setMensagem("Salvando...");
 
+      // Helper: converte array de FileMeta para base64 strings
+      const filesToBase64 = async (files: FileMeta[]): Promise<string[]> => {
+        return Promise.all(
+          files.map(async (f) => {
+            try { return await processImageToBase64(f.file); }
+            catch { return f.name; } // fallback: nome do arquivo se falhar
+          })
+        );
+      };
+
       const mapPeca = (p: PecaBase, tipo: ItemVinculado['tipo']): ItemVinculado => ({
         tipo,
         nome: p.descricao,
         codigo: p.codigoPeca,
         quantidade: 1,
-        fotos: itemFotos[`${tipo === 'embalagem' ? 'EMBALAGEM' : 'ACESSORIO'}|${upper(p.codigoPeca || '')}|0`]
-          ?.map(f => f.name) || [] // TODO: Upload real URLs
+        fotos: [] // será preenchido após conversão assíncrona abaixo
       });
 
       const mapFuncionalidade = (p: PecaBase): ItemVinculado => ({
@@ -2062,6 +2072,9 @@ const CadastroNF_EAN_Modelo = () => {
         };
       });
 
+      // Converter fotos do produto para base64
+      const fotosBase64 = await filesToBase64(produtoDocs.fotoProduto);
+
       const dto: CreateProductDTO = {
         ean: master.ean,
         modeloRef: master.modeloReferencia,
@@ -2073,8 +2086,8 @@ const CadastroNF_EAN_Modelo = () => {
         estetica: esteticas.map(e => mapPecaModelo(e, 'estetica')),
         funcional: funcionaisPeca.map(f => mapPecaModelo(f, 'funcional')),
         funcionalidade: funcionalidades.map(mapFuncionalidade),
-        fotos: produtoDocs.fotoProduto.map(f => f.name), // TODO: URLs
-        manualUrl: produtoDocs.manualUsuario[0]?.name // TODO: URL
+        fotos: fotosBase64,  // base64 data URLs
+        manualUrl: produtoDocs.manualUsuario[0]?.name
       };
 
       await ProductApiService.createProduct(dto);

@@ -1,5 +1,31 @@
 
 /**
+ * Converts a File to a base64 data URL string (e.g. "data:image/jpeg;base64,...").
+ * @param file Any File object.
+ * @returns A Promise resolving to the base64 data URL string.
+ */
+export async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Erro ao converter imagem para base64'));
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Processes an image (resize to max HD) and returns it as a base64 data URL.
+ * Combines processImage + fileToBase64 in a single call.
+ * @param file The input image File.
+ * @param maxDimension Maximum dimension in pixels. Default is 720.
+ * @returns A Promise resolving to the base64 data URL string.
+ */
+export async function processImageToBase64(file: File, maxDimension: number = 720): Promise<string> {
+    const processed = await processImage(file, maxDimension);
+    return fileToBase64(processed);
+}
+
+/**
  * Processes an image file to ensure it's within HD resolution (max 720px width or height).
  * Maintains aspect ratio.
  * @param file The input image File

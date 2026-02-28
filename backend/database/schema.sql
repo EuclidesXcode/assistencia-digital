@@ -322,6 +322,18 @@ CREATE TABLE IF NOT EXISTS public.recebimentos (
   nf                TEXT,
   status            TEXT CHECK (status IN ('aguardando', 'em_processo', 'concluido', 'recebido')) DEFAULT 'aguardando',
   data_recebimento  TIMESTAMPTZ,
+
+  -- Dados de recebimento físico
+  lote_id           INTEGER,                          -- Número do lote de recebimento
+  recebido_por      TEXT,                             -- Usuário que realizou o recebimento
+  codigo_unico      TEXT,                             -- Código único do produto
+  numero_serie      TEXT,                             -- Número de série
+  com_nf            BOOLEAN DEFAULT true,             -- Se foi recebido com NF
+
+  -- Fotos das etiquetas (base64 data URLs)
+  -- Estrutura: { "CODIGO_UNICO": "data:image/jpeg;base64,...", "VISTORIA_REVENDA": "...", "SAT": "..." }
+  fotos_etiquetas   JSONB DEFAULT '{}'::jsonb,
+
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );

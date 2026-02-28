@@ -2,11 +2,9 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Camera, Upload, X, CheckCircle, Loader2 } from 'lucide-react';
+import { Camera, X, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from './Button';
-import { uploadEvidence } from '@/lib/storage';
-
-import { processImage } from '@/lib/image';
+import { processImageToBase64 } from '@/lib/image';
 
 interface CameraCaptureProps {
     onCapture: (imageUrl: string) => void;
@@ -21,47 +19,37 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [preview, setPreview] = useState<string | null>(null);
-    const [uploading, setUploading] = useState(false);
-    const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+    const [processing, setProcessing] = useState(false);
+    const [savedBase64, setSavedBase64] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Create local preview
+        // Create local preview immediately
         const objectUrl = URL.createObjectURL(file);
         setPreview(objectUrl);
-        setUploadedUrl(null);
+        setSavedBase64(null);
         setError(null);
-
-        // Auto-upload
-        setUploading(true);
+        setProcessing(true);
 
         try {
-            // Optimize image (Resize to HD)
-            const processedFile = await processImage(file);
-
-            const result = await uploadEvidence(processedFile, folder);
-
-            if (result.error) {
-                setError('Erro ao enviar imagem. Tente novamente.');
-                console.error(result.error);
-            } else {
-                setUploadedUrl(result.url);
-                onCapture(result.url);
-            }
+            // Optimize image (resize to HD) and convert to base64
+            const base64 = await processImageToBase64(file);
+            setSavedBase64(base64);
+            onCapture(base64);
         } catch (err) {
-            console.error('Error processing/uploading image:', err);
+            console.error('Error processing image:', err);
             setError('Erro ao processar imagem.');
         } finally {
-            setUploading(false);
+            setProcessing(false);
         }
     };
 
     const clearImage = () => {
         setPreview(null);
-        setUploadedUrl(null);
+        setSavedBase64(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -71,6 +59,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     const triggerCamera = () => {
         fileInputRef.current?.click();
     };
+
 
     return (
         <div className="w-full">
@@ -114,23 +103,24 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
                     {/* Status Bar */}
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-2 flex items-center justify-between">
-                        {uploading ? (
+                        {processing ? (
                             <span className="text-white text-xs flex items-center gap-2">
                                 <Loader2 size={14} className="animate-spin" />
-                                Enviando...
+                                Processando...
                             </span>
-                        ) : uploadedUrl ? (
+                        ) : savedBase64 ? (
                             <span className="text-emerald-400 text-xs flex items-center gap-2 font-medium">
                                 <CheckCircle size={14} />
-                                Enviado com sucesso
+                                Imagem pronta
                             </span>
                         ) : error ? (
                             <span className="text-red-400 text-xs font-medium">
                                 {error}
                             </span>
                         ) : (
-                            <span className="text-white/80 text-xs">Aguardando envio...</span>
+                            <span className="text-white/80 text-xs">Aguardando...</span>
                         )}
+
                     </div>
                 </div>
             )}
