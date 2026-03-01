@@ -21,75 +21,143 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { BranchService } from "@/backend/services/branchService";
-import { ClientService } from "@/backend/services/clientService";
-import { EntityService } from "@/backend/services/entityService";
 import { ProductApiService } from "@/lib/productApiService";
-import { uploadFile, uploadProductFile } from "@/lib/storage";
 import { CreateProductDTO, ItemVinculado, ModeloFabricante as DTOModeloFabricante } from "@/backend/models/Product";
-import { processImageToBase64 } from "@/lib/image";
 
+
+const PECAS_CADASTRADAS = [
+  { codigo: "712814", descricao: "ALTO FAL 16R 8W 1X5.5POL PH32M A4", tipo: "ALTO-FALANTE" },
+  { codigo: "712825", descricao: "BASE VIDRO PH32M LED A4", tipo: "BASE" },
+  { codigo: "711480", descricao: "CABO ADAPT VIDEO COMPOSTO (P2 RCA)", tipo: "CABO" },
+  { codigo: "716145", descricao: "EMBALAGEM", tipo: "EMBALAGEM" },
+];
+
+const FUNCS_PADRAO = ["TELA", "ÁUDIO", "HDMI", "WI-FI", "BLUETOOTH", "USB", "SINTONIZADOR"];
+const ESTETICAS_PADRAO = ["TELA", "GABINETE FRONTAL", "TAMPA TRASEIRA"];
+const EMBALAGENS_PADRAO = ["EMBALAGEM", "FUNDO", "CALÇO SUPERIOR", "CALÇO INFERIOR"];
+const ACESSORIOS_PADRAO = ["Controle remoto", "Cabo de energia", "Base/Pedestal", "Manual", "Parafusos"];
+const PECAS_FUNCIONAIS_PADRAO = ["Placa principal", "Fonte", "PCI WI-FI", "Display"];
+
+const SIMULACAO_GROMIT = [
+  {
+    ean: "7899466405923",
+    modeloReferencia: 'TV 32"PHILCO LED PH32E53SG HD/DTV/USB/NET',
+    codigosNF: [
+      { codigo: "3551512", revenda: "CASAS BAHIA" },
+      { codigo: "95123", revenda: "MAGAZINE LUIZA" },
+      { codigo: "75211144", revenda: "PERNAMBUCANAS" },
+    ],
+    modelosFabricante: [
+      { nome: "TV PH32E53SG VERSAO A", codigoProduto: "099323010ATA", linha: "TV" },
+      { nome: "TV PH32E53SG VERSAO B", codigoProduto: "099323010ATB", linha: "TV" },
+      { nome: "TV PH32E53SG VERSAO C", codigoProduto: "099323010ATC", linha: "TV" },
+      { nome: "TV PH32E53SG VERSAO D", codigoProduto: "099323010ATD", linha: "TV" },
+    ],
+    embalagens: [
+      { codigo: "716145", descricao: "EMBALAGEM" },
+      { codigo: "713591", descricao: "CONJ CALCO ISOPOR PH32E53SG" },
+    ],
+    acessorios: [
+      { codigo: "712825", descricao: "BASE VIDRO PH32M LED A4" },
+      { codigo: "711480", descricao: "CABO ADAPT VIDEO COMPOSTO (P2 RCA)" },
+      { codigo: "710125", descricao: "CABO ADAPT AUDIO (P2 RCA)" },
+    ],
+    esteticas: [
+      { codigo: "713587", descricao: "GAB TRAS PH32E53DG" },
+      { codigo: "713586", descricao: "ETIQ LAT FUNCOES PH32E53SG" },
+      { codigo: "713585", descricao: "ETIQ INF FUNCOES PH32E53SG" },
+    ],
+    funcionaisPeca: [{ codigo: "165500071", descricao: "DISPLAY LED 32pol" }],
+    funcionalidades: ["ÁUDIO", "HDMI"],
+  },
+];
+
+const EANS_CADASTRADOS_INICIAL: Master[] = [
+  {
+    ean: "7899466405923",
+    modeloReferencia: 'TV 32"PHILCO LED PH32E53SG HD/DTV/USB/NET',
+    fabricante: "PHILCO",
+    createdAt: "12/01/2026",
+    createdBy: "EDUARDO",
+  },
+  {
+    ean: "7891356091112",
+    modeloReferencia: 'TV 50"BRITÂNIA LED BTV50G7 HD/DTV/USB/WIFI',
+    fabricante: "BRITÂNIA",
+    createdAt: "12/01/2026",
+    createdBy: "EDUARDO",
+  },
+  {
+    ean: "7890000001234",
+    modeloReferencia: 'TV 55"HISENSE 4K UHD SMART 55A6H',
+    fabricante: "HISENSE",
+    createdAt: "12/01/2026",
+    createdBy: "EDUARDO",
+  },
+];
+
+const EANS_CADASTRADOS = EANS_CADASTRADOS_INICIAL;
+
+const REVENDAS_CLIENTES_CADASTRADOS = [
+  { id: 1, nome: "CASAS BAHIA", tipo: "JURÍDICA", cnpj: "00.000.001/0001-00", cpf: "" },
+  { id: 2, nome: "MAGAZINE LUIZA", tipo: "JURÍDICA", cnpj: "00.000.002/0001-00", cpf: "" },
+  { id: 3, nome: "PERNAMBUCANAS", tipo: "JURÍDICA", cnpj: "00.000.003/0001-00", cpf: "" },
+  { id: 4, nome: "CARREFOUR", tipo: "JURÍDICA", cnpj: "00.000.004/0001-00", cpf: "" },
+  { id: 5, nome: "FAST SHOP", tipo: "JURÍDICA", cnpj: "00.000.005/0001-00", cpf: "" },
+  { id: 6, nome: "AMERICANAS", tipo: "JURÍDICA", cnpj: "00.000.006/0001-00", cpf: "" },
+  { id: 7, nome: "JOÃO DA SILVA", tipo: "FÍSICA", cnpj: "", cpf: "123.456.789-00" },
+  { id: 8, nome: "MARIA OLIVEIRA", tipo: "FÍSICA", cnpj: "", cpf: "987.654.321-00" },
+];
 
 const norm = (s: any) => String(s || "").trim();
 const upper = (s: any) => norm(s).toUpperCase();
-const getRowIdentityKey = (value: { id?: any; ean?: any } | null | undefined) => {
-  const id = norm(value?.id);
-  if (id) return `id:${id}`;
-  const ean = upper(value?.ean);
-  return ean ? `ean:${ean}` : "";
-};
 
-const DEFAULT_CREATED_BY = "SISTEMA";
+const USUARIO_ATUAL = "EDUARDO";
 const agoraBR = () => new Date().toLocaleDateString("pt-BR");
 
-const uniqueSorted = (values: Array<string | null | undefined>) =>
-  Array.from(new Set(values.map((value) => norm(value)).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+const FABRICANTES_CONHECIDOS = ["PHILCO", "BRITANIA", "BRITÂNIA", "HISENSE"];
 
-const detectarFabricanteDoModelo = (modelo: string, fabricantesConhecidos: string[]): string => {
+const detectarFabricanteDoModelo = (modelo: string): string => {
   const u = upper(modelo);
-  for (const fab of fabricantesConhecidos.map((item) => upper(item)).filter(Boolean)) {
-    if (u.includes(fab)) return fab;
-  }
+  for (const fab of FABRICANTES_CONHECIDOS) if (u.includes(fab)) return fab;
   return "";
 };
 
-const detectarLinhaDoModeloFabricante = (modelo: string, linhasConhecidas: string[]): string => {
+const LINHAS_CONHECIDAS = [
+  "TV",
+  "SOUNDBAR",
+  "ÁUDIO",
+  "AR CONDICIONADO",
+  "REFRIGERADOR",
+  "GELADEIRA",
+  "LAVADORA",
+  "SECADORA",
+  "FOGÃO",
+  "COOKTOP",
+  "MICRO-ONDAS",
+  "ASPIRADOR",
+  "PURIFICADOR",
+  "CERVEJEIRA",
+  "FREEZER",
+];
+
+const detectarLinhaDoModeloFabricante = (modelo: string): string => {
   const u = upper(modelo);
-  for (const linha of linhasConhecidas.map((item) => upper(item)).filter(Boolean)) {
-    if (u.includes(linha)) return linha;
-  }
+  for (const linha of LINHAS_CONHECIDAS) if (u.includes(linha)) return linha;
+  if (u.startsWith("TV")) return "TV";
   return "";
 };
 
-const getDisplayFileName = (value: string) => {
-  const raw = norm(value);
-  if (!raw) return "";
-  const withoutQuery = raw.split("?")[0];
-  const parts = withoutQuery.split("/");
-  const fileName = decodeURIComponent(parts[parts.length - 1] || "");
-  return fileName || raw;
+const lookupDescricaoPorCodigoBase = (codigoPeca: string) => {
+  const cod = upper(codigoPeca);
+  if (!cod) return "";
+  const p = PECAS_CADASTRADAS.find((x) => upper(x.codigo) === cod);
+  return p?.descricao || "";
 };
 
-type FileMeta = {
-  id: number;
-  file?: File;
-  name: string;
-  createdAt: string;
-  createdBy: string;
-  url?: string;
-  path?: string;
-};
-
-interface RevendaClienteOption {
-  id: string;
-  nome: string;
-  tipo: string;
-  documento: string;
-  origem: "CLIENTE" | "FILIAL";
-}
+type FileMeta = { id: number; file: File; name: string; createdAt: string; createdBy: string };
 
 interface Master {
-  id?: string;
   ean: string;
   modeloReferencia: string;
   fabricante: string;
@@ -132,54 +200,19 @@ type ModalArquivosKey =
   | { kind: "modelo"; modeloId: number; doc: ModeloDocKey }
   | { kind: "item"; rowKey: string; title: string };
 
-const createEmptyProdutoDocs = (): Record<ProdutoDocKey, FileMeta[]> => ({
-  fotoProduto: [],
-  etiquetaProcel: [],
-  kitAcessorio: [],
-  manualUsuario: [],
-});
-
-const createEmptyModeloDocs = (): Record<ModeloDocKey, FileMeta[]> => ({
-  vistaExplodida: [],
-  boletimTecnico: [],
-  manualTecnico: [],
-});
-
-const toRemoteFileMeta = (
-  value: any,
-  id: number,
-  fallbackCreatedBy: string = DEFAULT_CREATED_BY,
-  fallbackCreatedAt: string = ""
-): FileMeta | null => {
-  const url = norm(typeof value === "string" ? value : value?.url || value?.path);
-  const name = norm(typeof value === "string" ? getDisplayFileName(value) : value?.nome || value?.name || getDisplayFileName(url));
-  if (!url && !name) return null;
-
-  return {
-    id,
-    name: name || `arquivo-${id}`,
-    createdAt: norm(value?.createdAt) || fallbackCreatedAt,
-    createdBy: norm(value?.createdBy) || fallbackCreatedBy,
-    url: url || undefined,
-    path: norm(value?.path) || undefined,
-  };
-};
-
-const toMasterFromRegistro = (r: any, fallbackCreatedBy: string = DEFAULT_CREATED_BY): Master => ({
-  id: norm(r?.id) || undefined,
+const toMasterFromRegistro = (r: any): Master => ({
   ean: String(r?.ean || ""),
   modeloReferencia: String(r?.modeloReferencia || ""),
   fabricante: String(r?.fabricante || ""),
   createdAt: String(r?.createdAt || agoraBR()),
-  createdBy: String(r?.createdBy || fallbackCreatedBy),
+  createdBy: String(r?.createdBy || USUARIO_ATUAL),
 });
 
-const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_CREATED_BY) => {
+const mapApiProductToRegistro = (data: any) => {
   const now = Date.now();
   const createdAt = agoraBR();
-  const createdBy = fallbackCreatedBy;
+  const createdBy = USUARIO_ATUAL;
 
-  const id = norm(data?.id) || undefined;
   const ean = String(data?.ean || "").trim();
   const modeloReferencia = String(data?.modeloRef || data?.modeloReferencia || "").trim();
   const fabricante = String(data?.marca || data?.fabricante || "").trim();
@@ -191,17 +224,6 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
   const esteticaRootRaw: any[] = Array.isArray(data?.estetica) ? data.estetica : [];
   const funcionalRootRaw: any[] = Array.isArray(data?.funcional) ? data.funcional : [];
   const funcionalidadesRaw: any[] = Array.isArray(data?.funcionalidade) ? data.funcionalidade : [];
-  const produtoDocs = createEmptyProdutoDocs();
-  const modeloDocs: Record<number, Record<ModeloDocKey, FileMeta[]>> = {};
-  const itemFotos: Record<string, FileMeta[]> = {};
-  let nextFileId = now + 900;
-
-  const toRemoteFiles = (values: any): FileMeta[] => {
-    const list = Array.isArray(values) ? values : values ? [values] : [];
-    return list
-      .map((value) => toRemoteFileMeta(value, nextFileId++, createdBy, createdAt))
-      .filter((value): value is FileMeta => !!value);
-  };
 
   const codigosNF: CodigoNF[] = nfs
     .map((nf: any, i: number) => ({
@@ -220,7 +242,7 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
         id: now + 100 + i,
         nome,
         codigoProduto: upper(m?.codigoTipo || m?.codigoProduto || ""),
-        linha: upper(m?.linha || ""),
+        linha: upper(m?.linha || detectarLinhaDoModeloFabricante(nome) || ""),
         createdAt,
         createdBy,
       };
@@ -241,20 +263,10 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
   const embalagens: PecaBase[] = embalagemRaw
     .map((item: any, i: number) => mapPecaBase(item, now + 200 + i))
     .filter((item) => !!item.codigoPeca || !!item.descricao);
-  embalagens.forEach((item, i) => {
-    const raw = embalagemRaw[i];
-    const files = toRemoteFiles(raw?.fotos);
-    if (files.length > 0) itemFotos[`EMBALAGEM|${upper(item.codigoPeca || "")}|0`] = files;
-  });
 
   const acessorios: PecaBase[] = acessoriosRaw
     .map((item: any, i: number) => mapPecaBase(item, now + 300 + i))
     .filter((item) => !!item.codigoPeca || !!item.descricao);
-  acessorios.forEach((item, i) => {
-    const raw = acessoriosRaw[i];
-    const files = toRemoteFiles(raw?.fotos);
-    if (files.length > 0) itemFotos[`ACESSORIO|${upper(item.codigoPeca || "")}|0`] = files;
-  });
 
   const esteticasFromModelos: PecaBase[] = [];
   const funcionaisFromModelos: PecaBase[] = [];
@@ -263,27 +275,12 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     const ests = Array.isArray(modelo?.estetica) ? modelo.estetica : [];
     const funcs = Array.isArray(modelo?.funcional) ? modelo.funcional : [];
 
-    modeloDocs[modeloId] = {
-      vistaExplodida: toRemoteFiles(modelo?.vistaExplodida),
-      boletimTecnico: toRemoteFiles(modelo?.boletimTecnico),
-      manualTecnico: toRemoteFiles(modelo?.manualTecnico),
-    };
-
     ests.forEach((item: any, i: number) =>
       esteticasFromModelos.push(mapPecaBase(item, now + 400 + idxModelo * 100 + i, { modeloId }))
     );
     funcs.forEach((item: any, i: number) =>
       funcionaisFromModelos.push(mapPecaBase(item, now + 500 + idxModelo * 100 + i, { modeloId }))
     );
-
-    ests.forEach((item: any) => {
-      const files = toRemoteFiles(item?.fotos);
-      if (files.length > 0) itemFotos[`PECA|${upper(item?.codigo || item?.codigoPeca || "")}|${modeloId}`] = files;
-    });
-    funcs.forEach((item: any) => {
-      const files = toRemoteFiles(item?.fotos);
-      if (files.length > 0) itemFotos[`PECA|${upper(item?.codigo || item?.codigoPeca || "")}|${modeloId}`] = files;
-    });
   });
 
   const defaultModeloId = modeloSelecionadoId || 0;
@@ -291,37 +288,15 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     esteticasFromModelos.length > 0
       ? esteticasFromModelos
       : esteticaRootRaw
-<<<<<<< Updated upstream
-        .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
-        .filter((item) => !!item.codigoPeca || !!item.descricao);
-=======
           .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
           .filter((item) => !!item.codigoPeca || !!item.descricao);
-  if (esteticasFromModelos.length === 0) {
-    esteticaRootRaw.forEach((item: any) => {
-      const files = toRemoteFiles(item?.fotos);
-      if (files.length > 0) itemFotos[`PECA|${upper(item?.codigo || item?.codigoPeca || "")}|${defaultModeloId}`] = files;
-    });
-  }
->>>>>>> Stashed changes
 
   const funcionaisPeca: PecaBase[] =
     funcionaisFromModelos.length > 0
       ? funcionaisFromModelos
       : funcionalRootRaw
-<<<<<<< Updated upstream
-        .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
-        .filter((item) => !!item.codigoPeca || !!item.descricao);
-=======
           .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
           .filter((item) => !!item.codigoPeca || !!item.descricao);
-  if (funcionaisFromModelos.length === 0) {
-    funcionalRootRaw.forEach((item: any) => {
-      const files = toRemoteFiles(item?.fotos);
-      if (files.length > 0) itemFotos[`PECA|${upper(item?.codigo || item?.codigoPeca || "")}|${defaultModeloId}`] = files;
-    });
-  }
->>>>>>> Stashed changes
 
   const funcionalidades: PecaBase[] = funcionalidadesRaw
     .map((item: any, i: number) => ({
@@ -332,11 +307,7 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     }))
     .filter((item) => !!item.descricao);
 
-  produtoDocs.fotoProduto = toRemoteFiles(data?.fotos);
-  produtoDocs.manualUsuario = toRemoteFiles(data?.manualUrl);
-
   return {
-    id,
     ean,
     modeloReferencia,
     fabricante,
@@ -348,9 +319,6 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     esteticas,
     funcionaisPeca,
     funcionalidades,
-    produtoDocs,
-    modeloDocs,
-    itemFotos,
     createdAt: String(data?.createdAt || createdAt),
     createdBy,
   };
@@ -400,8 +368,7 @@ const ModalShell: React.FC<{
   onClose: () => void;
   children: React.ReactNode;
   maxW?: string;
-  showCloseButton?: boolean;
-}> = ({ open, title, subtitle, onClose, children, maxW = "max-w-3xl", showCloseButton = true }) => {
+}> = ({ open, title, subtitle, onClose, children, maxW = "max-w-3xl" }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 md:pl-[calc(var(--sidebar-w)+1rem)]">
@@ -413,15 +380,13 @@ const ModalShell: React.FC<{
             <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
             {subtitle && <p className="text-[11px] text-slate-500 mt-1">{subtitle}</p>}
           </div>
-          {showCloseButton && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-[11px] px-2 py-1 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
-            >
-              FECHAR
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[11px] px-2 py-1 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
+          >
+            FECHAR
+          </button>
         </div>
         {children}
       </div>
@@ -445,11 +410,11 @@ const ModalArquivos: React.FC<{
   const allowImages = acceptLower.includes("image");
   const allowPdf = acceptLower.includes("pdf") || acceptLower.includes("application/pdf");
 
-  const isImageFile = (entry: FileMeta) => {
-    const t = String(entry.file?.type || "").toLowerCase();
+  const isImageFile = (file: File) => {
+    const t = String((file as any)?.type || "").toLowerCase();
     if (t.startsWith("image/")) return true;
-    const ref = `${entry.name || ""} ${entry.url || ""}`.toLowerCase();
-    return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(ref);
+    const n = String((file as any)?.name || "").toLowerCase();
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(n);
   };
 
   const [previews, setPreviews] = useState<Record<number, string>>({});
@@ -465,16 +430,13 @@ const ModalArquivos: React.FC<{
 
       const entries = await Promise.all(
         files.map(async (f) => {
-          if (!isImageFile(f)) return null;
-          if (f.url) return [f.id, f.url] as const;
-          const localFile = f.file;
-          if (!localFile) return null;
+          if (!isImageFile(f.file)) return null;
           const dataUrl = await new Promise<string>((resolve) => {
             const r = new FileReader();
             r.onload = () => resolve(String(r.result || ""));
             r.onerror = () => resolve("");
             try {
-              r.readAsDataURL(localFile);
+              r.readAsDataURL(f.file);
             } catch {
               resolve("");
             }
@@ -643,10 +605,6 @@ const ModalArquivos: React.FC<{
 };
 
 const ModalAjuda: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
-  const deleteTarget = null as Master | null;
-  const busyDeleteKey = null as string | null;
-  const setDeleteTarget = (_value: Master | null) => { };
-  const excluir = async (_item: Master) => { };
   return (
     <ModalShell open={open} title="Como usar esta tela" subtitle="Fluxo e regras principais" onClose={onClose} maxW="max-w-2xl">
       <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 max-h-[420px] overflow-auto text-[12px] text-slate-700 space-y-3">
@@ -688,51 +646,6 @@ const ModalAjuda: React.FC<{ open: boolean; onClose: () => void }> = ({ open, on
           </li>
         </ul>
       </div>
-
-      <ModalShell
-        open={!!deleteTarget}
-        title="Confirmar exclusão"
-        subtitle="Esta ação remove o cadastro da lista e do banco."
-        onClose={() => {
-          if (busyDeleteKey) return;
-          setDeleteTarget(null);
-        }}
-        maxW="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="text-[12px] text-slate-700">
-            Excluir o EAN/GTIN <span className="font-semibold">{deleteTarget?.ean || "-"}</span>?
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 space-y-1">
-            <div>
-              <span className="font-semibold">Modelo:</span> {deleteTarget?.modeloReferencia || "-"}
-            </div>
-            <div>
-              <span className="font-semibold">Fabricante:</span> {deleteTarget?.fabricante || "-"}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              disabled={!!busyDeleteKey}
-              onClick={() => setDeleteTarget(null)}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              CANCELAR
-            </button>
-            <button
-              type="button"
-              disabled={!!busyDeleteKey || !deleteTarget}
-              onClick={() => {
-                if (deleteTarget) void excluir(deleteTarget);
-              }}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              EXCLUIR
-            </button>
-          </div>
-        </div>
-      </ModalShell>
     </ModalShell>
   );
 };
@@ -740,16 +653,9 @@ const ModalAjuda: React.FC<{ open: boolean; onClose: () => void }> = ({ open, on
 const ModalRevendasClientes: React.FC<{
   open: boolean;
   onClose: () => void;
-  options: RevendaClienteOption[];
-  loading: boolean;
-  error?: string;
   onSelect: (nome: string) => void;
-}> = ({ open, onClose, options, loading, error, onSelect }) => {
+}> = ({ open, onClose, onSelect }) => {
   const [q, setQ] = useState("");
-  const deleteTarget = null as Master | null;
-  const busyDeleteKey = null as string | null;
-  const setDeleteTarget = (_value: Master | null) => { };
-  const excluir = async (_item: Master) => { };
 
   useEffect(() => {
     if (!open) setQ("");
@@ -757,15 +663,15 @@ const ModalRevendasClientes: React.FC<{
 
   const lista = useMemo(() => {
     const qq = upper(q);
-    return options.filter((x) => {
+    return REVENDAS_CLIENTES_CADASTRADOS.filter((x) => {
       if (!qq) return true;
-      const hay = `${x.nome} ${x.tipo} ${x.documento || ""} ${x.origem}`;
+      const hay = `${x.nome} ${x.tipo} ${x.cnpj || ""} ${x.cpf || ""}`;
       return upper(hay).includes(qq);
     });
-  }, [options, q]);
+  }, [q]);
 
   return (
-    <ModalShell open={open} title="Selecionar Revenda/Cliente" subtitle={`Carregados: ${options.length}`} onClose={onClose} maxW="max-w-4xl">
+    <ModalShell open={open} title="Selecionar Revenda/Cliente" subtitle={`Cadastrados: ${REVENDAS_CLIENTES_CADASTRADOS.length}`} onClose={onClose} maxW="max-w-4xl">
       <div className="grid grid-cols-12 gap-2 items-end">
         <div className="col-span-12 flex flex-col gap-1.5">
           <label className="text-[11px] font-medium text-slate-600 tracking-wide">PESQUISA</label>
@@ -790,21 +696,7 @@ const ModalRevendasClientes: React.FC<{
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={5} className="px-3 py-3 text-center text-[11px] text-slate-400">
-                  Carregando dados reais...
-                </td>
-              </tr>
-            )}
-            {!loading && error && (
-              <tr>
-                <td colSpan={5} className="px-3 py-3 text-center text-[11px] text-red-500">
-                  {error}
-                </td>
-              </tr>
-            )}
-            {!loading && !error && !lista.length && (
+            {!lista.length && (
               <tr>
                 <td colSpan={5} className="px-3 py-3 text-center text-[11px] text-slate-400">
                   Nenhum resultado.
@@ -821,7 +713,7 @@ const ModalRevendasClientes: React.FC<{
                   {x.tipo}
                 </td>
                 <td className="px-2 py-2 align-middle text-[11px] text-slate-700 font-mono whitespace-nowrap">
-                  {x.documento || "-"}
+                  {x.tipo === "JURÍDICA" ? x.cnpj || "-" : x.cpf || "-"}
                 </td>
                 <td className="px-2 py-2 align-middle text-right">
                   <button
@@ -838,51 +730,6 @@ const ModalRevendasClientes: React.FC<{
           </tbody>
         </table>
       </div>
-
-      <ModalShell
-        open={!!deleteTarget}
-        title="Confirmar exclusão"
-        subtitle="Esta ação remove o cadastro da lista e do banco."
-        onClose={() => {
-          if (busyDeleteKey) return;
-          setDeleteTarget(null);
-        }}
-        maxW="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="text-[12px] text-slate-700">
-            Excluir o EAN/GTIN <span className="font-semibold">{deleteTarget?.ean || "-"}</span>?
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 space-y-1">
-            <div>
-              <span className="font-semibold">Modelo:</span> {deleteTarget?.modeloReferencia || "-"}
-            </div>
-            <div>
-              <span className="font-semibold">Fabricante:</span> {deleteTarget?.fabricante || "-"}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              disabled={!!busyDeleteKey}
-              onClick={() => setDeleteTarget(null)}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              CANCELAR
-            </button>
-            <button
-              type="button"
-              disabled={!!busyDeleteKey || !deleteTarget}
-              onClick={() => {
-                if (deleteTarget) void excluir(deleteTarget);
-              }}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              EXCLUIR
-            </button>
-          </div>
-        </div>
-      </ModalShell>
     </ModalShell>
   );
 };
@@ -891,13 +738,9 @@ const ModalEanGtins: React.FC<{
   open: boolean;
   onClose: () => void;
   eans: Master[];
-  registros: any[];
-  usuarioAtual: string;
-  onAdd: (m: Master) => Promise<Master> | Master;
-  onEdit: (payload: { id?: string; originalEan: string; next: Master }) => Promise<void> | void;
-  onDelete: (payload: { id?: string; ean?: string }) => Promise<void> | void;
-  onSelect: (m: Master, options?: { updateCurrentRecord?: boolean }) => void;
-}> = ({ open, onClose, eans, registros, usuarioAtual, onAdd, onEdit, onDelete, onSelect }) => {
+  onAdd: (m: Master) => void;
+  onSelect: (m: Master) => void;
+}> = ({ open, onClose, eans, onAdd, onSelect }) => {
   const [q, setQ] = useState("");
   const [fFab, setFFab] = useState<string>("TODOS");
 
@@ -905,11 +748,6 @@ const ModalEanGtins: React.FC<{
   const [novoModelo, setNovoModelo] = useState("");
   const [novoFab, setNovoFab] = useState("");
   const [msgAdd, setMsgAdd] = useState("");
-  const [editMasterId, setEditMasterId] = useState<string | null>(null);
-  const [editEanOriginal, setEditEanOriginal] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [busyDeleteKey, setBusyDeleteKey] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Master | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -919,15 +757,8 @@ const ModalEanGtins: React.FC<{
       setNovoModelo("");
       setNovoFab("");
       setMsgAdd("");
-      setEditMasterId(null);
-      setEditEanOriginal(null);
-      setIsSubmitting(false);
-      setBusyDeleteKey(null);
-      setDeleteTarget(null);
     }
   }, [open]);
-
-  const isEditing = !!editEanOriginal;
 
   const existente = useMemo(() => {
     const e = upper(novoEan);
@@ -937,7 +768,7 @@ const ModalEanGtins: React.FC<{
   const eanHitRef = useRef("");
 
   useEffect(() => {
-    if (!open || isEditing) return;
+    if (!open) return;
     if (existente) {
       const k = upper(existente.ean);
       if (eanHitRef.current !== k) {
@@ -953,146 +784,47 @@ const ModalEanGtins: React.FC<{
       }
       eanHitRef.current = "";
     }
-  }, [open, existente, isEditing]);
+  }, [open, existente]);
 
   const fabs = useMemo(() => {
     const s = new Set<string>();
     eans.forEach((x) => s.add(upper(x.fabricante)));
     return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [eans]);
-  const fabricantesDoModal = useMemo(() => uniqueSorted(eans.map((item) => item.fabricante)), [eans]);
-
-  const codigosNfByRegistroKey = useMemo(() => {
-    const map = new Map<string, string[]>();
-    registros.forEach((registro: any) => {
-      const key = getRowIdentityKey(registro);
-      if (!key) return;
-      const nfs = Array.isArray(registro?.codigosNF) ? registro.codigosNF : [];
-      const codigos = nfs
-        .map((nf: any) => upper(nf?.codigo || ""))
-        .filter(Boolean);
-      if (codigos.length > 0) {
-        map.set(key, codigos);
-      }
-    });
-    return map;
-  }, [registros]);
 
   const lista = useMemo(() => {
     const qq = upper(q);
     return eans.filter((x) => {
       if (fFab !== "TODOS" && upper(x.fabricante) !== fFab) return false;
       if (!qq) return true;
-      const codigosNf = codigosNfByRegistroKey.get(getRowIdentityKey(x)) || [];
-      const hay = `${x.createdAt || ""} ${x.createdBy || ""} ${x.ean} ${x.modeloReferencia} ${x.fabricante} ${codigosNf.join(" ")}`;
+      const hay = `${x.createdAt || ""} ${x.createdBy || ""} ${x.ean} ${x.modeloReferencia} ${x.fabricante}`;
       return upper(hay).includes(qq);
     });
-  }, [eans, q, fFab, codigosNfByRegistroKey]);
+  }, [eans, q, fFab]);
 
-  const limparFormulario = () => {
-    setNovoEan("");
-    setNovoModelo("");
-    setNovoFab("");
-    setEditMasterId(null);
-    setEditEanOriginal(null);
-  };
+  const incluir = () => {
+    if (existente) return onSelect(existente);
 
-  const incluir = async () => {
-    if (!isEditing && existente) return onSelect(existente, { updateCurrentRecord: false });
-
-    const originalEan = String(editEanOriginal || "").trim();
     const ean = norm(novoEan);
     const modeloReferencia = norm(novoModelo);
     let fabricante = upper(novoFab);
-    if (!fabricante) fabricante = detectarFabricanteDoModelo(modeloReferencia, fabricantesDoModal);
+    if (!fabricante) fabricante = detectarFabricanteDoModelo(modeloReferencia);
 
     if (!ean || !modeloReferencia) return setMsgAdd("Informe EAN/GTIN e Modelo referência.");
     if (!fabricante) return setMsgAdd("Informe o Fabricante.");
-    if (
-      eans.some((x) => {
-        if (upper(x.ean) !== upper(ean)) return false;
-        if (editMasterId) return norm(x.id) !== norm(editMasterId);
-        return !originalEan || upper(x.ean) !== upper(originalEan);
-      })
-    ) {
-      return setMsgAdd("EAN/GTIN já cadastrado.");
-    }
+    if (eans.some((x) => upper(x.ean) === upper(ean))) return setMsgAdd("EAN/GTIN já cadastrado.");
 
-    try {
-      setIsSubmitting(true);
-
-      if (isEditing && originalEan) {
-        await onEdit({
-          id: editMasterId || undefined,
-          originalEan,
-          next: {
-            id: editMasterId || undefined,
-            ean,
-            modeloReferencia,
-            fabricante,
-            createdAt: agoraBR(),
-            createdBy: usuarioAtual,
-          },
-        });
-        limparFormulario();
-        setMsgAdd("Alteração realizada.");
-      } else {
-        const saved = await onAdd({
-          ean,
-          modeloReferencia,
-          fabricante,
-          createdAt: agoraBR(),
-          createdBy: usuarioAtual,
-        });
-        onSelect(saved, { updateCurrentRecord: true });
-      }
-    } catch (error: any) {
-      setMsgAdd(error?.message ? String(error.message) : "Falha ao salvar alterações.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    onAdd({ ean, modeloReferencia, fabricante, createdAt: agoraBR(), createdBy: USUARIO_ATUAL });
+    setNovoEan("");
+    setNovoModelo("");
+    setNovoFab("");
+    setMsgAdd("Inclusão realizada.");
   };
-
-  const iniciarEdicao = (item: Master) => {
-    setEditMasterId(norm(item.id) || null);
-    setEditEanOriginal(item.ean);
-    setNovoEan(item.ean);
-    setNovoModelo(item.modeloReferencia);
-    setNovoFab(item.fabricante);
-    setMsgAdd("Modo alteração: edite e clique em Salvar.");
-  };
-
-  const excluir = async (item: Master) => {
-    const id = norm(item?.id);
-    const ean = String(item?.ean || "").trim();
-    if (!id && !ean) return;
-
-    try {
-      const busyKey = getRowIdentityKey(item);
-      setBusyDeleteKey(busyKey || null);
-      await onDelete({ id: id || undefined, ean: ean || undefined });
-
-      if (norm(editMasterId) && norm(editMasterId) === id) {
-        limparFormulario();
-      } else if (!id && upper(editEanOriginal || "") === upper(ean)) {
-        limparFormulario();
-      }
-
-      setMsgAdd("Exclusão realizada.");
-      setDeleteTarget(null);
-    } catch (error: any) {
-      setMsgAdd(error?.message ? String(error.message) : "Falha ao excluir.");
-    } finally {
-      setBusyDeleteKey(null);
-    }
-  };
-
-  const lockedByExisting = !!existente && !isEditing;
 
   return (
     <ModalShell open={open} title="Selecionar EAN/GTIN" subtitle={`Cadastrados: ${eans.length}`} onClose={onClose} maxW="max-w-5xl">
       <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/80 space-y-2">
-        <div className="text-[11px] font-semibold text-slate-700">{isEditing ? "Alterar EAN/GTIN" : "Incluir EAN/GTIN"}</div>
+        <div className="text-[11px] font-semibold text-slate-700">Incluir EAN/GTIN</div>
 
         <div className="grid grid-cols-12 gap-2 items-end">
           <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
@@ -1111,13 +843,13 @@ const ModalEanGtins: React.FC<{
             <label className="text-[11px] font-medium text-slate-600 tracking-wide">MODELO REFERÊNCIA</label>
             <input
               value={novoModelo}
-              readOnly={lockedByExisting}
+              readOnly={!!existente}
               onChange={(e) => {
-                if (lockedByExisting) return;
+                if (existente) return;
                 setNovoModelo(e.target.value);
                 setMsgAdd("");
               }}
-              className={`h-9 rounded-xl border border-slate-300 px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${lockedByExisting ? "bg-slate-50 cursor-not-allowed" : "bg-white"}`}
+              className={`h-9 rounded-xl border border-slate-300 px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${existente ? "bg-slate-50 cursor-not-allowed" : "bg-white"}`}
             />
           </div>
 
@@ -1125,13 +857,13 @@ const ModalEanGtins: React.FC<{
             <label className="text-[11px] font-medium text-slate-600 tracking-wide">FABRICANTE</label>
             <input
               value={novoFab}
-              readOnly={lockedByExisting}
+              readOnly={!!existente}
               onChange={(e) => {
-                if (lockedByExisting) return;
+                if (existente) return;
                 setNovoFab(e.target.value);
                 setMsgAdd("");
               }}
-              className={`h-9 rounded-xl border border-slate-300 px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase ${lockedByExisting ? "bg-slate-50 cursor-not-allowed" : "bg-white"}`}
+              className={`h-9 rounded-xl border border-slate-300 px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase ${existente ? "bg-slate-50 cursor-not-allowed" : "bg-white"}`}
             />
           </div>
 
@@ -1139,12 +871,11 @@ const ModalEanGtins: React.FC<{
             <button
               type="button"
               onClick={incluir}
-              disabled={isSubmitting}
               className="h-9 w-full px-2.5 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center justify-center gap-1.5"
-              title={isEditing ? "Salvar" : existente ? "Carregar" : "Incluir"}
+              title={existente ? "Carregar" : "Incluir"}
             >
               <Plus size={14} />
-              {isEditing ? "SALVAR" : existente ? "CARREGAR" : "INCLUIR"}
+              {existente ? "CARREGAR" : "INCLUIR"}
             </button>
           </div>
         </div>
@@ -1158,7 +889,7 @@ const ModalEanGtins: React.FC<{
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Pesquisar por EAN/GTIN, código NF, modelo referência ou fabricante"
+            placeholder="Pesquisar por EAN/GTIN, modelo referência ou fabricante"
             className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
           />
         </div>
@@ -1189,127 +920,42 @@ const ModalEanGtins: React.FC<{
               <th className="px-2 py-2 text-left w-32">EAN/GTIN</th>
               <th className="px-2 py-2 text-left">Modelo referência</th>
               <th className="px-2 py-2 text-left w-28">Fabricante</th>
-              <th className="px-2 py-2 text-left w-40">Código NF(s)</th>
-              <th className="px-2 py-2 text-right w-28">Carregar</th>
-              <th className="px-2 py-2 text-right w-16">Alterar</th>
-              <th className="px-2 py-2 text-right w-16">Excluir</th>
+              <th className="px-2 py-2 text-right w-28">Ação</th>
             </tr>
           </thead>
           <tbody>
             {!lista.length && (
               <tr>
-                <td colSpan={10} className="px-3 py-3 text-center text-[11px] text-slate-400">
+                <td colSpan={7} className="px-3 py-3 text-center text-[11px] text-slate-400">
                   Nenhum resultado.
                 </td>
               </tr>
             )}
-            {lista.map((x, i) => {
-              const rowIdentity = getRowIdentityKey(x);
-              const rowKey = rowIdentity || `ean:${upper(x.ean)}:${i}`;
-              const codigosNf = codigosNfByRegistroKey.get(rowIdentity) || [];
-              const codigosNfText =
-                codigosNf.length > 0
-                  ? codigosNf.length > 2
-                    ? `${codigosNf.slice(0, 2).join(", ")} +${codigosNf.length - 2}`
-                    : codigosNf.join(", ")
-                  : "-";
-              const deleteBusy = busyDeleteKey === rowIdentity;
-
-              return (
-                <tr key={rowKey} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                  <td className="px-2 py-2 align-middle text-[11px] text-slate-500">{i + 1}</td>
-                  <td className="px-2 py-2 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.createdAt || "-"}</td>
-                  <td className="px-2 py-2 align-middle text-[11px] font-medium text-slate-800 whitespace-nowrap">{x.createdBy || "-"}</td>
-                  <td className="px-2 py-2 align-middle text-[11px] font-mono text-slate-800 whitespace-nowrap">{x.ean}</td>
-                  <td className="px-2 py-2 align-middle text-[11px] font-semibold text-slate-800" title={x.modeloReferencia}>
-                    {x.modeloReferencia}
-                  </td>
-                  <td className="px-2 py-2 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.fabricante}</td>
-                  <td className="px-2 py-2 align-middle text-[11px] text-slate-700 whitespace-nowrap" title={codigosNf.join(", ")}>
-                    {codigosNfText}
-                  </td>
-                  <td className="px-2 py-2 align-middle text-right">
-                    <button
-                      type="button"
-                      onClick={() => onSelect(x, { updateCurrentRecord: false })}
-                      disabled={isSubmitting || deleteBusy}
-                      className="h-8 px-2.5 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"
-                    >
-                      <Plus size={14} />
-                      CARREGAR
-                    </button>
-                  </td>
-                  <td className="px-2 py-2 align-middle text-right">
-                    <IconBtn
-                      title="Alterar"
-                      variant="primary"
-                      disabled={isSubmitting || deleteBusy}
-                      onClick={() => iniciarEdicao(x)}
-                    >
-                      <Pencil size={16} />
-                    </IconBtn>
-                  </td>
-                  <td className="px-2 py-2 align-middle text-right">
-                    <IconBtn
-                      title="Excluir"
-                      variant="danger"
-                      disabled={isSubmitting || deleteBusy}
-                      onClick={() => setDeleteTarget(x)}
-                    >
-                      <Trash2 size={16} />
-                    </IconBtn>
-                  </td>
-                </tr>
-              );
-            })}
+            {lista.map((x, i) => (
+              <tr key={x.ean} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                <td className="px-2 py-2 align-middle text-[11px] text-slate-500">{i + 1}</td>
+                <td className="px-2 py-2 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.createdAt || "-"}</td>
+                <td className="px-2 py-2 align-middle text-[11px] font-medium text-slate-800 whitespace-nowrap">{x.createdBy || "-"}</td>
+                <td className="px-2 py-2 align-middle text-[11px] font-mono text-slate-800 whitespace-nowrap">{x.ean}</td>
+                <td className="px-2 py-2 align-middle text-[11px] font-semibold text-slate-800" title={x.modeloReferencia}>
+                  {x.modeloReferencia}
+                </td>
+                <td className="px-2 py-2 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.fabricante}</td>
+                <td className="px-2 py-2 align-middle text-right">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(x)}
+                    className="h-8 px-2.5 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    CARREGAR
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      <ModalShell
-        open={!!deleteTarget}
-        title="Confirmar exclusão"
-        subtitle="Esta ação remove o cadastro da lista e do banco."
-        onClose={() => {
-          if (busyDeleteKey) return;
-          setDeleteTarget(null);
-        }}
-        maxW="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="text-[12px] text-slate-700">
-            Excluir o EAN/GTIN <span className="font-semibold">{deleteTarget?.ean || "-"}</span>?
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 space-y-1">
-            <div>
-              <span className="font-semibold">Modelo:</span> {deleteTarget?.modeloReferencia || "-"}
-            </div>
-            <div>
-              <span className="font-semibold">Fabricante:</span> {deleteTarget?.fabricante || "-"}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              disabled={!!busyDeleteKey}
-              onClick={() => setDeleteTarget(null)}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              CANCELAR
-            </button>
-            <button
-              type="button"
-              disabled={!!busyDeleteKey || !deleteTarget}
-              onClick={() => {
-                if (deleteTarget) void excluir(deleteTarget);
-              }}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              EXCLUIR
-            </button>
-          </div>
-        </div>
-      </ModalShell>
     </ModalShell>
   );
 };
@@ -1330,10 +976,6 @@ const ModalCodigosNF: React.FC<{
 }> = ({ open, master, codigosNF, nfAtual, revendaAtual, mensagem, onClose, onChangeNF, onPesquisarRevenda, onAdd, onRemover, onEditar }) => {
   const [q, setQ] = useState("");
   const [fRevenda, setFRevenda] = useState<string>("TODOS");
-  const deleteTarget = null as Master | null;
-  const busyDeleteKey = null as string | null;
-  const setDeleteTarget = (_value: Master | null) => { };
-  const excluir = async (_item: Master) => { };
 
   useEffect(() => {
     if (!open) {
@@ -1362,9 +1004,9 @@ const ModalCodigosNF: React.FC<{
   }, [codigosNF, q, fRevenda]);
 
   return (
-    <ModalShell open={open} title="Cadastro de Códigos NF" subtitle={`EAN / GTIN: ${master.ean || "-"}`} onClose={onClose} maxW="max-w-5xl">
+    <ModalShell open={open} title="Cadastro de Códigos NF" subtitle={`EAN / GTIN: ${master.ean || "-"}`} onClose={onClose} maxW="max-w-3xl">
       <div className="grid grid-cols-12 gap-2 items-end">
-        <div className="col-span-12 sm:col-span-4 md:col-span-3 lg:col-span-2 flex">
+        <div className="col-span-12 md:col-span-3 lg:col-span-2 flex">
           <button
             type="button"
             onClick={onPesquisarRevenda}
@@ -1374,7 +1016,7 @@ const ModalCodigosNF: React.FC<{
             PESQUISAR
           </button>
         </div>
-        <div className="col-span-12 sm:col-span-8 md:col-span-5 lg:col-span-6 flex flex-col gap-1.5">
+        <div className="col-span-12 md:col-span-5 lg:col-span-6 flex flex-col gap-1.5">
           <label className="text-[11px] font-medium text-slate-600 tracking-wide">REVENDA/CLIENTE</label>
           <input
             value={revendaAtual}
@@ -1382,7 +1024,7 @@ const ModalCodigosNF: React.FC<{
             className="h-9 w-full rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
           />
         </div>
-        <div className="col-span-12 sm:col-span-6 md:col-span-2 lg:col-span-2 flex flex-col gap-1.5">
+        <div className="col-span-12 md:col-span-2 lg:col-span-2 flex flex-col gap-1.5">
           <label className="text-[11px] font-medium text-slate-600 tracking-wide">CÓDIGO NF</label>
           <input
             value={nfAtual}
@@ -1390,11 +1032,11 @@ const ModalCodigosNF: React.FC<{
             className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
           />
         </div>
-        <div className="col-span-12 sm:col-span-6 md:col-span-2 lg:col-span-2 flex sm:justify-end">
+        <div className="col-span-12 md:col-span-2 lg:col-span-2 flex sm:justify-end">
           <button
             type="button"
             onClick={onAdd}
-            className="w-full md:w-auto px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2"
           >
             <Plus size={16} />
             INCLUIR
@@ -1431,61 +1073,17 @@ const ModalCodigosNF: React.FC<{
         </div>
       </div>
 
-      <div className="space-y-3 md:hidden">
-        {!lista.length && (
-          <div className="rounded-2xl border border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
-            Nenhum Código NF encontrado.
-          </div>
-        )}
-        {lista.map((x, i) => (
-          <div key={x.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">Registro #{i + 1}</div>
-                <div className="text-[12px] font-semibold text-slate-800 break-words">{x.revenda || "-"}</div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <IconBtn title="Alterar" variant="primary" onClick={() => onEditar(x.id)}>
-                  <Pencil size={16} />
-                </IconBtn>
-                <IconBtn title="Excluir" variant="danger" onClick={() => onRemover(x.id)}>
-                  <Trash2 size={16} />
-                </IconBtn>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-[11px]">
-              <div className="min-w-0">
-                <div className="text-slate-400 uppercase tracking-wide">Data</div>
-                <div className="text-slate-700">{x.createdAt || "-"}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="text-slate-400 uppercase tracking-wide">Incluído por</div>
-                <div className="text-slate-700 break-all">{x.createdBy || "-"}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="text-slate-400 uppercase tracking-wide">Código NF</div>
-                <div className="text-slate-800 font-medium break-all">{x.codigo || "-"}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="text-slate-400 uppercase tracking-wide">Revenda/cliente</div>
-                <div className="text-slate-800 font-medium break-words">{x.revenda || "-"}</div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="hidden md:block rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto">
-        <table className="w-full min-w-[760px] border-collapse text-xs table-auto">
+      <div className="rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto">
+        <table className="w-full border-collapse text-xs table-fixed">
           <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
             <tr>
               <th className="px-2 py-2 text-left w-8">#</th>
               <th className="px-1.5 py-2 text-left w-24">Data</th>
-              <th className="px-1.5 py-2 text-left w-40">Incluído por</th>
-              <th className="px-1.5 py-2 text-left w-32">Código NF</th>
+              <th className="px-1.5 py-2 text-left w-24">Incluído por</th>
+              <th className="px-1.5 py-2 text-left w-28">Código NF</th>
               <th className="px-2 py-2 text-left">Revenda/cliente</th>
-              <th className="px-1.5 py-2 text-right w-16">Alterar</th>
-              <th className="px-1.5 py-2 text-right w-16">Excluir</th>
+              <th className="px-1.5 py-2 text-right w-12">Alterar</th>
+              <th className="px-1.5 py-2 text-right w-14">Excluir</th>
             </tr>
           </thead>
           <tbody>
@@ -1500,9 +1098,9 @@ const ModalCodigosNF: React.FC<{
               <tr key={x.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                 <td className="px-2 py-2 align-middle text-[11px] text-slate-500">{i + 1}</td>
                 <td className="px-1.5 py-2 align-middle text-[11px] text-slate-700 whitespace-nowrap">{x.createdAt || "-"}</td>
-                <td className="px-1.5 py-2 align-middle text-[11px] font-medium text-slate-800 break-all">{x.createdBy || "-"}</td>
+                <td className="px-1.5 py-2 align-middle text-[11px] font-medium text-slate-800 whitespace-nowrap">{x.createdBy || "-"}</td>
                 <td className="px-1.5 py-2 align-middle text-[11px] text-slate-800 whitespace-nowrap">{x.codigo}</td>
-                <td className="px-2 py-2 align-middle text-[11px] font-semibold text-slate-800 break-words" title={x.revenda}>
+                <td className="px-2 py-2 align-middle text-[11px] font-semibold text-slate-800 truncate" title={x.revenda}>
                   {x.revenda}
                 </td>
                 <td className="px-1.5 py-2 align-middle text-right">
@@ -1520,51 +1118,6 @@ const ModalCodigosNF: React.FC<{
           </tbody>
         </table>
       </div>
-
-      <ModalShell
-        open={!!deleteTarget}
-        title="Confirmar exclusão"
-        subtitle="Esta ação remove o cadastro da lista e do banco."
-        onClose={() => {
-          if (busyDeleteKey) return;
-          setDeleteTarget(null);
-        }}
-        maxW="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="text-[12px] text-slate-700">
-            Excluir o EAN/GTIN <span className="font-semibold">{deleteTarget?.ean || "-"}</span>?
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 space-y-1">
-            <div>
-              <span className="font-semibold">Modelo:</span> {deleteTarget?.modeloReferencia || "-"}
-            </div>
-            <div>
-              <span className="font-semibold">Fabricante:</span> {deleteTarget?.fabricante || "-"}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              disabled={!!busyDeleteKey}
-              onClick={() => setDeleteTarget(null)}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              CANCELAR
-            </button>
-            <button
-              type="button"
-              disabled={!!busyDeleteKey || !deleteTarget}
-              onClick={() => {
-                if (deleteTarget) void excluir(deleteTarget);
-              }}
-              className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              EXCLUIR
-            </button>
-          </div>
-        </div>
-      </ModalShell>
     </ModalShell>
   );
 };
@@ -1703,22 +1256,13 @@ const ModalPecas: React.FC<{
 
 const CadastroNF_EAN_Modelo = () => {
   const [registros, setRegistros] = useState<any[]>([]);
-  const [eansCad, setEansCad] = useState<Master[]>([]);
+  const [eansCad, setEansCad] = useState<Master[]>(EANS_CADASTRADOS_INICIAL);
 
   const autoLoadRef = useRef("");
-  const [usuarioLogado, setUsuarioLogado] = useState(DEFAULT_CREATED_BY);
-  const [usuarioInicializado, setUsuarioInicializado] = useState(false);
-  const [revendasClientes, setRevendasClientes] = useState<RevendaClienteOption[]>([]);
-  const [revendasLoading, setRevendasLoading] = useState(false);
-  const [revendasErro, setRevendasErro] = useState("");
-  const [fabricantesEntidades, setFabricantesEntidades] = useState<string[]>([]);
 
-  const [master, setMaster] = useState<Master>({ id: undefined, ean: "", modeloReferencia: "", fabricante: "" });
-  const [allowSaveIntoCurrentRecord, setAllowSaveIntoCurrentRecord] = useState(false);
+  const [master, setMaster] = useState<Master>({ ean: "", modeloReferencia: "", fabricante: "" });
   const [mensagem, setMensagem] = useState("");
   const [mostrarModalSucesso, setMostrarModalSucesso] = useState(false);
-  const [resumoSucesso, setResumoSucesso] = useState<Master | null>(null);
-  const [mostrarModalAvisoNovoCadastro, setMostrarModalAvisoNovoCadastro] = useState(false);
 
   const [mostrarAjuda, setMostrarAjuda] = useState(false);
 
@@ -1768,7 +1312,12 @@ const CadastroNF_EAN_Modelo = () => {
   const [formFuncionalidade, setFormFuncionalidade] = useState<{ descricao: string }>({ descricao: "" });
   const [mensagemFuncionalidade, setMensagemFuncionalidade] = useState("");
 
-  const [produtoDocs, setProdutoDocs] = useState<Record<ProdutoDocKey, FileMeta[]>>(createEmptyProdutoDocs);
+  const [produtoDocs, setProdutoDocs] = useState<Record<ProdutoDocKey, FileMeta[]>>({
+    fotoProduto: [],
+    etiquetaProcel: [],
+    kitAcessorio: [],
+    manualUsuario: [],
+  });
 
   const [modeloDocs, setModeloDocs] = useState<Record<number, Record<ModeloDocKey, FileMeta[]>>>({});
   const [itemFotos, setItemFotos] = useState<Record<string, FileMeta[]>>({});
@@ -1782,222 +1331,39 @@ const CadastroNF_EAN_Modelo = () => {
   }, [modeloSelecionadoId, filtroModeloFabricanteId]);
 
   const [arquivosCtx, setArquivosCtx] = useState<ModalArquivosKey | null>(null);
-  const usuarioAtual = norm(usuarioLogado) || DEFAULT_CREATED_BY;
-
-  const fabricantesConhecidos = useMemo(
-    () =>
-      uniqueSorted([
-        ...fabricantesEntidades,
-        ...registros.map((item) => item?.fabricante),
-        ...eansCad.map((item) => item?.fabricante),
-        master.fabricante,
-      ]),
-    [fabricantesEntidades, registros, eansCad, master.fabricante]
-  );
-
-  const linhasConhecidas = useMemo(
-    () =>
-      uniqueSorted([
-        ...modelosFabricante.map((item) => item?.linha),
-        ...registros.flatMap((item) =>
-          Array.isArray(item?.modelosFabricante) ? item.modelosFabricante.map((modelo: ModeloFabricante) => modelo?.linha) : []
-        ),
-      ]),
-    [modelosFabricante, registros]
-  );
-
-  const sugestoesEmbalagem = useMemo(
-    () =>
-      uniqueSorted([
-        ...embalagens.map((item) => item.descricao),
-        ...registros.flatMap((item) => (Array.isArray(item?.embalagens) ? item.embalagens.map((peca: PecaBase) => peca?.descricao) : [])),
-      ]),
-    [embalagens, registros]
-  );
-
-  const sugestoesAcessorios = useMemo(
-    () =>
-      uniqueSorted([
-        ...acessorios.map((item) => item.descricao),
-        ...registros.flatMap((item) => (Array.isArray(item?.acessorios) ? item.acessorios.map((peca: PecaBase) => peca?.descricao) : [])),
-      ]),
-    [acessorios, registros]
-  );
-
-  const sugestoesEsteticas = useMemo(
-    () =>
-      uniqueSorted([
-        ...esteticas.map((item) => item.descricao),
-        ...registros.flatMap((item) => (Array.isArray(item?.esteticas) ? item.esteticas.map((peca: PecaBase) => peca?.descricao) : [])),
-      ]),
-    [esteticas, registros]
-  );
-
-  const sugestoesFuncionais = useMemo(
-    () =>
-      uniqueSorted([
-        ...funcionaisPeca.map((item) => item.descricao),
-        ...registros.flatMap((item) =>
-          Array.isArray(item?.funcionaisPeca) ? item.funcionaisPeca.map((peca: PecaBase) => peca?.descricao) : []
-        ),
-      ]),
-    [funcionaisPeca, registros]
-  );
-
-  const sugestoesFuncionalidades = useMemo(
-    () =>
-      uniqueSorted([
-        ...funcionalidades.map((item) => item.descricao),
-        ...registros.flatMap((item) =>
-          Array.isArray(item?.funcionalidades) ? item.funcionalidades.map((peca: PecaBase) => peca?.descricao) : []
-        ),
-      ]),
-    [funcionalidades, registros]
-  );
-
-  const catalogoPecasPorCodigo = useMemo(() => {
-    const map = new Map<string, string>();
-    const registrar = (items: PecaBase[]) => {
-      items.forEach((item) => {
-        const codigo = upper(item?.codigoPeca || "");
-        const descricao = norm(item?.descricao);
-        if (codigo && descricao && !map.has(codigo)) map.set(codigo, descricao);
-      });
-    };
-
-    registrar(embalagens);
-    registrar(acessorios);
-    registrar(esteticas);
-    registrar(funcionaisPeca);
-    registros.forEach((item) => {
-      registrar(Array.isArray(item?.embalagens) ? item.embalagens : []);
-      registrar(Array.isArray(item?.acessorios) ? item.acessorios : []);
-      registrar(Array.isArray(item?.esteticas) ? item.esteticas : []);
-      registrar(Array.isArray(item?.funcionaisPeca) ? item.funcionaisPeca : []);
-    });
-
-    return map;
-  }, [embalagens, acessorios, esteticas, funcionaisPeca, registros]);
 
   const upsertRegistroCache = (registro: any) => {
-    const rowKey = getRowIdentityKey(registro);
-    if (!rowKey) return;
+    const eanKey = upper(registro?.ean);
+    if (!eanKey) return;
     setRegistros((prev) => {
-      const semMesmoRegistro = prev.filter((item) => getRowIdentityKey(item) !== rowKey);
-      return [registro, ...semMesmoRegistro];
+      const semMesmoEan = prev.filter((item) => upper(item?.ean) !== eanKey);
+      return [registro, ...semMesmoEan];
     });
   };
 
   const upsertMasterCache = (item: Master) => {
-    const rowKey = getRowIdentityKey(item);
-    if (!rowKey) return;
+    const eanKey = upper(item?.ean);
+    if (!eanKey) return;
     setEansCad((prev) => {
-      const semMesmoRegistro = prev.filter((m) => getRowIdentityKey(m) !== rowKey);
-      return [item, ...semMesmoRegistro];
+      const semMesmoEan = prev.filter((m) => upper(m?.ean) !== eanKey);
+      return [item, ...semMesmoEan];
     });
   };
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const userData = localStorage.getItem("user");
-      if (!userData) return;
-      const currentUser = JSON.parse(userData);
-      const userName = String(currentUser?.name || currentUser?.email || "").trim();
-      if (userName) setUsuarioLogado(userName.toUpperCase());
-    } catch {
-      // ignore invalid local user data
-    } finally {
-      setUsuarioInicializado(true);
-    }
-  }, []);
-
-  useEffect(() => {
     let active = true;
-
-    const carregarReferencias = async () => {
-      setRevendasLoading(true);
-      setRevendasErro("");
-      try {
-        const [clients, branches, fabricantes] = await Promise.all([
-          ClientService.list(),
-          BranchService.list(),
-          EntityService.list({ entity_type: "MANUFACTURER" }),
-        ]);
-
-        if (!active) return;
-
-        const options = uniqueSorted([
-          ...clients.map((client) => {
-            const nome = norm(client.trade_name || client.legal_name || client.full_name);
-            if (!nome) return null;
-            return JSON.stringify({
-              id: norm(client.id) || `client:${nome}`,
-              nome,
-              tipo: upper(client.person_type) === "COMPANY" ? "JURIDICA" : "FISICA",
-              documento: norm(client.cnpj || client.cpf),
-              origem: "CLIENTE",
-            } satisfies RevendaClienteOption);
-          }),
-          ...branches.map((branch) => {
-            const nome = norm(branch.branch_name);
-            if (!nome) return null;
-            return JSON.stringify({
-              id: norm(branch.id) || `branch:${nome}`,
-              nome,
-              tipo: "FILIAL",
-              documento: norm(branch.cnpj || branch.branch_code),
-              origem: "FILIAL",
-            } satisfies RevendaClienteOption);
-          }),
-        ])
-          .map((item) => {
-            try {
-              return JSON.parse(item) as RevendaClienteOption;
-            } catch {
-              return null;
-            }
-          })
-          .filter((item): item is RevendaClienteOption => !!item);
-
-        setRevendasClientes(options);
-        setFabricantesEntidades(uniqueSorted(fabricantes.map((item) => item.name || item.legal_name)));
-      } catch (error: any) {
-        if (!active) return;
-        console.error("Falha ao carregar dados reais de apoio:", error);
-        setRevendasErro("Falha ao carregar clientes, filiais e fabricantes.");
-      } finally {
-        if (active) setRevendasLoading(false);
-      }
-    };
-
-    void carregarReferencias();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!usuarioInicializado) {
-      return () => {
-        active = false;
-      };
-    }
-
     const carregarUltimosProdutos = async () => {
       try {
         const latest: any[] = await ProductApiService.getLatestProducts(200);
         if (!active || !Array.isArray(latest) || latest.length === 0) return;
 
-        const mapped = latest.map((item) => mapApiProductToRegistro(item, usuarioAtual)).filter((item) => !!norm(item?.ean));
+        const mapped = latest.map(mapApiProductToRegistro).filter((item) => !!norm(item?.ean));
         if (mapped.length === 0) return;
 
         setRegistros((prev) => {
           const map = new Map<string, any>();
           [...prev, ...mapped].forEach((item) => {
-            const key = getRowIdentityKey(item);
+            const key = upper(item?.ean);
             if (key) map.set(key, item);
           });
           return Array.from(map.values());
@@ -2005,8 +1371,8 @@ const CadastroNF_EAN_Modelo = () => {
 
         setEansCad((prev) => {
           const map = new Map<string, Master>();
-          [...prev, ...mapped.map((item) => toMasterFromRegistro(item, usuarioAtual))].forEach((item) => {
-            const key = getRowIdentityKey(item);
+          [...prev, ...mapped.map(toMasterFromRegistro)].forEach((item) => {
+            const key = upper(item?.ean);
             if (key) map.set(key, item);
           });
           return Array.from(map.values());
@@ -2020,12 +1386,12 @@ const CadastroNF_EAN_Modelo = () => {
     return () => {
       active = false;
     };
-  }, [usuarioAtual, usuarioInicializado]);
+  }, []);
 
   const lookupDescricao = (codigoPeca: string) => {
     const cod = upper(codigoPeca);
     if (!cod) return "";
-    const base = catalogoPecasPorCodigo.get(cod);
+    const base = lookupDescricaoPorCodigoBase(cod);
     if (base) return base;
     const all = [...embalagens, ...acessorios, ...esteticas, ...funcionaisPeca];
     const found = all.find((x) => upper(x.codigoPeca || "") === cod);
@@ -2033,18 +1399,6 @@ const CadastroNF_EAN_Modelo = () => {
   };
 
   const masterPreenchido = useMemo(() => !!norm(master.ean) && !!norm(master.modeloReferencia), [master]);
-  const codigosNfResumo = useMemo(
-    () =>
-      codigosNF
-        .map((item) => {
-          const codigo = norm(item?.codigo);
-          const revenda = norm(item?.revenda);
-          if (!codigo && !revenda) return "";
-          return [codigo || "-", revenda || "-"].join(" - ");
-        })
-        .filter(Boolean),
-    [codigosNF]
-  );
 
   const modeloSelecionado = useMemo(
     () => (modeloSelecionadoId ? modelosFabricante.find((m) => m.id === modeloSelecionadoId) || null : null),
@@ -2053,12 +1407,7 @@ const CadastroNF_EAN_Modelo = () => {
 
   const existeDuplicidadeMaster = () => {
     const ean = upper(master.ean);
-    const masterId = norm(master.id);
-    if (!ean) return false;
-    return (
-      registros.some((r) => upper(r?.ean) === ean && (!masterId || norm(r?.id) !== masterId)) ||
-      eansCad.some((m) => upper(m.ean) === ean && (!masterId || norm(m.id) !== masterId))
-    );
+    return registros.some((r) => upper(r?.ean) === ean);
   };
 
   const handleChangeMaster = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2068,7 +1417,7 @@ const CadastroNF_EAN_Modelo = () => {
     setMaster((p) => {
       const next = { ...p, [name]: value } as Master;
       if (name === "modeloReferencia") {
-        const fab = detectarFabricanteDoModelo(value, fabricantesConhecidos);
+        const fab = detectarFabricanteDoModelo(value);
         if (fab && !norm(p.fabricante)) next.fabricante = fab;
       }
       if (name === "fabricante") next.fabricante = upper(value);
@@ -2112,23 +1461,99 @@ const CadastroNF_EAN_Modelo = () => {
     setFormFuncionalidade({ descricao: "" });
     setMensagemFuncionalidade("");
 
-    setProdutoDocs(createEmptyProdutoDocs());
+    setProdutoDocs({ fotoProduto: [], etiquetaProcel: [], kitAcessorio: [], manualUsuario: [] });
     setModeloDocs({});
     setItemFotos({});
     setArquivosCtx(null);
   };
 
-  const carregarRegistro = (r: any, options?: { updateCurrentRecord?: boolean }) => {
+  const carregarSimulacao = (s: any) => {
     limparVinculos();
-    const updateCurrentRecord = !!options?.updateCurrentRecord;
 
-    setMaster({
-      id: updateCurrentRecord ? norm(r?.id) || undefined : undefined,
-      ean: String(r?.ean || ""),
-      modeloReferencia: String(r?.modeloReferencia || ""),
-      fabricante: String(r?.fabricante || ""),
-    });
-    setAllowSaveIntoCurrentRecord(updateCurrentRecord);
+    const fabricante = detectarFabricanteDoModelo(s.modeloReferencia) || "PHILCO";
+    setMaster({ ean: s.ean, modeloReferencia: s.modeloReferencia, fabricante });
+
+    setCodigosNF(
+      (s.codigosNF || []).map((x: any, i: number) => ({
+        id: Date.now() + i,
+        codigo: upper(x.codigo),
+        revenda: upper(x.revenda),
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      }))
+    );
+
+    const base = Date.now() + 100;
+    const mods = (s.modelosFabricante || []).map((m: any, i: number) => ({
+      id: base + i,
+      nome: norm(m.nome),
+      codigoProduto: upper(m.codigoProduto),
+      linha: upper(m.linha || detectarLinhaDoModeloFabricante(m.nome) || ""),
+      createdAt: agoraBR(),
+      createdBy: USUARIO_ATUAL,
+    }));
+    setModelosFabricante(mods);
+    const selId = mods[0]?.id || null;
+    setModeloSelecionadoId(selId);
+
+    setEmbalagens(
+      (s.embalagens || []).map((x: any, i: number) => ({
+        id: Date.now() + 200 + i,
+        codigoPeca: upper(x.codigo),
+        descricao: norm(x.descricao),
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      }))
+    );
+
+    setAcessorios(
+      (s.acessorios || []).map((x: any, i: number) => ({
+        id: Date.now() + 300 + i,
+        codigoPeca: upper(x.codigo),
+        descricao: norm(x.descricao),
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      }))
+    );
+
+    setEsteticas(
+      (s.esteticas || []).map((x: any, i: number) => ({
+        id: Date.now() + 400 + i,
+        codigoPeca: upper(x.codigo),
+        descricao: norm(x.descricao),
+        modeloId: selId || 0,
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      }))
+    );
+
+    setFuncionaisPeca(
+      (s.funcionaisPeca || []).map((x: any, i: number) => ({
+        id: Date.now() + 500 + i,
+        codigoPeca: upper(x.codigo),
+        descricao: norm(x.descricao),
+        modeloId: selId || 0,
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      }))
+    );
+
+    setFuncionalidades(
+      (s.funcionalidades || []).map((d: any, i: number) => ({
+        id: Date.now() + 600 + i,
+        descricao: norm(d),
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      }))
+    );
+
+    setMensagem("Dados carregados automaticamente.");
+  };
+
+  const carregarRegistro = (r: any) => {
+    limparVinculos();
+
+    setMaster({ ean: String(r?.ean || ""), modeloReferencia: String(r?.modeloReferencia || ""), fabricante: String(r?.fabricante || "") });
     setCodigosNF((r?.codigosNF || []) as CodigoNF[]);
     setModelosFabricante((r?.modelosFabricante || []) as ModeloFabricante[]);
     setModeloSelecionadoId(r?.modeloSelecionadoId || null);
@@ -2137,11 +1562,8 @@ const CadastroNF_EAN_Modelo = () => {
     setEsteticas((r?.esteticas || []) as PecaBase[]);
     setFuncionaisPeca((r?.funcionaisPeca || []) as PecaBase[]);
     setFuncionalidades((r?.funcionalidades || []) as PecaBase[]);
-    setProdutoDocs((r?.produtoDocs || createEmptyProdutoDocs()) as Record<ProdutoDocKey, FileMeta[]>);
-    setModeloDocs((r?.modeloDocs || {}) as Record<number, Record<ModeloDocKey, FileMeta[]>>);
-    setItemFotos((r?.itemFotos || {}) as Record<string, FileMeta[]>);
 
-    setMensagem(updateCurrentRecord ? "Dados carregados automaticamente." : "Cadastro base carregado. Salvar criara um novo registro.");
+    setMensagem("Dados carregados automaticamente.");
   };
 
   const carregarPorEan = async (ean: string) => {
@@ -2149,14 +1571,16 @@ const CadastroNF_EAN_Modelo = () => {
     if (!ue) return;
 
     const reg = registros.find((x) => upper(x?.ean) === ue);
-    if (reg) return carregarRegistro(reg, { updateCurrentRecord: false });
+    if (reg) return carregarRegistro(reg);
+
+    const sim = SIMULACAO_GROMIT.find((x) => upper(x?.ean) === ue);
+    if (sim) return carregarSimulacao(sim);
 
     const m = eansCad.find((x) => upper(x.ean) === ue);
     if (m) {
       limparVinculos();
-      setMaster({ id: undefined, ean: m.ean, modeloReferencia: m.modeloReferencia, fabricante: m.fabricante });
-      setAllowSaveIntoCurrentRecord(false);
-      setMensagem("Cadastro base carregado. Salvar criara um novo registro.");
+      setMaster({ ean: m.ean, modeloReferencia: m.modeloReferencia, fabricante: m.fabricante });
+      setMensagem("Dados carregados automaticamente.");
       return;
     }
 
@@ -2164,10 +1588,10 @@ const CadastroNF_EAN_Modelo = () => {
       const remoto = await ProductApiService.getProductByEan(ue);
       if (!remoto) return;
 
-      const registroMapeado = mapApiProductToRegistro(remoto, usuarioAtual);
-      carregarRegistro(registroMapeado, { updateCurrentRecord: false });
+      const registroMapeado = mapApiProductToRegistro(remoto);
+      carregarRegistro(registroMapeado);
       upsertRegistroCache(registroMapeado);
-      upsertMasterCache(toMasterFromRegistro(registroMapeado, usuarioAtual));
+      upsertMasterCache(toMasterFromRegistro(registroMapeado));
     } catch (error) {
       console.error("Falha ao carregar produto por EAN:", error);
     }
@@ -2182,6 +1606,7 @@ const CadastroNF_EAN_Modelo = () => {
 
     const hit =
       registros.some((r) => upper(r?.ean) === e) ||
+      SIMULACAO_GROMIT.some((s) => upper(s?.ean) === e) ||
       eansCad.some((m) => upper(m.ean) === e);
 
     const shouldTryLookup = hit || e.length >= 8;
@@ -2242,7 +1667,7 @@ const CadastroNF_EAN_Modelo = () => {
       setCodigosNF((p) => p.map((x) => (x.id === editNfId ? { ...x, codigo, revenda } : x)));
       setEditNfId(null);
     } else {
-      setCodigosNF((p) => [...p, { id: Date.now(), codigo, revenda, createdAt: agoraBR(), createdBy: usuarioAtual }]);
+      setCodigosNF((p) => [...p, { id: Date.now(), codigo, revenda, createdAt: agoraBR(), createdBy: USUARIO_ATUAL }]);
     }
 
     setNfAtual("");
@@ -2272,7 +1697,7 @@ const CadastroNF_EAN_Modelo = () => {
   const addModelo = () => {
     const nome = norm(modeloAtual);
     const codigoProduto = upper(codigoProdutoAtual);
-    const linha = upper(linhaAtual || detectarLinhaDoModeloFabricante(nome, linhasConhecidas));
+    const linha = upper(linhaAtual || detectarLinhaDoModeloFabricante(nome));
     if (!nome || !codigoProduto || !linha) return setMensagemModelo("Informe Modelo Fabricante, Código do Produto e Linha.");
 
     const dup = modelosFabricante.some(
@@ -2285,7 +1710,7 @@ const CadastroNF_EAN_Modelo = () => {
       setEditModeloId(null);
     } else {
       const id = Date.now();
-      setModelosFabricante((p) => [...p, { id, nome, codigoProduto, linha, createdAt: agoraBR(), createdBy: usuarioAtual }]);
+      setModelosFabricante((p) => [...p, { id, nome, codigoProduto, linha, createdAt: agoraBR(), createdBy: USUARIO_ATUAL }]);
       if (!modeloSelecionadoId) setModeloSelecionadoId(id);
     }
 
@@ -2352,7 +1777,7 @@ const CadastroNF_EAN_Modelo = () => {
       descricao,
       ...(vincularModelo ? { modeloId: mid } : {}),
       createdAt: agoraBR(),
-      createdBy: usuarioAtual,
+      createdBy: USUARIO_ATUAL,
     };
 
     setLista((p) => [...p, item]);
@@ -2365,7 +1790,7 @@ const CadastroNF_EAN_Modelo = () => {
     if (!descricao) return setMensagemFuncionalidade("Informe a descrição.");
     const dup = funcionalidades.some((x) => upper(x.descricao) === upper(descricao));
     if (dup) return setMensagemFuncionalidade("Funcionalidade já cadastrada.");
-    setFuncionalidades((p) => [...p, { id: Date.now(), descricao, createdAt: agoraBR(), createdBy: usuarioAtual }]);
+    setFuncionalidades((p) => [...p, { id: Date.now(), descricao, createdAt: agoraBR(), createdBy: USUARIO_ATUAL }]);
     setFormFuncionalidade({ descricao: "" });
     setMensagemFuncionalidade("");
   };
@@ -2473,7 +1898,7 @@ const CadastroNF_EAN_Modelo = () => {
     const baseAdd = (arr: FileMeta[], fl: FileList) => {
       const now = Date.now();
       const next = [...arr];
-      Array.from(fl).forEach((f, i) => next.push({ id: now + i, file: f, name: f.name, createdAt: agoraBR(), createdBy: usuarioAtual }));
+      Array.from(fl).forEach((f, i) => next.push({ id: now + i, file: f, name: f.name, createdAt: agoraBR(), createdBy: USUARIO_ATUAL }));
       return next;
     };
 
@@ -2514,7 +1939,7 @@ const CadastroNF_EAN_Modelo = () => {
       };
       const doc = arquivosCtx.doc;
       const mid = arquivosCtx.modeloId;
-      const cur = modeloDocs[mid] || createEmptyModeloDocs();
+      const cur = modeloDocs[mid] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
       return {
         open: true,
         title: `${titles[doc]} — ${modelosFabricante.find((m) => m.id === mid)?.nome || "Modelo"}`,
@@ -2523,14 +1948,14 @@ const CadastroNF_EAN_Modelo = () => {
         onAdd: (fl: FileList) =>
           setModeloDocs((p) => {
             const next = { ...p };
-            const now = next[mid] || createEmptyModeloDocs();
+            const now = next[mid] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
             next[mid] = { ...now, [doc]: baseAdd(now[doc] || [], fl) };
             return next;
           }),
         onRemove: (id: number) =>
           setModeloDocs((p) => {
             const next = { ...p };
-            const now = next[mid] || createEmptyModeloDocs();
+            const now = next[mid] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
             next[mid] = { ...now, [doc]: (now[doc] || []).filter((x) => x.id !== id) };
             return next;
           }),
@@ -2578,302 +2003,85 @@ const CadastroNF_EAN_Modelo = () => {
     });
   };
 
-  const ensureUploadedFileMeta = async (
-    meta: FileMeta,
-    kind: "product-image" | "product-manual" | "model-doc" | "item-image"
-  ): Promise<FileMeta> => {
-    if (meta.url) return meta;
-    if (!meta.file) {
-      throw new Error(`Arquivo sem origem local para upload: ${meta.name || "sem nome"}.`);
-    }
-
-    const result =
-      kind === "product-image"
-        ? await uploadProductFile(meta.file, "image")
-        : kind === "product-manual"
-          ? await uploadProductFile(meta.file, "manual")
-          : kind === "model-doc"
-            ? await uploadFile(meta.file, undefined, "produtos/modelos")
-            : await uploadFile(meta.file, undefined, "produtos/itens");
-
-    if (result.error || !result.url) {
-      throw new Error(`Falha ao enviar arquivo: ${meta.name || "sem nome"}.`);
-    }
-
-    return {
-      ...meta,
-      url: result.url,
-      path: result.path,
-    };
-  };
-
   const salvar = async () => {
     if (!masterPreenchido) return setMensagem("Preencha EAN / GTIN e Modelo Referência.");
     if (!norm(master.fabricante)) return setMensagem("Informe o Fabricante.");
+    // if (existeDuplicidadeMaster()) return setMensagem("EAN / GTIN já cadastrado."); // Permitir múltiplos registros (estoque/unidades)
 
     try {
-      const produtoExistenteId = allowSaveIntoCurrentRecord ? norm(master.id) || undefined : undefined;
-      setMensagem(produtoExistenteId ? "Atualizando..." : "Salvando...");
+      setMensagem("Salvando...");
 
-<<<<<<< Updated upstream
-      // Helper: converte array de FileMeta para base64 strings
-      const filesToBase64 = async (files: FileMeta[]): Promise<string[]> => {
-        return Promise.all(
-          files.map(async (f) => {
-            try { return await processImageToBase64(f.file); }
-            catch { return f.name; } // fallback: nome do arquivo se falhar
-          })
-        );
-      };
-
-      // Converter fotos de itens vinculados (peças/acessórios) para base64
-      const itemFotosBase64 = async (rowKey: string): Promise<string[]> => {
-        const meta = itemFotos[rowKey];
-        if (!meta?.length) return [];
-        return filesToBase64(meta);
-      };
-
-      const mapPeca = async (p: PecaBase, tipo: ItemVinculado['tipo']): Promise<ItemVinculado> => {
-        const rowKey = `${tipo === 'embalagem' ? 'EMBALAGEM' : 'ACESSORIO'}|${upper(p.codigoPeca || '')}|0`;
-        return {
-          tipo,
-          nome: p.descricao,
-          codigo: p.codigoPeca,
-          quantidade: 1,
-          fotos: await itemFotosBase64(rowKey),
-        };
-      };
-=======
-      const produtoDocsPersistidos: Record<ProdutoDocKey, FileMeta[]> = {
-        fotoProduto: await Promise.all(produtoDocs.fotoProduto.map((item) => ensureUploadedFileMeta(item, "product-image"))),
-        etiquetaProcel: produtoDocs.etiquetaProcel,
-        kitAcessorio: produtoDocs.kitAcessorio,
-        manualUsuario: await Promise.all(produtoDocs.manualUsuario.map((item) => ensureUploadedFileMeta(item, "product-manual"))),
-      };
-
-      const modeloDocsPersistidos = Object.fromEntries(
-        await Promise.all(
-          modelosFabricante.map(async (modelo) => {
-            const docs = modeloDocs[modelo.id] || createEmptyModeloDocs();
-            return [
-              modelo.id,
-              {
-                vistaExplodida: await Promise.all(docs.vistaExplodida.map((item) => ensureUploadedFileMeta(item, "model-doc"))),
-                boletimTecnico: await Promise.all(docs.boletimTecnico.map((item) => ensureUploadedFileMeta(item, "model-doc"))),
-                manualTecnico: await Promise.all(docs.manualTecnico.map((item) => ensureUploadedFileMeta(item, "model-doc"))),
-              },
-            ];
-          })
-        )
-      ) as Record<number, Record<ModeloDocKey, FileMeta[]>>;
-
-      const itemFotosPersistidos = Object.fromEntries(
-        await Promise.all(
-          Object.entries(itemFotos).map(async ([rowKey, files]) => [
-            rowKey,
-            await Promise.all(files.map((item) => ensureUploadedFileMeta(item, "item-image"))),
-          ])
-        )
-      ) as Record<string, FileMeta[]>;
-
-      const fotosPorRowKey = (rowKey: string) =>
-        (itemFotosPersistidos[rowKey] || []).map((item) => item.url).filter((value): value is string => !!value);
-
-      const mapPeca = (p: PecaBase, tipo: ItemVinculado["tipo"]): ItemVinculado => ({
+      const mapPeca = (p: PecaBase, tipo: ItemVinculado['tipo']): ItemVinculado => ({
         tipo,
         nome: p.descricao,
         codigo: p.codigoPeca,
         quantidade: 1,
-        fotos: fotosPorRowKey(`${tipo === "embalagem" ? "EMBALAGEM" : "ACESSORIO"}|${upper(p.codigoPeca || "")}|0`),
+        fotos: itemFotos[`${tipo === 'embalagem' ? 'EMBALAGEM' : 'ACESSORIO'}|${upper(p.codigoPeca || '')}|0`]
+          ?.map(f => f.name) || [] // TODO: Upload real URLs
       });
->>>>>>> Stashed changes
 
       const mapFuncionalidade = (p: PecaBase): ItemVinculado => ({
-        tipo: "funcionalidade",
+        tipo: 'funcionalidade',
         nome: p.descricao,
-        quantidade: 1,
+        quantidade: 1
       });
 
-<<<<<<< Updated upstream
-      const mapPecaModelo = async (p: PecaBase, tipo: 'estetica' | 'funcional', modeloId: number): Promise<ItemVinculado> => {
-        const rowKey = `PECA|${upper(p.codigoPeca || '')}|${modeloId}`;
-        return {
-          tipo,
-          nome: p.descricao,
-          codigo: p.codigoPeca,
-          quantidade: 1,
-          fotos: await itemFotosBase64(rowKey),
-=======
-      const mapPecaModelo = (p: PecaBase, tipo: "estetica" | "funcional"): ItemVinculado => ({
+      const mapPecaModelo = (p: PecaBase, tipo: 'estetica' | 'funcional'): ItemVinculado => ({
         tipo,
         nome: p.descricao,
         codigo: p.codigoPeca,
         quantidade: 1,
-        fotos: fotosPorRowKey(`PECA|${upper(p.codigoPeca || "")}|${p.modeloId || 0}`),
+        fotos: itemFotos[`PECA|${upper(p.codigoPeca || '')}|${p.modeloId || 0}`]?.map(f => f.name) || []
       });
 
-      const mappedModelos: DTOModeloFabricante[] = modelosFabricante.map((modelo) => {
-        const ests = esteticas.filter((item) => item.modeloId === modelo.id);
-        const funcs = funcionaisPeca.filter((item) => item.modeloId === modelo.id);
-        const docs = modeloDocsPersistidos[modelo.id] || createEmptyModeloDocs();
+      const mappedModelos: DTOModeloFabricante[] = modelosFabricante.map(m => {
+        const ests = esteticas.filter(e => e.modeloId === m.id);
+        const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
 
         return {
-          id: String(modelo.id),
-          nome: modelo.nome,
-          categoria: "Geral",
-          codigoTipo: modelo.codigoProduto,
-          linha: modelo.linha,
-          vistaExplodida: docs.vistaExplodida.map((item) => item.url).filter((value): value is string => !!value),
-          boletimTecnico: docs.boletimTecnico.map((item) => item.url).filter((value): value is string => !!value),
-          manualTecnico: docs.manualTecnico.map((item) => item.url).filter((value): value is string => !!value),
-          estetica: ests.map((item) => ({
-            tipo: "estetica",
-            nome: item.descricao,
-            codigo: item.codigoPeca,
+          id: String(m.id),
+          nome: m.nome,
+          categoria: 'Geral', // Default
+          codigoTipo: m.codigoProduto,
+          linha: m.linha,
+          estetica: ests.map(e => ({
+            tipo: 'estetica',
+            nome: e.descricao,
+            codigo: e.codigoPeca,
             quantidade: 1,
-            fotos: fotosPorRowKey(`PECA|${upper(item.codigoPeca || "")}|${modelo.id}`),
+            fotos: itemFotos[`PECA|${upper(e.codigoPeca || '')}|${m.id}`]?.map(f => f.name) || []
           })),
-          funcional: funcs.map((item) => ({
-            tipo: "funcional",
-            nome: item.descricao,
-            codigo: item.codigoPeca,
+          funcional: funcs.map(f => ({
+            tipo: 'funcional',
+            nome: f.descricao,
+            codigo: f.codigoPeca,
             quantidade: 1,
-            fotos: fotosPorRowKey(`PECA|${upper(item.codigoPeca || "")}|${modelo.id}`),
+            fotos: itemFotos[`PECA|${upper(f.codigoPeca || '')}|${m.id}`]?.map(f => f.name) || []
           })),
-          funcionalidades: [],
->>>>>>> Stashed changes
+          funcionalidades: [] // Not mapped in local state
         };
-      };
-
-      // Converter documentos de modelo (vista explodida, boletim, manual) para base64
-      const modeloDocsBase64 = async (modeloId: number) => {
-        const docs = modeloDocs[modeloId] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
-        return {
-          vistaExplodida: await filesToBase64(docs.vistaExplodida || []),
-          boletimTecnico: await filesToBase64(docs.boletimTecnico || []),
-          manualTecnico: await filesToBase64(docs.manualTecnico || []),
-        };
-      };
-
-      // Converter modelos com peças e documentos em paralelo
-      const mappedModelos: DTOModeloFabricante[] = await Promise.all(
-        modelosFabricante.map(async (m) => {
-          const ests = esteticas.filter(e => e.modeloId === m.id);
-          const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
-          const docsBas64 = await modeloDocsBase64(m.id);
-
-          return {
-            id: String(m.id),
-            nome: m.nome,
-            categoria: 'Geral',
-            codigoTipo: m.codigoProduto,
-            linha: m.linha,
-            // Documentos do modelo como base64
-            vistaExplodida: docsBas64.vistaExplodida,
-            boletimTecnico: docsBas64.boletimTecnico,
-            manualTecnico: docsBas64.manualTecnico,
-            estetica: await Promise.all(ests.map(e => mapPecaModelo(e, 'estetica', m.id))),
-            funcional: await Promise.all(funcs.map(f => mapPecaModelo(f, 'funcional', m.id))),
-            funcionalidades: [],
-          };
-        })
-      );
-
-      // Converter todas as imagens do produto em paralelo
-      const [fotosBase64, etiquetaBase64, kitBase64] = await Promise.all([
-        filesToBase64(produtoDocs.fotoProduto),
-        filesToBase64(produtoDocs.etiquetaProcel),
-        filesToBase64(produtoDocs.kitAcessorio),
-      ]);
-
-      // Converter peças em paralelo
-      const [embalagemMapped, acessoriosMapped] = await Promise.all([
-        Promise.all(embalagens.map(e => mapPeca(e, 'embalagem'))),
-        Promise.all(acessorios.map(a => mapPeca(a, 'acessorio'))),
-      ]);
+      });
 
       const dto: CreateProductDTO = {
         ean: master.ean,
         modeloRef: master.modeloReferencia,
         marca: master.fabricante,
-        nfs: codigosNF.map((nf) => ({ codigo: nf.codigo, revenda: nf.revenda })),
+        nfs: codigosNF.map(nf => ({ codigo: nf.codigo, revenda: nf.revenda })),
         modelos: mappedModelos,
-<<<<<<< Updated upstream
-        embalagem: embalagemMapped,
-        acessorios: acessoriosMapped,
-        estetica: await Promise.all(esteticas.map(e => mapPecaModelo(e, 'estetica', e.modeloId || 0))),
-        funcional: await Promise.all(funcionaisPeca.map(f => mapPecaModelo(f, 'funcional', f.modeloId || 0))),
+        embalagem: embalagens.map(e => mapPeca(e, 'embalagem')),
+        acessorios: acessorios.map(a => mapPeca(a, 'acessorio')),
+        estetica: esteticas.map(e => mapPecaModelo(e, 'estetica')),
+        funcional: funcionaisPeca.map(f => mapPecaModelo(f, 'funcional')),
         funcionalidade: funcionalidades.map(mapFuncionalidade),
-        fotos: fotosBase64,           // Fotos principais em base64
-        etiquetaProcel: etiquetaBase64, // Etiquetas Procel em base64
-        kitAcessorio: kitBase64,        // Kit de acessórios em base64
-        manualUrl: produtoDocs.manualUsuario[0]?.name
-=======
-        embalagem: embalagens.map((item) => mapPeca(item, "embalagem")),
-        acessorios: acessorios.map((item) => mapPeca(item, "acessorio")),
-        estetica: esteticas.map((item) => mapPecaModelo(item, "estetica")),
-        funcional: funcionaisPeca.map((item) => mapPecaModelo(item, "funcional")),
-        funcionalidade: funcionalidades.map(mapFuncionalidade),
-        fotos: produtoDocsPersistidos.fotoProduto.map((item) => item.url).filter((value): value is string => !!value),
-        manualUrl: produtoDocsPersistidos.manualUsuario[0]?.url
->>>>>>> Stashed changes
+        fotos: produtoDocs.fotoProduto.map(f => f.name), // TODO: URLs
+        manualUrl: produtoDocs.manualUsuario[0]?.name // TODO: URL
       };
 
-      const persisted = produtoExistenteId
-        ? await ProductApiService.updateProduct({
-            id: produtoExistenteId,
-            originalEan: master.ean,
-            ...dto,
-          })
-        : await ProductApiService.createProduct(dto);
+      await ProductApiService.createProduct(dto);
 
-      const produtoIdPersistido = persisted?.id || norm(master.id) || undefined;
-      if (!produtoIdPersistido) {
-        throw new Error("Produto salvo sem ID retornado pelo banco.");
-      }
-
-      const { PreAnaliseService } = await import("@/backend/services/preAnaliseService");
-      await PreAnaliseService.ensureForProduct({
-        produtoId: produtoIdPersistido,
-        codigo: dto.nfs[0]?.codigo || "",
-        codigoNF: dto.nfs[0]?.codigo || "",
-        modelo: dto.modeloRef,
-        modeloRef: dto.modeloRef,
-        ean: dto.ean,
-        gtin: dto.ean,
-        nfReceb: dto.nfs[0]?.codigo || "",
-        recebidoPor: usuarioAtual,
-        respostas: {
-          origem: "cadastro_produto",
-          snapshot: {
-            embalagem: dto.embalagem,
-            acessorios: dto.acessorios,
-            estetica: dto.estetica,
-            funcional: dto.funcional,
-            funcionalidade: dto.funcionalidade,
-            modelos: dto.modelos,
-            nfs: dto.nfs,
-            fotos: dto.fotos,
-            manualUrl: dto.manualUrl || null,
-          },
-        },
-      });
-
-      const masterSalvo: Master = {
-        id: produtoIdPersistido,
-        ean: master.ean,
-        modeloReferencia: master.modeloReferencia,
-        fabricante: master.fabricante,
-        createdAt: agoraBR(),
-        createdBy: usuarioAtual,
-      };
-
-      setProdutoDocs(produtoDocsPersistidos);
-      setModeloDocs(modeloDocsPersistidos);
-      setItemFotos(itemFotosPersistidos);
-
+      // Restore payload for local cache compatibility
       const payload = {
-        ...masterSalvo,
+        ...master,
         codigosNF,
         modelosFabricante,
         modeloSelecionadoId,
@@ -2882,17 +2090,25 @@ const CadastroNF_EAN_Modelo = () => {
         esteticas,
         funcionaisPeca,
         funcionalidades,
-        produtoDocs: produtoDocsPersistidos,
-        modeloDocs: modeloDocsPersistidos,
-        itemFotos: itemFotosPersistidos,
+        produtoDocs: Object.fromEntries(Object.entries(produtoDocs).map(([k, v]) => [k, v.length])),
+        modeloDocs: Object.fromEntries(
+          Object.entries(modeloDocs).map(([mid, docs]) => [
+            mid,
+            Object.fromEntries(Object.entries(docs as any).map(([k, v]) => [k, (v as any[])?.length || 0])),
+          ])
+        ),
+        itemFotos: Object.fromEntries(Object.entries(itemFotos).map(([k, v]) => [k, v.length])),
         criadoEm: agoraBR(),
-        criadoPor: usuarioAtual,
+        criadoPor: USUARIO_ATUAL,
       };
 
       upsertRegistroCache(payload);
-      upsertMasterCache(masterSalvo);
-      setResumoSucesso(masterSalvo);
-      limpar();
+      upsertMasterCache({
+        ...master,
+        createdAt: agoraBR(),
+        createdBy: USUARIO_ATUAL,
+      });
+      setMensagem("");
       setMostrarModalSucesso(true);
       console.log("SALVO NO BANCO", dto);
 
@@ -2900,20 +2116,12 @@ const CadastroNF_EAN_Modelo = () => {
       // limpar(); 
     } catch (err: any) {
       console.error(err);
-      const rawMessage = String(err?.message || err || "");
-      if (!allowSaveIntoCurrentRecord && /ean unico|produtos_ean_key/i.test(rawMessage)) {
-        setMensagem("Novo cadastro carregado a partir de EAN existente. Revise os Códigos NF antes de salvar.");
-        setMostrarModalAvisoNovoCadastro(true);
-        return;
-      }
-
-      setMensagem("Erro ao salvar: " + rawMessage);
+      setMensagem("Erro ao salvar: " + (err.message || String(err)));
     }
   };
 
   const limpar = () => {
-    setMaster({ id: undefined, ean: "", modeloReferencia: "", fabricante: "" });
-    setAllowSaveIntoCurrentRecord(false);
+    setMaster({ ean: "", modeloReferencia: "", fabricante: "" });
     setCodigosNF([]);
     setNfAtual("");
     setRevendaNFAtual("");
@@ -2948,149 +2156,11 @@ const CadastroNF_EAN_Modelo = () => {
     setFormFuncionalidade({ descricao: "" });
     setMensagemFuncionalidade("");
 
-    setProdutoDocs(createEmptyProdutoDocs());
+    setProdutoDocs({ fotoProduto: [], etiquetaProcel: [], kitAcessorio: [], manualUsuario: [] });
     setModeloDocs({});
     setItemFotos({});
 
     setMensagem("");
-  };
-
-  const criarMasterCadastro = async (payload: Master): Promise<Master> => {
-    const ean = norm(payload?.ean);
-    const modeloReferencia = norm(payload?.modeloReferencia);
-    const fabricante = upper(payload?.fabricante);
-
-    const dto: CreateProductDTO = {
-      ean,
-      modeloRef: modeloReferencia,
-      marca: fabricante,
-      nfs: [],
-      modelos: [],
-      embalagem: [],
-      acessorios: [],
-      estetica: [],
-      funcional: [],
-      funcionalidade: [],
-      fotos: [],
-      manualUrl: undefined,
-    };
-
-    const created = await ProductApiService.createProduct(dto);
-    const persisted = await ProductApiService.getProductByEan(ean);
-
-    if (persisted) {
-      const registroMapeado = mapApiProductToRegistro(persisted, usuarioAtual);
-      upsertRegistroCache(registroMapeado);
-      const masterSalvo = toMasterFromRegistro(registroMapeado, usuarioAtual);
-      upsertMasterCache(masterSalvo);
-      return masterSalvo;
-    }
-
-    const masterSalvo: Master = {
-      id: created?.id || undefined,
-      ean,
-      modeloReferencia,
-      fabricante,
-      createdAt: payload?.createdAt || agoraBR(),
-      createdBy: payload?.createdBy || usuarioAtual,
-    };
-
-    upsertMasterCache(masterSalvo);
-    return masterSalvo;
-  };
-
-  const editarMasterCadastro = async (payload: { id?: string; originalEan: string; next: Master }) => {
-    const id = norm(payload?.id) || undefined;
-    const originalEan = norm(payload?.originalEan);
-    const next: Master = {
-      ...payload.next,
-      id: norm(payload?.next?.id) || id,
-      ean: norm(payload?.next?.ean),
-      modeloReferencia: norm(payload?.next?.modeloReferencia),
-      fabricante: upper(payload?.next?.fabricante),
-    };
-
-    await ProductApiService.updateProductMaster({
-      id,
-      originalEan,
-      ean: next.ean,
-      modeloRef: next.modeloReferencia,
-      marca: next.fabricante,
-    });
-
-    const matchTarget = (value: { id?: any; ean?: any } | null | undefined) => {
-      if (!value) return false;
-      if (id) return norm(value?.id) === id;
-      return upper(value?.ean) === upper(originalEan);
-    };
-
-    setEansCad((prev) =>
-      prev.map((item) =>
-        matchTarget(item)
-          ? {
-              ...item,
-              ...next,
-              id: next.id || item.id,
-            }
-          : item
-      )
-    );
-
-    setRegistros((prev) =>
-      prev.map((item) =>
-        matchTarget(item)
-          ? {
-              ...item,
-              id: next.id || item.id,
-              ean: next.ean,
-              modeloReferencia: next.modeloReferencia,
-              fabricante: next.fabricante,
-            }
-          : item
-      )
-    );
-
-    setMaster((prev) =>
-      matchTarget(prev)
-        ? {
-            ...prev,
-            ...next,
-            id: next.id || prev.id,
-          }
-        : prev
-    );
-  };
-
-  const excluirMasterCadastro = async (payload: { id?: string; ean?: string }) => {
-    const id = norm(payload?.id);
-    const ean = norm(payload?.ean);
-    if (!id && !ean) return;
-
-    try {
-      if (id) {
-        await ProductApiService.deleteProductById(id);
-      } else {
-        await ProductApiService.deleteProductByEan(ean);
-      }
-    } catch (error: any) {
-      const message = String(error?.message || "");
-      if (!/nao encontrado|não encontrado|not found/i.test(message)) {
-        throw error;
-      }
-    }
-
-    const matchTarget = (value: { id?: any; ean?: any } | null | undefined) => {
-      if (!value) return false;
-      if (id) return norm(value?.id) === id;
-      return upper(value?.ean) === upper(ean);
-    };
-
-    setEansCad((prev) => prev.filter((item) => !matchTarget(item)));
-    setRegistros((prev) => prev.filter((item) => !matchTarget(item)));
-
-    if (matchTarget(master)) {
-      limpar();
-    }
   };
 
   const btnBase = "inline-flex items-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold border transition";
@@ -3273,7 +2343,7 @@ const CadastroNF_EAN_Modelo = () => {
                     value={modeloAtual}
                     onChange={(e) => {
                       setModeloAtual(e.target.value);
-                      if (!linhaAtual) setLinhaAtual(detectarLinhaDoModeloFabricante(e.target.value, linhasConhecidas));
+                      if (!linhaAtual) setLinhaAtual(detectarLinhaDoModeloFabricante(e.target.value));
                       setMensagemModelo("");
                     }}
                     className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -3344,7 +2414,7 @@ const CadastroNF_EAN_Modelo = () => {
                     )}
                     {modelosFabricante.map((m, i) => {
                       const sel = m.id === modeloSelecionadoId;
-                      const docs = modeloDocs[m.id] || createEmptyModeloDocs();
+                      const docs = modeloDocs[m.id] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
                       return (
                         <tr
                           key={m.id}
@@ -3559,22 +2629,10 @@ const CadastroNF_EAN_Modelo = () => {
             open={mostrarLookupEAN}
             onClose={() => setMostrarLookupEAN(false)}
             eans={eansCad}
-            registros={registros}
-            usuarioAtual={usuarioAtual}
-            onAdd={criarMasterCadastro}
-            onEdit={editarMasterCadastro}
-            onDelete={excluirMasterCadastro}
-            onSelect={(m, options) => {
-              const updateCurrentRecord = !!options?.updateCurrentRecord;
-              setMaster({
-                ...m,
-                id: updateCurrentRecord ? m.id : undefined,
-              });
-              setAllowSaveIntoCurrentRecord(updateCurrentRecord);
+            onAdd={upsertMasterCache}
+            onSelect={(m) => {
+              setMaster(m);
               setMensagem("");
-              if (!updateCurrentRecord) {
-                setMensagem("Cadastro base carregado. Salvar criara um novo registro.");
-              }
               setMostrarLookupEAN(false);
             }}
           />
@@ -3604,9 +2662,6 @@ const CadastroNF_EAN_Modelo = () => {
           <ModalRevendasClientes
             open={mostrarLookupRevenda}
             onClose={() => setMostrarLookupRevenda(false)}
-            options={revendasClientes}
-            loading={revendasLoading}
-            error={revendasErro}
             onSelect={(nome) => {
               setRevendaNFAtual(nome);
               setMostrarLookupRevenda(false);
@@ -3634,7 +2689,7 @@ const CadastroNF_EAN_Modelo = () => {
             onAdd={() => addItemGenerico(formEmbalagem, setFormEmbalagem, setEmbalagens, setMensagemEmbalagem)}
             lista={embalagens}
             onRemover={(id) => setEmbalagens((p) => p.filter((x) => x.id !== id))}
-            sugestoes={sugestoesEmbalagem}
+            sugestoes={EMBALAGENS_PADRAO}
           />
 
           <ModalPecas
@@ -3657,7 +2712,7 @@ const CadastroNF_EAN_Modelo = () => {
             onAdd={() => addItemGenerico(formAcessorio, setFormAcessorio, setAcessorios, setMensagemAcessorio)}
             lista={acessorios}
             onRemover={(id) => setAcessorios((p) => p.filter((x) => x.id !== id))}
-            sugestoes={sugestoesAcessorios}
+            sugestoes={ACESSORIOS_PADRAO}
           />
 
           <ModalPecas
@@ -3683,7 +2738,7 @@ const CadastroNF_EAN_Modelo = () => {
             }
             lista={esteticas.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
             onRemover={(id) => setEsteticas((p) => p.filter((x) => x.id !== id))}
-            sugestoes={sugestoesEsteticas}
+            sugestoes={ESTETICAS_PADRAO}
           />
 
           <ModalPecas
@@ -3712,7 +2767,7 @@ const CadastroNF_EAN_Modelo = () => {
             }
             lista={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
             onRemover={(id) => setFuncionaisPeca((p) => p.filter((x) => x.id !== id))}
-            sugestoes={sugestoesFuncionais}
+            sugestoes={PECAS_FUNCIONAIS_PADRAO}
           />
 
           <ModalPecas
@@ -3734,7 +2789,7 @@ const CadastroNF_EAN_Modelo = () => {
             onAdd={addFuncionalidade}
             lista={funcionalidades}
             onRemover={(id) => setFuncionalidades((p) => p.filter((x) => x.id !== id))}
-            sugestoes={sugestoesFuncionalidades}
+            sugestoes={FUNCS_PADRAO}
           />
 
           <ModalArquivos
@@ -3751,10 +2806,7 @@ const CadastroNF_EAN_Modelo = () => {
             open={mostrarModalSucesso}
             title="Produto salvo com sucesso"
             subtitle="Cadastro concluido"
-            onClose={() => {
-              setMostrarModalSucesso(false);
-              setResumoSucesso(null);
-            }}
+            onClose={() => setMostrarModalSucesso(false)}
             maxW="max-w-md"
           >
             <div className="space-y-4">
@@ -3762,80 +2814,23 @@ const CadastroNF_EAN_Modelo = () => {
 
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-[11px] text-slate-700 space-y-1">
                 <div>
-                  <span className="font-semibold">EAN / GTIN:</span> {resumoSucesso?.ean || "-"}
+                  <span className="font-semibold">EAN / GTIN:</span> {master.ean || "-"}
                 </div>
                 <div>
-                  <span className="font-semibold">Modelo Referencia:</span> {resumoSucesso?.modeloReferencia || "-"}
+                  <span className="font-semibold">Modelo Referencia:</span> {master.modeloReferencia || "-"}
                 </div>
                 <div>
-                  <span className="font-semibold">Fabricante:</span> {resumoSucesso?.fabricante || "-"}
+                  <span className="font-semibold">Fabricante:</span> {master.fabricante || "-"}
                 </div>
               </div>
 
               <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={() => {
-                    setMostrarModalSucesso(false);
-                    setResumoSucesso(null);
-                  }}
+                  onClick={() => setMostrarModalSucesso(false)}
                   className="h-9 px-3 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800"
                 >
                   OK
-                </button>
-              </div>
-            </div>
-          </ModalShell>
-
-          <ModalShell
-            open={mostrarModalAvisoNovoCadastro}
-            title="Revise a NF deste novo cadastro"
-            subtitle="Este EAN foi carregado como base e nao deve sobrescrever o cadastro anterior."
-            onClose={() => setMostrarModalAvisoNovoCadastro(false)}
-            maxW="max-w-lg"
-            showCloseButton={false}
-          >
-            <div className="space-y-4">
-              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-[12px] text-slate-700 space-y-2">
-                <div>
-                  Para salvar como <span className="font-semibold">novo cadastro</span>, revise e altere os
-                  <span className="font-semibold"> Códigos NF</span> antes de tentar salvar novamente.
-                </div>
-                <div>
-                  Se a NF continuar igual ao cadastro-base, voce pode acabar reaproveitando informacoes que pertencem ao item anterior.
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700 space-y-2">
-                <div className="font-semibold text-slate-900">NF(s) atual(is)</div>
-                {codigosNfResumo.length ? (
-                  <div className="space-y-1">
-                    {codigosNfResumo.map((item, index) => (
-                      <div key={`${item}-${index}`}>{item}</div>
-                    ))}
-                  </div>
-                ) : (
-                  <div>Nenhum Codigo NF informado no momento.</div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMostrarModalAvisoNovoCadastro(false);
-                    setMostrarPopupNF(true);
-                  }}
-                  className="h-9 px-3 rounded-xl text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800"
-                >
-                  IR PARA CODIGOS NF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMostrarModalAvisoNovoCadastro(false)}
-                  className="h-9 px-3 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                >
-                  FECHAR
                 </button>
               </div>
             </div>

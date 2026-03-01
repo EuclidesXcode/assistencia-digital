@@ -1,13 +1,14 @@
 import { StorageError } from '@supabase/storage-js';
-import { supabase } from './supabase';
-import { v4 as uuidv4 } from 'uuid';
 
-export const DEFAULT_BUCKET = 'evidences';
+export const DEFAULT_BUCKET =
+    process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ||
+    process.env.NEXT_PUBLIC_SUPABASE_BUCKET ||
+    'evidences';
 
 export interface UploadResult {
     path: string;
     url: string;
-    error: StorageError | null;
+    error: StorageError | Error | null;
 }
 
 /**
@@ -15,21 +16,35 @@ export interface UploadResult {
  */
 export async function uploadFile(
     file: File,
-    bucket: string = DEFAULT_BUCKET,
+    bucket?: string,
     folder: string = 'general'
 ): Promise<UploadResult> {
     try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${uuidv4()}.${fileExt}`;
-        const filePath = `${folder}/${fileName}`;
+        const resolvedBucket = bucket || DEFAULT_BUCKET;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', resolvedBucket);
+        formData.append('folder', folder);
 
-        const { error } = await supabase.storage.from(bucket).upload(filePath, file);
+        const response = await fetch('/api/storage/upload', {
+            method: 'POST',
+            body: formData,
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            const message =
+                payload?.error ||
+                `Falha ao fazer upload para o bucket "${resolvedBucket}".`;
+            throw new Error(message);
+        }
 
-        const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
-
-        return { path: filePath, url: publicUrlData.publicUrl, error: null };
+        const payload = await response.json();
+        return {
+            path: String(payload?.path || ''),
+            url: String(payload?.url || ''),
+            error: null
+        };
     } catch (error) {
         console.error('Error uploading file:', error);
         return { path: '', url: '', error: error as StorageError };
@@ -37,16 +52,16 @@ export async function uploadFile(
 }
 
 /**
- * Uploads a file to the 'evidences' bucket.
+ * Uploads a file to the configured default bucket.
  */
 export function uploadEvidence(file: File, folder: string = 'general'): Promise<UploadResult> {
-    return uploadFile(file, 'evidences', folder);
+    return uploadFile(file, DEFAULT_BUCKET, folder);
 }
 
 /**
- * Uploads a product image or manual to the 'evidences' bucket.
+ * Uploads a product image or manual to the configured default bucket.
  */
 export function uploadProductFile(file: File, type: 'image' | 'manual'): Promise<UploadResult> {
     const folder = type === 'manual' ? 'produtos/manuais' : 'produtos/imagens';
-    return uploadFile(file, 'evidences', folder);
+    return uploadFile(file, DEFAULT_BUCKET, folder);
 }

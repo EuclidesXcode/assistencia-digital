@@ -1,24 +1,34 @@
 // Pre-Analise Models
 
+export type PreAnaliseStatus = 'pendente' | 'em_analise' | 'aprovado' | 'reprovado';
+
 export interface PreAnalise {
   id: string;
   codigo: string;
   modelo: string;
   ean: string;
-  status: 'pendente' | 'em_analise' | 'aprovado' | 'reprovado';
+  status: PreAnaliseStatus;
   analisadoPor?: string;
   dataAnalise?: string;
 }
 
 export interface CreatePreAnaliseDTO {
+  produtoId: string;
   codigo: string;
   modelo: string;
   ean: string;
+  codigoNF?: string;
+  modeloRef?: string;
+  gtin?: string;
+  nfReceb?: string;
+  recebidoPor?: string;
+  respostas?: Record<string, unknown>;
 }
 
 export interface UpdatePreAnaliseDTO {
-  status?: 'pendente' | 'em_analise' | 'aprovado' | 'reprovado';
+  status?: PreAnaliseStatus;
   analisadoPor?: string;
+  respostas?: Record<string, unknown>;
 }
 
 export interface PreAnaliseResult {
@@ -31,10 +41,16 @@ export interface PreAnaliseResult {
 }
 export interface PreAnaliseProduto {
   id: string;
+  produtoId: string;
   data: string;
   recebidoPor: string;
   codigoNF: string;
   modeloRef: string;
   gtin: string;
   nfReceb: string;
+  status: PreAnaliseStatus;
+  respostas?: Record<string, unknown>;
+  analisadoPor?: string;
+  dataAnalise?: string;
+  updatedAt?: string;
 }

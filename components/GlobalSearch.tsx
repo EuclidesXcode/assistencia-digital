@@ -48,6 +48,15 @@ function buildHref(page: PageKey, q: string) {
     return `${base}?${params.toString()}`;
 }
 
+function buildRecebimentoHref(rec: any, q: string) {
+    const base = rec?.tipoRecebimento === "sem_nf" ? "/home/recebimento/sem-nf" : "/home/recebimento/com-nf";
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (rec?.loteNumero != null) params.set("lote", String(rec.loteNumero));
+    const suffix = params.toString();
+    return suffix ? `${base}?${suffix}` : base;
+}
+
 export default function GlobalSearch() {
     const [query, setQuery] = useState("");
     const [isOpen, setIsOpen] = useState(false);
@@ -127,26 +136,33 @@ export default function GlobalSearch() {
                             rec?.id,
                             rec?.nf,
                             rec?.codigoNF,
+                            rec?.codigoUnico,
+                            rec?.numeroSerie,
                             rec?.fornecedor,
+                            rec?.modeloReferencia,
                             rec?.modeloFabricante,
                             rec?.ean,
                             rec?.status,
-                            rec?.data,
-                            rec?.analisadoPor,
+                            rec?.dataRecebimento,
+                            rec?.recebidoPor,
+                            rec?.loteNumero,
+                            rec?.tipoRecebimento,
                         ];
                         const searchText = fields.map(safeStr).join(" ").toLowerCase();
                         if (!searchText.includes(q)) continue;
 
                         const match =
-                            rec?.modeloFabricante ||
-                            (rec?.nf ? `NF ${safeStr(rec.nf)}` : null) ||
+                            rec?.codigoUnico ||
+                            rec?.modeloReferencia ||
+                            (rec?.codigoNF ? `NF ${safeStr(rec.codigoNF)}` : null) ||
                             rec?.id ||
                             "Recebimento";
 
                         const subtitleParts = [
-                            rec?.fornecedor ? safeStr(rec.fornecedor) : null,
+                            rec?.loteNumero != null ? `Lote ${safeStr(rec.loteNumero)}` : null,
+                            rec?.tipoRecebimento === "sem_nf" ? "Sem NF" : "Com NF",
                             rec?.ean ? `EAN ${safeStr(rec.ean)}` : null,
-                            rec?.data ? safeStr(rec.data) : null,
+                            rec?.recebidoPor ? `Por ${safeStr(rec.recebidoPor)}` : null,
                         ].filter(Boolean);
 
                         out.push({
@@ -156,7 +172,7 @@ export default function GlobalSearch() {
                             subtitle: subtitleParts.length ? subtitleParts.join(" • ") : undefined,
                             page: "recebimento",
                             pageName: PAGE_META.recebimento.name,
-                            href: buildHref("recebimento", q),
+                            href: buildRecebimentoHref(rec, q),
                             icon: PAGE_META.recebimento.icon,
                             iconColor: PAGE_META.recebimento.iconColor,
                         });

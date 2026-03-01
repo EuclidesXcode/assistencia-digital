@@ -8,6 +8,19 @@ type ProductSearchResponse = {
   totalPages: number;
 };
 
+type UpdateProductMasterDTO = {
+  id?: string;
+  originalEan?: string;
+  ean: string;
+  modeloRef: string;
+  marca: string;
+};
+
+type UpdateProductDTO = CreateProductDTO & {
+  id?: string;
+  originalEan?: string;
+};
+
 async function parseErrorMessage(response: Response): Promise<string> {
   const text = await response.text();
 
@@ -41,7 +54,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
 }
 
 export class ProductApiService {
-  static async createProduct(data: CreateProductDTO): Promise<void> {
+  static async createProduct(data: CreateProductDTO): Promise<{ id: string | null }> {
     const response = await fetch('/api/products', {
       method: 'POST',
       headers: {
@@ -53,6 +66,13 @@ export class ProductApiService {
     if (!response.ok) {
       const message = await parseErrorMessage(response);
       throw new Error(message || 'Falha ao cadastrar produto.');
+    }
+
+    try {
+      const payload = await response.json();
+      return { id: payload?.id ? String(payload.id) : null };
+    } catch {
+      return { id: null };
     }
   }
 
@@ -130,5 +150,87 @@ export class ProductApiService {
     }
 
     return response.json();
+  }
+
+  static async updateProductMaster(data: UpdateProductMasterDTO): Promise<void> {
+    const payload = {
+      id: String(data?.id || '').trim(),
+      originalEan: String(data?.originalEan || '').trim(),
+      ean: String(data?.ean || '').trim(),
+      modeloRef: String(data?.modeloRef || '').trim(),
+      marca: String(data?.marca || '').trim()
+    };
+
+    const response = await fetch('/api/products', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao alterar produto.');
+    }
+  }
+
+  static async updateProduct(data: UpdateProductDTO): Promise<{ id: string | null; ean: string | null }> {
+    const response = await fetch('/api/products', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao atualizar produto.');
+    }
+
+    try {
+      const payload = await response.json();
+      return {
+        id: payload?.id ? String(payload.id) : null,
+        ean: payload?.ean ? String(payload.ean) : null
+      };
+    } catch {
+      return { id: null, ean: null };
+    }
+  }
+
+  static async deleteProductByEan(ean: string): Promise<void> {
+    const value = String(ean || '').trim();
+    if (!value) {
+      throw new Error('EAN obrigatorio para exclusao.');
+    }
+
+    const params = new URLSearchParams({ ean: value });
+    const response = await fetch(`/api/products?${params.toString()}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao excluir produto.');
+    }
+  }
+
+  static async deleteProductById(id: string): Promise<void> {
+    const value = String(id || '').trim();
+    if (!value) {
+      throw new Error('ID obrigatorio para exclusao.');
+    }
+
+    const params = new URLSearchParams({ id: value });
+    const response = await fetch(`/api/products?${params.toString()}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao excluir produto.');
+    }
   }
 }

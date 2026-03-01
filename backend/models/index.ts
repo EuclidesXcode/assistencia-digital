@@ -8,4 +8,5 @@ export * from './Orcamento';
 export * from './Recebimento';
 export * from './NfeXml';
 export * from './PreAnalise';
+export * from './AnaliseTecnica';
 export * from './UserManagement';

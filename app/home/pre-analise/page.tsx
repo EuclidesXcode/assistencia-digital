@@ -1,63 +1,104 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
-import Link from "next/link";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ClipboardCheck, CheckCircle2, AlertCircle, Clock, Search, Filter, History, ChevronRight, Barcode, Calendar } from "lucide-react";
-import { Button } from "@/components/Button";
+import { AlertCircle, Barcode, CheckCircle2, ClipboardCheck, Clock, History, Search } from "lucide-react";
+import { PreAnaliseProduto } from "@/backend/models/PreAnalise";
+import { ModalShell } from "@/app/home/produtos/components/UIComponents";
 
-interface Produto {
-  id: string;
-  data: string;
-  recebidoPor: string;
-  codigoNF: string;
-  modeloRef: string;
-  gtin: string;
-  nfReceb: string;
+const sectionCardClass = "bg-white rounded-2xl border border-slate-200 shadow-sm p-4 md:p-5 space-y-4";
+const panelClass = "rounded-2xl border border-slate-200 overflow-x-auto bg-white";
+
+function getSnapshot(item: PreAnaliseProduto) {
+  const respostas = item?.respostas && typeof item.respostas === "object" ? item.respostas : {};
+  const snapshot = (respostas as Record<string, unknown>)?.snapshot;
+  return snapshot && typeof snapshot === "object" ? (snapshot as Record<string, unknown>) : {};
+}
+
+function countList(item: PreAnaliseProduto, key: string) {
+  const value = getSnapshot(item)[key];
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function resumoItens(item: PreAnaliseProduto) {
+  return `EMB ${countList(item, "embalagem")} · ACE ${countList(item, "acessorios")} · EST ${countList(item, "estetica")} · FUN ${countList(item, "funcional")} · FLD ${countList(item, "funcionalidade")}`;
+}
+
+function statusClass(status: PreAnaliseProduto["status"]) {
+  if (status === "em_analise") return "bg-sky-50 text-sky-700 border-sky-200";
+  if (status === "aprovado") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "reprovado") return "bg-rose-50 text-rose-700 border-rose-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function statusLabel(status: PreAnaliseProduto["status"]) {
+  if (status === "em_analise") return "Em analise";
+  if (status === "aprovado") return "Aprovado";
+  if (status === "reprovado") return "Reprovado";
+  return "Pendente";
+}
+
+function getUserName() {
+  if (typeof window === "undefined") return "SISTEMA";
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return "SISTEMA";
+    const user = JSON.parse(raw);
+    return String(user?.name || user?.email || "SISTEMA").trim().toUpperCase() || "SISTEMA";
+  } catch {
+    return "SISTEMA";
+  }
 }
 
 function PreAnaliseContent() {
-  const [pendentes, setPendentes] = useState<Produto[]>([]);
-  const [resultados, setResultados] = useState<Produto[]>([]);
+  const [fila, setFila] = useState<PreAnaliseProduto[]>([]);
+  const [historico, setHistorico] = useState<PreAnaliseProduto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [finalizacaoPendente, setFinalizacaoPendente] = useState<{
+    item: PreAnaliseProduto;
+    resultado: "aprovado" | "reprovado";
+  } | null>(null);
+  const [observacoesModal, setObservacoesModal] = useState("");
+  const usuarioAtual = useMemo(() => getUserName(), []);
 
   const searchParams = useSearchParams();
   const q = (searchParams.get("q") || "").trim().toLowerCase();
 
-  const filteredPendentes = useMemo(() => {
-    if (!q) return pendentes;
-    return pendentes.filter(p =>
-      p.id.toLowerCase().includes(q) ||
-      p.codigoNF.toLowerCase().includes(q) ||
-      p.modeloRef.toLowerCase().includes(q) ||
-      p.gtin.toLowerCase().includes(q) ||
-      p.nfReceb.toLowerCase().includes(q)
+  const filteredFila = useMemo(() => {
+    if (!q) return fila;
+    return fila.filter((item) =>
+      item.id.toLowerCase().includes(q) ||
+      item.produtoId.toLowerCase().includes(q) ||
+      item.codigoNF.toLowerCase().includes(q) ||
+      item.modeloRef.toLowerCase().includes(q) ||
+      item.gtin.toLowerCase().includes(q)
     );
-  }, [pendentes, q]);
+  }, [fila, q]);
 
-  const filteredResultados = useMemo(() => {
-    if (!q) return resultados;
-    return resultados.filter(p =>
-      p.id.toLowerCase().includes(q) ||
-      p.codigoNF.toLowerCase().includes(q) ||
-      p.modeloRef.toLowerCase().includes(q) ||
-      p.gtin.toLowerCase().includes(q) ||
-      p.nfReceb.toLowerCase().includes(q)
+  const filteredHistorico = useMemo(() => {
+    if (!q) return historico;
+    return historico.filter((item) =>
+      item.id.toLowerCase().includes(q) ||
+      item.produtoId.toLowerCase().includes(q) ||
+      item.codigoNF.toLowerCase().includes(q) ||
+      item.modeloRef.toLowerCase().includes(q) ||
+      item.gtin.toLowerCase().includes(q)
     );
-  }, [resultados, q]);
+  }, [historico, q]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const { PreAnaliseService } = await import('@/backend/services/preAnaliseService');
-        const [pend, res] = await Promise.all([
+        const { PreAnaliseService } = await import("@/backend/services/preAnaliseService");
+        const [pendentes, resultados] = await Promise.all([
           PreAnaliseService.getPendentes(),
-          PreAnaliseService.getResultados()
+          PreAnaliseService.getResultados(),
         ]);
-        setPendentes(pend);
-        setResultados(res);
+        setFila(pendentes);
+        setHistorico(resultados);
       } catch (error) {
-        console.error('Error loading pré-análise data:', error);
+        console.error("Error loading pre-analise data:", error);
       } finally {
         setLoading(false);
       }
@@ -65,223 +106,221 @@ function PreAnaliseContent() {
     loadData();
   }, []);
 
-  const efetuar = async (item: Produto) => {
+  const iniciar = async (item: PreAnaliseProduto) => {
     try {
-      const { PreAnaliseService } = await import('@/backend/services/preAnaliseService');
-      await PreAnaliseService.efetuarPreAnalise(item.id);
-      setPendentes((p) => p.filter((x) => x.id !== item.id));
-      setResultados((r) => [item, ...r]);
+      setBusyId(item.id);
+      const { PreAnaliseService } = await import("@/backend/services/preAnaliseService");
+      const updated = await PreAnaliseService.iniciarPreAnalise(item.id, usuarioAtual);
+      setFila((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
     } catch (error) {
-      console.error('Error processing pré-análise:', error);
+      console.error("Error starting pre-analise:", error);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const abrirModalFinalizacao = (item: PreAnaliseProduto, resultado: "aprovado" | "reprovado") => {
+    const respostas = item?.respostas && typeof item.respostas === "object" ? item.respostas : {};
+    const workflow = (respostas as Record<string, unknown>)?.workflow;
+    const observacoesAtuais =
+      workflow && typeof workflow === "object" ? String((workflow as Record<string, unknown>)?.observacoes || "") : "";
+    setObservacoesModal(observacoesAtuais);
+    setFinalizacaoPendente({ item, resultado });
+  };
+
+  const fecharModalFinalizacao = () => {
+    if (finalizacaoPendente && busyId === finalizacaoPendente.item.id) return;
+    setFinalizacaoPendente(null);
+    setObservacoesModal("");
+  };
+
+  const confirmarFinalizacao = async () => {
+    if (!finalizacaoPendente) return;
+    const { item, resultado } = finalizacaoPendente;
+    try {
+      setBusyId(item.id);
+      const { PreAnaliseService } = await import("@/backend/services/preAnaliseService");
+      const updated = await PreAnaliseService.finalizarPreAnalise({
+        preAnaliseId: item.id,
+        usuario: usuarioAtual,
+        resultado,
+        respostasAdicionais: { workflow: { observacoes: observacoesModal } },
+      });
+      setFila((prev) => prev.filter((row) => row.id !== updated.id));
+      setHistorico((prev) => [updated, ...prev]);
+      setFinalizacaoPendente(null);
+      setObservacoesModal("");
+    } catch (error) {
+      console.error("Error finishing pre-analise:", error);
+    } finally {
+      setBusyId(null);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="h-12 w-12 rounded-full border-2 border-slate-200 border-t-sky-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32">
-      <header className="sticky top-0 z-30 backdrop-blur-xl bg-white/80 border-b border-slate-200/50 px-8 py-4 flex items-center justify-between shadow-sm transition-all duration-200">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Pré-Análise Técnica</h1>
-          <p className="text-slate-500 font-medium text-sm">Triagem inicial e validação de produtos recebidos.</p>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto p-8 space-y-8">
-        <section className="bg-white p-0 md:p-8 rounded-[2rem] shadow-xl border border-slate-100 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50 rounded-full blur-3xl opacity-50 -mr-16 -mt-16 pointer-events-none" />
-          <div className="p-6 md:p-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 relative z-10">
+    <div className="min-h-screen bg-slate-50">
+      <div className="w-full min-w-0 px-4 md:px-6 py-4">
+        <div className="mx-auto w-full max-w-[1400px] min-w-0 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-                <AlertCircle size={20} className="text-amber-500" />
-                Aguardando Aprovação
-              </h3>
-              <p className="text-sm text-slate-400">Produtos na fila de triagem (FIFO).</p>
+              <h1 className="text-lg font-bold text-slate-800">Pre-Analise Tecnica</h1>
+              <p className="text-[12px] text-slate-600">Fluxo real persistido em banco, vinculado ao produto e encaminhando a Analise Tecnica.</p>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-full px-4 py-2 flex items-center gap-2 text-xs font-mono text-slate-500">
-              <Filter size={14} />
-              <span>PENDENTES: <strong className="text-slate-900">{filteredPendentes.length}</strong></span>
+            <div className="flex flex-wrap gap-2">
+              <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-amber-200 bg-amber-50 text-[11px] font-semibold text-amber-700"><AlertCircle size={16} />PENDENTES: {filteredFila.filter((item) => item.status === "pendente").length}</div>
+              <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-sky-200 bg-sky-50 text-[11px] font-semibold text-sky-700"><Clock size={16} />EM ANALISE: {filteredFila.filter((item) => item.status === "em_analise").length}</div>
+              <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-emerald-200 bg-emerald-50 text-[11px] font-semibold text-emerald-700"><History size={16} />HISTORICO: {filteredHistorico.length}</div>
+              <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-600"><Search size={16} />{q ? `FILTRO: ${q}` : "SEM FILTRO"}</div>
             </div>
           </div>
 
-          <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-100 relative z-10">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
-                <tr>
-                  <th className="p-4 border-b border-slate-200">Data Rec.</th>
-                  <th className="p-4 border-b border-slate-200">Recebido Por</th>
-                  <th className="p-4 border-b border-slate-200">ID Produto</th>
-                  <th className="p-4 border-b border-slate-200">Nota Fiscal</th>
-                  <th className="p-4 border-b border-slate-200">Modelo / Ref.</th>
-                  <th className="p-4 border-b border-slate-200">Status</th>
-                  <th className="p-4 border-b border-slate-200 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredPendentes.map((p) => {
-                  const isFirstInQueue = pendentes[0]?.id === p.id;
-                  return (
-                    <tr key={p.id} className={`group hover:bg-slate-50 transition-colors ${isFirstInQueue ? 'bg-amber-50/50' : ''}`}>
-                      <td className="p-4 font-mono text-slate-500">{p.data}</td>
-                      <td className="p-4 text-slate-500">{p.recebidoPor}</td>
-                      <td className="p-4 font-mono text-slate-500">{p.id}</td>
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-700">{p.nfReceb || '-'}</span>
-                          <span className="text-[10px] text-slate-400">COD: {p.codigoNF}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-800">{p.modeloRef}</span>
-                          <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1"><Barcode size={10} /> {p.gtin}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-50 text-amber-600 border border-amber-100">
-                          {isFirstInQueue ? 'Próximo' : 'Aguardando'}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <Button
-                          onClick={() => efetuar(p)}
-                          disabled={!isFirstInQueue}
-                          size="sm"
-                          className={`rounded-full px-4 text-xs font-bold shadow-md transition-all ${isFirstInQueue ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-105' : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'}`}
-                        >
-                          {isFirstInQueue ? 'Iniciar Análise' : 'Aguarde'}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {pendentes.length === 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4"><div className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">Fila Atual</div><div className="mt-1 text-2xl font-bold text-slate-800">{filteredFila.length}</div><div className="mt-1 text-[12px] text-slate-500">Itens aguardando acao desta etapa.</div></div>
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4"><div className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">Proximo da Fila</div><div className="mt-1 text-sm font-semibold text-slate-800">{filteredFila[0]?.modeloRef || "-"}</div><div className="mt-1 text-[12px] text-slate-500">{filteredFila[0]?.codigoNF || "Nenhum item pendente."}</div></div>
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4"><div className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">Concluidos</div><div className="mt-1 text-2xl font-bold text-slate-800">{filteredHistorico.length}</div><div className="mt-1 text-[12px] text-slate-500">Registros aprovados ou reprovados.</div></div>
+          </div>
+
+          <section className={sectionCardClass}>
+            <div className="flex items-start justify-between gap-3">
+              <div><div className="inline-flex items-center gap-2 text-[12px] font-semibold text-slate-800"><AlertCircle size={16} className="text-amber-500" />Fila de Pre-Analise</div><p className="mt-1 text-[11px] text-slate-500">Cadastro alimentando a etapa com `produto_id` e snapshot dos itens.</p></div>
+            </div>
+            <div className={panelClass}>
+              <table className="w-full border-collapse text-[11px] min-w-[1080px]">
+                <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
                   <tr>
-                    <td colSpan={7} className="p-12 text-center text-slate-400 italic">
-                      Nenhum produto pendente de pré-análise no momento.
-                    </td>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">ID Produto</th>
+                    <th className="px-3 py-2 text-left">Codigo NF</th>
+                    <th className="px-3 py-2 text-left">Modelo</th>
+                    <th className="px-3 py-2 text-left">GTIN</th>
+                    <th className="px-3 py-2 text-left">Resumo</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-right">Acao</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {!filteredFila.length && (
+                    <tr><td colSpan={8} className="px-3 py-4 text-center text-[11px] text-slate-400">Nenhum item pendente de pre-analise.</td></tr>
+                  )}
+                  {filteredFila.map((item, index) => {
+                    const first = filteredFila[0]?.id === item.id;
+                    return (
+                      <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                        <td className="px-3 py-3">{index + 1}</td>
+                        <td className="px-3 py-3 font-mono text-slate-700">{item.produtoId}</td>
+                        <td className="px-3 py-3 font-semibold text-slate-800">{item.codigoNF || "-"}</td>
+                        <td className="px-3 py-3 text-slate-700"><div className="font-semibold">{item.modeloRef || "-"}</div><div className="text-[10px] text-slate-500">{item.recebidoPor || "-"}</div></td>
+                        <td className="px-3 py-3"><div className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-mono"><Barcode size={12} />{item.gtin || "-"}</div></td>
+                        <td className="px-3 py-3 text-slate-600">{resumoItens(item)}</td>
+                        <td className="px-3 py-3"><span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
+                        <td className="px-3 py-3 text-right">
+                          {item.status === "pendente" ? (
+                            <button type="button" onClick={() => iniciar(item)} disabled={!first || busyId === item.id} className={`inline-flex items-center justify-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold ${first && busyId !== item.id ? "bg-slate-900 text-white hover:bg-slate-800" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}><ClipboardCheck size={16} />{busyId === item.id ? "PROCESSANDO" : "INICIAR"}</button>
+                          ) : (
+                            <div className="inline-flex gap-2">
+                              <button type="button" onClick={() => abrirModalFinalizacao(item, "reprovado")} disabled={!first || busyId === item.id} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl text-[11px] font-semibold ${first && busyId !== item.id ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}>REPROVAR</button>
+                              <button type="button" onClick={() => abrirModalFinalizacao(item, "aprovado")} disabled={!first || busyId === item.id} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl text-[11px] font-semibold ${first && busyId !== item.id ? "bg-slate-900 text-white hover:bg-slate-800" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}>APROVAR</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-          <div className="lg:hidden space-y-4 px-6 md:px-0">
-            {filteredPendentes.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400">
-                {pendentes.length === 0 ? "Nenhum produto pendente." : "Nenhum resultado encontrado."}
-              </div>
-            ) : (
-              filteredPendentes.map((p) => {
-                const isFirstInQueue = pendentes[0]?.id === p.id;
-                return (
-                  <div key={p.id} className={`p-5 rounded-2xl border relative transition-all ${isFirstInQueue ? 'bg-white border-amber-200 shadow-md ring-1 ring-amber-100' : 'bg-slate-50 border-slate-100 opacity-80'}`}>
-                    {isFirstInQueue && (
-                      <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm animate-bounce">
-                        PRÓXIMO
-                      </div>
-                    )}
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1 py-0.5 rounded border border-slate-200">{p.id}</span>
-                        <h4 className="font-bold text-slate-900 mt-1">{p.modeloRef}</h4>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">Pendente</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 mb-4">
-                      <div className="flex items-center gap-1"><Calendar size={12} /> {p.data}</div>
-                      <div className="flex items-center gap-1"><Barcode size={12} /> {p.codigoNF}</div>
-                    </div>
-                    <Button
-                      onClick={() => efetuar(p)}
-                      disabled={!isFirstInQueue}
-                      className={`w-full rounded-xl py-3 font-bold text-xs ${isFirstInQueue ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-400'}`}
-                    >
-                      {isFirstInQueue ? 'INICIAR ANÁLISE' : 'AGUARDANDO VEZ'}
-                    </Button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </section>
-
-        <section className="bg-white p-0 md:p-8 rounded-[2rem] shadow-xl border border-slate-100">
-          <div className="p-6 md:p-0 mb-6">
-            <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-              <History size={20} className="text-emerald-500" />
-              Histórico Recente
-            </h3>
-            <p className="text-sm text-slate-400">Últimas pré-análises realizadas.</p>
-          </div>
-          <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-100">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
-                <tr>
-                  <th className="p-4 border-b border-slate-200">Data</th>
-                  <th className="p-4 border-b border-slate-200">ID Produto</th>
-                  <th className="p-4 border-b border-slate-200">Nota Fiscal</th>
-                  <th className="p-4 border-b border-slate-200">Modelo</th>
-                  <th className="p-4 border-b border-slate-200">Status</th>
-                  <th className="p-4 border-b border-slate-200 text-right">Detalhes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredResultados.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-400">Nenhum histórico disponível.</td></tr>
-                ) : (
-                  filteredResultados.map((r) => (
-                    <tr key={r.id} className="group hover:bg-slate-50 transition-colors">
-                      <td className="p-4 text-slate-600">{r.data}</td>
-                      <td className="p-4 font-mono text-slate-500">{r.id}</td>
-                      <td className="p-4 font-bold text-slate-700">{r.codigoNF}</td>
-                      <td className="p-4 text-slate-600">{r.modeloRef}</td>
-                      <td className="p-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">
-                          Concluído
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <button onClick={() => alert(`Ver detalhes do histórico ${r.id}`)} className="text-slate-400 hover:text-indigo-600">
-                          <ChevronRight size={16} />
-                        </button>
-                      </td>
+          <section className={sectionCardClass}>
+            <div className="flex items-start justify-between gap-3">
+              <div><div className="inline-flex items-center gap-2 text-[12px] font-semibold text-slate-800"><CheckCircle2 size={16} className="text-emerald-500" />Historico Recente</div><p className="mt-1 text-[11px] text-slate-500">Itens finalizados com persistencia de `status`, `analisado_por`, `data_analise` e `respostas`.</p></div>
+            </div>
+            <div className={panelClass}>
+              <table className="w-full border-collapse text-[11px] min-w-[920px]">
+                <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">Atualizado</th>
+                    <th className="px-3 py-2 text-left">ID Produto</th>
+                    <th className="px-3 py-2 text-left">Codigo NF</th>
+                    <th className="px-3 py-2 text-left">Modelo</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!filteredHistorico.length && (
+                    <tr><td colSpan={6} className="px-3 py-4 text-center text-[11px] text-slate-400">Nenhum historico disponivel.</td></tr>
+                  )}
+                  {filteredHistorico.map((item, index) => (
+                    <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                      <td className="px-3 py-3">{index + 1}</td>
+                      <td className="px-3 py-3 text-slate-700 whitespace-nowrap">{item.updatedAt || item.data || "-"}</td>
+                      <td className="px-3 py-3 font-mono text-slate-700">{item.produtoId}</td>
+                      <td className="px-3 py-3 font-semibold text-slate-800">{item.codigoNF || "-"}</td>
+                      <td className="px-3 py-3 text-slate-700">{item.modeloRef || "-"}</td>
+                      <td className="px-3 py-3"><span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="lg:hidden px-6 md:px-0 space-y-3 pb-6">
-            {filteredResultados.map((r) => (
-              <div key={r.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl shadow-sm">
-                <div>
-                  <div className="text-xs font-mono text-slate-400 mb-1">{r.data}</div>
-                  <div className="font-bold text-slate-800 text-sm">{r.modeloRef}</div>
-                </div>
-                <span className="text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">OK</span>
-              </div>
-            ))}
-          </div>
-        </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </div>
+
+      <ModalShell
+        open={!!finalizacaoPendente}
+        title="Observacoes da Pre-Analise"
+        subtitle={finalizacaoPendente ? `${finalizacaoPendente.item.modeloRef || "-"} • ${finalizacaoPendente.resultado.toUpperCase()}` : undefined}
+        onClose={fecharModalFinalizacao}
+        maxW="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="block text-[12px] font-medium text-slate-700">Observacoes</label>
+            <textarea
+              value={observacoesModal}
+              onChange={(e) => setObservacoesModal(e.target.value)}
+              rows={5}
+              className="w-full rounded-2xl border border-sky-200 bg-white px-4 py-3 text-[12px] text-slate-700 outline-none focus:border-sky-300"
+              placeholder="Descreva o resultado da Pre-Analise."
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={confirmarFinalizacao}
+              disabled={!finalizacaoPendente || (busyId === finalizacaoPendente.item.id)}
+              className="inline-flex items-center justify-center px-6 h-11 rounded-full bg-sky-300 text-[12px] font-semibold text-slate-900 hover:bg-sky-200 disabled:opacity-60"
+            >
+              OK
+            </button>
+            <button
+              type="button"
+              onClick={fecharModalFinalizacao}
+              disabled={!finalizacaoPendente || (busyId === finalizacaoPendente.item.id)}
+              className="inline-flex items-center justify-center px-6 h-11 rounded-full bg-cyan-800 text-[12px] font-semibold text-white hover:bg-cyan-700 disabled:opacity-60"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </ModalShell>
     </div>
   );
 }
 
 export default function PreAnalisePage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="h-12 w-12 rounded-full border-2 border-slate-200 border-t-sky-600 animate-spin" /></div>}>
       <PreAnaliseContent />
     </Suspense>
   );

@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.produtos (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  ean             TEXT UNIQUE,              -- unique constraint de fix_schema_products
+  ean             TEXT,                     -- duplicado permitido; cada cadastro e um registro independente
   modelo_ref      TEXT,
   marca           TEXT,                     -- Fabricante
 
@@ -243,6 +243,9 @@ CREATE TABLE IF NOT EXISTS public.produtos (
 
 COMMENT ON TABLE public.produtos IS 'Tabela de produtos';
 
+CREATE INDEX IF NOT EXISTS idx_produtos_ean_created_at
+  ON public.produtos (ean, created_at DESC);
+
 -- ---------------------------------------------------------------------------
 -- 13. ORCAMENTOS
 -- ---------------------------------------------------------------------------
@@ -264,24 +267,62 @@ CREATE TABLE IF NOT EXISTS public.orcamentos (
 -- 14. PRE_ANALISE
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.pre_analise (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  codigo       TEXT,
-  modelo       TEXT,
-  ean          TEXT,
-  status       TEXT CHECK (status IN ('pendente', 'em_analise', 'aprovado', 'reprovado')) DEFAULT 'pendente',
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  produto_id    UUID NOT NULL REFERENCES public.produtos(id) ON DELETE CASCADE,
+  codigo        TEXT,
+  modelo        TEXT,
+  ean           TEXT,
+  status        TEXT CHECK (status IN ('pendente', 'em_analise', 'aprovado', 'reprovado')) DEFAULT 'pendente',
   analisado_por TEXT,
-  data_analise TIMESTAMPTZ,
-  recebido_por TEXT,
-  codigo_nf    TEXT,
-  modelo_ref   TEXT,
-  gtin         TEXT,
-  nf_receb     TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  data_analise  TIMESTAMPTZ,
+  recebido_por  TEXT,
+  codigo_nf     TEXT,
+  modelo_ref    TEXT,
+  gtin          TEXT,
+  nf_receb      TEXT,
+  respostas     JSONB DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pre_analise_produto
+  ON public.pre_analise(produto_id);
+
 -- ---------------------------------------------------------------------------
--- 15. NFE_XMLS
+-- 15. ANALISE_TECNICA
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.analise_tecnica (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  produto_id      UUID NOT NULL REFERENCES public.produtos(id) ON DELETE CASCADE,
+  pre_analise_id  UUID NOT NULL REFERENCES public.pre_analise(id) ON DELETE CASCADE,
+  data_entrada    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  origem          TEXT DEFAULT 'pre_analise',
+  codigo_nf       TEXT,
+  modelo_ref      TEXT,
+  ean             TEXT,
+  recebido_por    TEXT,
+  analisado_por   TEXT,
+  status          TEXT CHECK (status IN ('aguardando', 'em_analise', 'concluido')) DEFAULT 'aguardando',
+  laudo_tecnico   TEXT,
+  observacoes     TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_analise_tecnica_status_created_at
+  ON public.analise_tecnica (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_analise_tecnica_produto_id
+  ON public.analise_tecnica (produto_id);
+
+CREATE INDEX IF NOT EXISTS idx_analise_tecnica_pre_analise_id
+  ON public.analise_tecnica (pre_analise_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_analise_tecnica_pre
+  ON public.analise_tecnica(pre_analise_id);
+
+-- ---------------------------------------------------------------------------
+-- 16. NFE_XMLS
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.nfe_xmls (
   id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -410,6 +451,16 @@ CREATE TRIGGER set_profiles_updated_at
 DROP TRIGGER IF EXISTS set_produtos_updated_at   ON public.produtos;
 CREATE TRIGGER set_produtos_updated_at
   BEFORE UPDATE ON public.produtos
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_pre_analise_updated_at ON public.pre_analise;
+CREATE TRIGGER set_pre_analise_updated_at
+  BEFORE UPDATE ON public.pre_analise
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_analise_tecnica_updated_at ON public.analise_tecnica;
+CREATE TRIGGER set_analise_tecnica_updated_at
+  BEFORE UPDATE ON public.analise_tecnica
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
@@ -652,6 +703,7 @@ ALTER TABLE public.audit_logs       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.produtos         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orcamentos       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pre_analise      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.analise_tecnica  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.nfe_xmls         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recebimentos     ENABLE ROW LEVEL SECURITY;
@@ -689,6 +741,7 @@ CREATE POLICY "Allow All" ON public.branch_contacts    FOR ALL TO public USING (
 CREATE POLICY "Allow All" ON public.entities           FOR ALL TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Allow All" ON public.orcamentos         FOR ALL TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Allow All" ON public.pre_analise        FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow All" ON public.analise_tecnica    FOR ALL TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Allow All" ON public.nfe_xmls           FOR ALL TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Allow All" ON public.recebimentos       FOR ALL TO public USING (true) WITH CHECK (true);
 
