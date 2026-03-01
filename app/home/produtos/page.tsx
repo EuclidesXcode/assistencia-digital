@@ -291,8 +291,8 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     esteticasFromModelos.length > 0
       ? esteticasFromModelos
       : esteticaRootRaw
-          .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
-          .filter((item) => !!item.codigoPeca || !!item.descricao);
+        .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
+        .filter((item) => !!item.codigoPeca || !!item.descricao);
   if (esteticasFromModelos.length === 0) {
     esteticaRootRaw.forEach((item: any) => {
       const files = toRemoteFiles(item?.fotos);
@@ -304,8 +304,8 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     funcionaisFromModelos.length > 0
       ? funcionaisFromModelos
       : funcionalRootRaw
-          .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
-          .filter((item) => !!item.codigoPeca || !!item.descricao);
+        .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
+        .filter((item) => !!item.codigoPeca || !!item.descricao);
   if (funcionaisFromModelos.length === 0) {
     funcionalRootRaw.forEach((item: any) => {
       const files = toRemoteFiles(item?.fotos);
@@ -2677,14 +2677,14 @@ const CadastroNF_EAN_Modelo = () => {
           boletimTecnico: docs.boletimTecnico.map((item) => item.url).filter((value): value is string => !!value),
           manualTecnico: docs.manualTecnico.map((item) => item.url).filter((value): value is string => !!value),
           estetica: ests.map((item) => ({
-            tipo: "estetica",
+            tipo: "estetica" as const,
             nome: item.descricao,
             codigo: item.codigoPeca,
             quantidade: 1,
             fotos: fotosPorRowKey(`PECA|${upper(item.codigoPeca || "")}|${modelo.id}`),
           })),
           funcional: funcs.map((item) => ({
-            tipo: "funcional",
+            tipo: "funcional" as const,
             nome: item.descricao,
             codigo: item.codigoPeca,
             quantidade: 1,
@@ -2692,54 +2692,7 @@ const CadastroNF_EAN_Modelo = () => {
           })),
           funcionalidades: [],
         };
-      };
-
-      // Converter documentos de modelo (vista explodida, boletim, manual) para base64
-      const modeloDocsBase64 = async (modeloId: number) => {
-        const docs = modeloDocs[modeloId] || { vistaExplodida: [], boletimTecnico: [], manualTecnico: [] };
-        return {
-          vistaExplodida: await filesToBase64(docs.vistaExplodida || []),
-          boletimTecnico: await filesToBase64(docs.boletimTecnico || []),
-          manualTecnico: await filesToBase64(docs.manualTecnico || []),
-        };
-      };
-
-      // Converter modelos com peças e documentos em paralelo
-      const mappedModelos: DTOModeloFabricante[] = await Promise.all(
-        modelosFabricante.map(async (m) => {
-          const ests = esteticas.filter(e => e.modeloId === m.id);
-          const funcs = funcionaisPeca.filter(f => f.modeloId === m.id);
-          const docsBas64 = await modeloDocsBase64(m.id);
-
-          return {
-            id: String(m.id),
-            nome: m.nome,
-            categoria: 'Geral',
-            codigoTipo: m.codigoProduto,
-            linha: m.linha,
-            // Documentos do modelo como base64
-            vistaExplodida: docsBas64.vistaExplodida,
-            boletimTecnico: docsBas64.boletimTecnico,
-            manualTecnico: docsBas64.manualTecnico,
-            estetica: await Promise.all(ests.map(e => mapPecaModelo(e, 'estetica', m.id))),
-            funcional: await Promise.all(funcs.map(f => mapPecaModelo(f, 'funcional', m.id))),
-            funcionalidades: [],
-          };
-        })
-      );
-
-      // Converter todas as imagens do produto em paralelo
-      const [fotosBase64, etiquetaBase64, kitBase64] = await Promise.all([
-        filesToBase64(produtoDocs.fotoProduto),
-        filesToBase64(produtoDocs.etiquetaProcel),
-        filesToBase64(produtoDocs.kitAcessorio),
-      ]);
-
-      // Converter peças em paralelo
-      const [embalagemMapped, acessoriosMapped] = await Promise.all([
-        Promise.all(embalagens.map(e => mapPeca(e, 'embalagem'))),
-        Promise.all(acessorios.map(a => mapPeca(a, 'acessorio'))),
-      ]);
+      });
 
       const dto: CreateProductDTO = {
         ean: master.ean,
@@ -2758,10 +2711,10 @@ const CadastroNF_EAN_Modelo = () => {
 
       const persisted = produtoExistenteId
         ? await ProductApiService.updateProduct({
-            id: produtoExistenteId,
-            originalEan: master.ean,
-            ...dto,
-          })
+          id: produtoExistenteId,
+          originalEan: master.ean,
+          ...dto,
+        })
         : await ProductApiService.createProduct(dto);
 
       const produtoIdPersistido = persisted?.id || norm(master.id) || undefined;
@@ -2965,10 +2918,10 @@ const CadastroNF_EAN_Modelo = () => {
       prev.map((item) =>
         matchTarget(item)
           ? {
-              ...item,
-              ...next,
-              id: next.id || item.id,
-            }
+            ...item,
+            ...next,
+            id: next.id || item.id,
+          }
           : item
       )
     );
@@ -2977,12 +2930,12 @@ const CadastroNF_EAN_Modelo = () => {
       prev.map((item) =>
         matchTarget(item)
           ? {
-              ...item,
-              id: next.id || item.id,
-              ean: next.ean,
-              modeloReferencia: next.modeloReferencia,
-              fabricante: next.fabricante,
-            }
+            ...item,
+            id: next.id || item.id,
+            ean: next.ean,
+            modeloReferencia: next.modeloReferencia,
+            fabricante: next.fabricante,
+          }
           : item
       )
     );
@@ -2990,10 +2943,10 @@ const CadastroNF_EAN_Modelo = () => {
     setMaster((prev) =>
       matchTarget(prev)
         ? {
-            ...prev,
-            ...next,
-            id: next.id || prev.id,
-          }
+          ...prev,
+          ...next,
+          id: next.id || prev.id,
+        }
         : prev
     );
   };
