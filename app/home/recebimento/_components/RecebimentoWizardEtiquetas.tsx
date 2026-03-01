@@ -1,9 +1,5 @@
 "use client";
 
-<<<<<<< Updated upstream
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
-=======
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProductApiService } from "@/lib/productApiService";
@@ -15,7 +11,6 @@ import {
   RecebimentoRegistro,
   TipoRecebimento,
 } from "@/backend/models/Recebimento";
->>>>>>> Stashed changes
 
 type Props = { withNf: boolean };
 type LoteStatusUi = "ABERTO" | "FINALIZADO";
@@ -590,49 +585,6 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
   };
 
   const salvarFinalizar = async () => {
-<<<<<<< Updated upstream
-    if (bloqueado) return notify(`O Lote ${loteId} está finalizado. Inicie um novo lote.`, "warn");
-    const errs: string[] = [];
-    if (!usuarioLogado.trim()) errs.push("Usuário logado inválido.");
-    if (!codigoUnicoVal) errs.push("CÓDIGO ÚNICO é obrigatório");
-    if (!RX.CODIGO_UNICO.test(codigoUnicoVal)) errs.push("CÓDIGO ÚNICO inválido (ex.: A1234567)");
-    if (withNf && !nfVal) errs.push("CÓDIGO NF é obrigatório");
-    if (withNf && nfVal && !RX.CODIGO_NF.test(nfVal)) errs.push("CÓDIGO NF inválido (6-10 dígitos)");
-    if (errs.length) return notify(errs.join(" • "), "danger");
-
-    const now = new Date();
-    const numero = nextNumero();
-
-    // Montar objeto de fotos (base64) por chave de etiqueta
-    const fotosEtiquetas: Record<string, string | null> = {
-      CODIGO_UNICO: dados.CODIGO_UNICO.previewUrl || null,
-      VISTORIA_REVENDA: dados.VISTORIA_REVENDA.previewUrl || null,
-      SAT: dados.SAT.previewUrl || null,
-    };
-
-    // Persistir no banco (não bloqueia o fluxo em caso de erro)
-    supabase.from('recebimentos').insert({
-      lote_id: loteId,
-      recebido_por: usuarioLogado.trim(),
-      codigo_unico: codigoUnicoVal,
-      codigo_nf: withNf ? nfVal : null,
-      numero_serie: nsVal || null,
-      com_nf: withNf,
-      fotos_etiquetas: fotosEtiquetas,
-      status: 'recebido',
-      data_recebimento: now.toISOString(),
-    }).then(({ error }) => {
-      if (error) console.error('[RecebimentoWizard] Erro ao persistir recebimento:', error);
-    });
-
-    setRows((p) => [
-      ...p,
-      {
-        numero,
-        recebidoPor: usuarioLogado.trim(),
-        dataHoraIso: now.toISOString(),
-        dataHoraLabel: now.toLocaleDateString("pt-BR", { dateStyle: "short" }),
-=======
     if (bloqueado) return notify(`O lote ${loteId} esta finalizado. Inicie um novo lote.`, "warn");
     if (actionDisabled) return;
 
@@ -662,7 +614,6 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
         loteCriadoPor: usuario,
         numeroItem: nextNumero(),
         recebidoPor: usuario,
->>>>>>> Stashed changes
         codigoUnico: codigoUnicoVal,
         codigoNF: withNf ? nfVal : undefined,
         numeroSerie: nsVal || "",

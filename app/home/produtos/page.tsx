@@ -291,10 +291,6 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     esteticasFromModelos.length > 0
       ? esteticasFromModelos
       : esteticaRootRaw
-<<<<<<< Updated upstream
-        .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
-        .filter((item) => !!item.codigoPeca || !!item.descricao);
-=======
           .map((item: any, i: number) => mapPecaBase(item, now + 600 + i, { modeloId: defaultModeloId }))
           .filter((item) => !!item.codigoPeca || !!item.descricao);
   if (esteticasFromModelos.length === 0) {
@@ -303,16 +299,11 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
       if (files.length > 0) itemFotos[`PECA|${upper(item?.codigo || item?.codigoPeca || "")}|${defaultModeloId}`] = files;
     });
   }
->>>>>>> Stashed changes
 
   const funcionaisPeca: PecaBase[] =
     funcionaisFromModelos.length > 0
       ? funcionaisFromModelos
       : funcionalRootRaw
-<<<<<<< Updated upstream
-        .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
-        .filter((item) => !!item.codigoPeca || !!item.descricao);
-=======
           .map((item: any, i: number) => mapPecaBase(item, now + 700 + i, { modeloId: defaultModeloId }))
           .filter((item) => !!item.codigoPeca || !!item.descricao);
   if (funcionaisFromModelos.length === 0) {
@@ -321,7 +312,6 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
       if (files.length > 0) itemFotos[`PECA|${upper(item?.codigo || item?.codigoPeca || "")}|${defaultModeloId}`] = files;
     });
   }
->>>>>>> Stashed changes
 
   const funcionalidades: PecaBase[] = funcionalidadesRaw
     .map((item: any, i: number) => ({
@@ -2615,35 +2605,6 @@ const CadastroNF_EAN_Modelo = () => {
       const produtoExistenteId = allowSaveIntoCurrentRecord ? norm(master.id) || undefined : undefined;
       setMensagem(produtoExistenteId ? "Atualizando..." : "Salvando...");
 
-<<<<<<< Updated upstream
-      // Helper: converte array de FileMeta para base64 strings
-      const filesToBase64 = async (files: FileMeta[]): Promise<string[]> => {
-        return Promise.all(
-          files.map(async (f) => {
-            try { return await processImageToBase64(f.file); }
-            catch { return f.name; } // fallback: nome do arquivo se falhar
-          })
-        );
-      };
-
-      // Converter fotos de itens vinculados (peças/acessórios) para base64
-      const itemFotosBase64 = async (rowKey: string): Promise<string[]> => {
-        const meta = itemFotos[rowKey];
-        if (!meta?.length) return [];
-        return filesToBase64(meta);
-      };
-
-      const mapPeca = async (p: PecaBase, tipo: ItemVinculado['tipo']): Promise<ItemVinculado> => {
-        const rowKey = `${tipo === 'embalagem' ? 'EMBALAGEM' : 'ACESSORIO'}|${upper(p.codigoPeca || '')}|0`;
-        return {
-          tipo,
-          nome: p.descricao,
-          codigo: p.codigoPeca,
-          quantidade: 1,
-          fotos: await itemFotosBase64(rowKey),
-        };
-      };
-=======
       const produtoDocsPersistidos: Record<ProdutoDocKey, FileMeta[]> = {
         fotoProduto: await Promise.all(produtoDocs.fotoProduto.map((item) => ensureUploadedFileMeta(item, "product-image"))),
         etiquetaProcel: produtoDocs.etiquetaProcel,
@@ -2686,7 +2647,6 @@ const CadastroNF_EAN_Modelo = () => {
         quantidade: 1,
         fotos: fotosPorRowKey(`${tipo === "embalagem" ? "EMBALAGEM" : "ACESSORIO"}|${upper(p.codigoPeca || "")}|0`),
       });
->>>>>>> Stashed changes
 
       const mapFuncionalidade = (p: PecaBase): ItemVinculado => ({
         tipo: "funcionalidade",
@@ -2694,16 +2654,6 @@ const CadastroNF_EAN_Modelo = () => {
         quantidade: 1,
       });
 
-<<<<<<< Updated upstream
-      const mapPecaModelo = async (p: PecaBase, tipo: 'estetica' | 'funcional', modeloId: number): Promise<ItemVinculado> => {
-        const rowKey = `PECA|${upper(p.codigoPeca || '')}|${modeloId}`;
-        return {
-          tipo,
-          nome: p.descricao,
-          codigo: p.codigoPeca,
-          quantidade: 1,
-          fotos: await itemFotosBase64(rowKey),
-=======
       const mapPecaModelo = (p: PecaBase, tipo: "estetica" | "funcional"): ItemVinculado => ({
         tipo,
         nome: p.descricao,
@@ -2741,7 +2691,6 @@ const CadastroNF_EAN_Modelo = () => {
             fotos: fotosPorRowKey(`PECA|${upper(item.codigoPeca || "")}|${modelo.id}`),
           })),
           funcionalidades: [],
->>>>>>> Stashed changes
         };
       };
 
@@ -2798,17 +2747,6 @@ const CadastroNF_EAN_Modelo = () => {
         marca: master.fabricante,
         nfs: codigosNF.map((nf) => ({ codigo: nf.codigo, revenda: nf.revenda })),
         modelos: mappedModelos,
-<<<<<<< Updated upstream
-        embalagem: embalagemMapped,
-        acessorios: acessoriosMapped,
-        estetica: await Promise.all(esteticas.map(e => mapPecaModelo(e, 'estetica', e.modeloId || 0))),
-        funcional: await Promise.all(funcionaisPeca.map(f => mapPecaModelo(f, 'funcional', f.modeloId || 0))),
-        funcionalidade: funcionalidades.map(mapFuncionalidade),
-        fotos: fotosBase64,           // Fotos principais em base64
-        etiquetaProcel: etiquetaBase64, // Etiquetas Procel em base64
-        kitAcessorio: kitBase64,        // Kit de acessórios em base64
-        manualUrl: produtoDocs.manualUsuario[0]?.name
-=======
         embalagem: embalagens.map((item) => mapPeca(item, "embalagem")),
         acessorios: acessorios.map((item) => mapPeca(item, "acessorio")),
         estetica: esteticas.map((item) => mapPecaModelo(item, "estetica")),
@@ -2816,7 +2754,6 @@ const CadastroNF_EAN_Modelo = () => {
         funcionalidade: funcionalidades.map(mapFuncionalidade),
         fotos: produtoDocsPersistidos.fotoProduto.map((item) => item.url).filter((value): value is string => !!value),
         manualUrl: produtoDocsPersistidos.manualUsuario[0]?.url
->>>>>>> Stashed changes
       };
 
       const persisted = produtoExistenteId
