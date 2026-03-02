@@ -2719,8 +2719,13 @@ const CadastroNF_EAN_Modelo = () => {
         throw new Error("Produto salvo sem ID retornado pelo banco.");
       }
 
-      const { PreAnaliseService } = await import("@/backend/services/preAnaliseService");
-      await PreAnaliseService.ensureForProduct({
+      const preAnaliseResponse = await fetch("/api/pre-analise", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
         produtoId: produtoIdPersistido,
         codigo: dto.nfs[0]?.codigo || "",
         codigoNF: dto.nfs[0]?.codigo || "",
@@ -2744,7 +2749,13 @@ const CadastroNF_EAN_Modelo = () => {
             manualUrl: dto.manualUrl || null,
           },
         },
+        }),
       });
+
+      if (!preAnaliseResponse.ok) {
+        const payload = await preAnaliseResponse.json().catch(() => ({}));
+        throw new Error(String(payload?.error || "Erro ao criar Pre-Analise do produto."));
+      }
 
       const masterSalvo: Master = {
         id: produtoIdPersistido,

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import type { PreAnaliseProduto, PreAnaliseStatus } from '@/backend/models/PreAnalise';
+import type {
+  CreatePreAnaliseDTO,
+  PreAnaliseProduto,
+  PreAnaliseStatus
+} from '@/backend/models/PreAnalise';
 import {
   hasSupabaseAdminConfig,
   supabaseAdmin,
@@ -24,6 +28,10 @@ function mapPreAnaliseRow(data: any): PreAnaliseProduto {
     dataAnalise: String(data?.data_analise || ''),
     updatedAt: String(data?.updated_at || '')
   };
+}
+
+function sanitizeObject(value: Record<string, unknown> | undefined) {
+  return value && typeof value === 'object' ? value : {};
 }
 
 function jsonNoStore(body: unknown, init?: ResponseInit) {
@@ -84,6 +92,83 @@ export async function GET() {
     console.error('Pre-analise GET error:', error);
     return jsonNoStore(
       { error: `Erro ao buscar pre-analise: ${getSafeErrorMessage(error)}` },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  if (!hasSupabaseAdminConfig) {
+    return getMissingConfigResponse();
+  }
+
+  try {
+    const body = (await request.json()) as Partial<CreatePreAnaliseDTO>;
+    const produtoId = String(body?.produtoId || '').trim();
+
+    if (!produtoId) {
+      return jsonNoStore({ error: 'produto_id obrigatorio para criar Pre-Analise.' }, { status: 400 });
+    }
+
+    const payload = {
+      produto_id: produtoId,
+      codigo: String(body?.codigo || body?.codigoNF || '').trim(),
+      modelo: String(body?.modelo || body?.modeloRef || '').trim(),
+      ean: String(body?.ean || '').trim(),
+      codigo_nf: String(body?.codigoNF || body?.codigo || '').trim() || null,
+      modelo_ref: String(body?.modeloRef || body?.modelo || '').trim() || null,
+      gtin: String(body?.gtin || body?.ean || '').trim() || null,
+      nf_receb: String(body?.nfReceb || '').trim() || null,
+      recebido_por: String(body?.recebidoPor || '').trim() || null,
+      respostas: sanitizeObject(body?.respostas)
+    };
+
+    const { data: existing, error: findError } = await supabaseAdmin
+      .from('pre_analise')
+      .select('*')
+      .eq('produto_id', produtoId)
+      .limit(1)
+      .maybeSingle();
+
+    if (findError) {
+      return jsonNoStore({ error: 'Erro ao verificar Pre-Analise existente.' }, { status: 500 });
+    }
+
+    if (existing?.id) {
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from('pre_analise')
+        .update(payload)
+        .eq('id', existing.id)
+        .select('*')
+        .single();
+
+      if (updateError) {
+        return jsonNoStore({ error: 'Erro ao atualizar Pre-Analise do produto.' }, { status: 500 });
+      }
+
+      return jsonNoStore(mapPreAnaliseRow(updated));
+    }
+
+    const { data: created, error: insertError } = await supabaseAdmin
+      .from('pre_analise')
+      .insert([
+        {
+          ...payload,
+          status: 'pendente'
+        }
+      ])
+      .select('*')
+      .single();
+
+    if (insertError) {
+      return jsonNoStore({ error: 'Erro ao criar Pre-Analise do produto.' }, { status: 500 });
+    }
+
+    return jsonNoStore(mapPreAnaliseRow(created));
+  } catch (error) {
+    console.error('Pre-analise POST error:', error);
+    return jsonNoStore(
+      { error: `Erro ao salvar pre-analise: ${getSafeErrorMessage(error)}` },
       { status: 500 }
     );
   }
