@@ -76,6 +76,7 @@ function PreAnaliseContent() {
   const [fila, setFila] = useState<PreAnaliseProduto[]>([]);
   const [historico, setHistorico] = useState<PreAnaliseProduto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [finalizacaoPendente, setFinalizacaoPendente] = useState<{
     item: PreAnaliseProduto;
@@ -112,15 +113,22 @@ function PreAnaliseContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const { PreAnaliseService } = await import("@/backend/services/preAnaliseService");
-        const [pendentes, resultados] = await Promise.all([
-          PreAnaliseService.getPendentes(),
-          PreAnaliseService.getResultados(),
-        ]);
-        setFila(pendentes);
-        setHistorico(resultados);
+        const response = await fetch("/api/pre-analise", {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(String(payload?.error || "Erro ao carregar pre-analise."));
+        }
+
+        setFila(Array.isArray(payload?.fila) ? payload.fila : []);
+        setHistorico(Array.isArray(payload?.historico) ? payload.historico : []);
+        setLoadError(null);
       } catch (error) {
         console.error("Error loading pre-analise data:", error);
+        setLoadError(error instanceof Error ? error.message : "Erro ao carregar pre-analise.");
       } finally {
         setLoading(false);
       }
@@ -228,6 +236,12 @@ function PreAnaliseContent() {
     <div className="min-h-screen bg-slate-50">
       <div className="w-full min-w-0 px-4 md:px-6 py-4">
         <div className="mx-auto w-full max-w-[1400px] min-w-0 space-y-4">
+          {loadError && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
+              {loadError}
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-lg font-bold text-slate-800">Pre-Analise Tecnica</h1>

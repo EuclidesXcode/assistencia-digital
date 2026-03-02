@@ -74,6 +74,7 @@ function AnaliseTecnicaContent() {
   const [fila, setFila] = useState<AnaliseTecnicaRegistro[]>([]);
   const [historico, setHistorico] = useState<AnaliseTecnicaRegistro[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [conclusaoPendente, setConclusaoPendente] = useState<AnaliseTecnicaRegistro | null>(null);
   const [laudoModal, setLaudoModal] = useState("");
@@ -108,15 +109,22 @@ function AnaliseTecnicaContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const { AnaliseTecnicaService } = await import("@/backend/services/analiseTecnicaService");
-        const [filaData, historicoData] = await Promise.all([
-          AnaliseTecnicaService.getFila(),
-          AnaliseTecnicaService.getHistorico(),
-        ]);
-        setFila(filaData);
-        setHistorico(historicoData);
+        const response = await fetch("/api/analise-tecnica", {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(String(payload?.error || "Erro ao carregar analise tecnica."));
+        }
+
+        setFila(Array.isArray(payload?.fila) ? payload.fila : []);
+        setHistorico(Array.isArray(payload?.historico) ? payload.historico : []);
+        setLoadError(null);
       } catch (error) {
         console.error("Error loading analise tecnica data:", error);
+        setLoadError(error instanceof Error ? error.message : "Erro ao carregar analise tecnica.");
       } finally {
         setLoading(false);
       }
@@ -217,6 +225,12 @@ function AnaliseTecnicaContent() {
     <div className="min-h-screen bg-slate-50">
       <div className="w-full min-w-0 px-4 md:px-6 py-4">
         <div className="mx-auto w-full max-w-[1400px] min-w-0 space-y-4">
+          {loadError && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
+              {loadError}
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-lg font-bold text-slate-800">Analise Tecnica</h1>

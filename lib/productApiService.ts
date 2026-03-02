@@ -8,6 +8,17 @@ type ProductSearchResponse = {
   totalPages: number;
 };
 
+type ProductReferencesResponse = {
+  revendasClientes: Array<{
+    id: string;
+    nome: string;
+    tipo: string;
+    documento: string;
+    origem: 'CLIENTE' | 'FILIAL';
+  }>;
+  fabricantes: string[];
+};
+
 type UpdateProductMasterDTO = {
   id?: string;
   originalEan?: string;
@@ -92,7 +103,8 @@ export class ProductApiService {
     });
 
     const response = await fetch(`/api/products?${params.toString()}`, {
-      method: 'GET'
+      method: 'GET',
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -116,7 +128,8 @@ export class ProductApiService {
     });
 
     const response = await fetch(`/api/products?${params.toString()}`, {
-      method: 'GET'
+      method: 'GET',
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -137,7 +150,8 @@ export class ProductApiService {
     });
 
     const response = await fetch(`/api/products/lookup?${params.toString()}`, {
-      method: 'GET'
+      method: 'GET',
+      cache: 'no-store'
     });
 
     if (response.status === 404) {
@@ -232,5 +246,23 @@ export class ProductApiService {
       const message = await parseErrorMessage(response);
       throw new Error(message || 'Falha ao excluir produto.');
     }
+  }
+
+  static async getReferences(): Promise<ProductReferencesResponse> {
+    const response = await fetch('/api/products/references', {
+      method: 'GET',
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao buscar referencias do cadastro de produtos.');
+    }
+
+    const data = await response.json();
+    return {
+      revendasClientes: Array.isArray(data?.revendasClientes) ? data.revendasClientes : [],
+      fabricantes: Array.isArray(data?.fabricantes) ? data.fabricantes : []
+    };
   }
 }

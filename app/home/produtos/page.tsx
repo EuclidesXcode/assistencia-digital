@@ -21,9 +21,6 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { BranchService } from "@/backend/services/branchService";
-import { ClientService } from "@/backend/services/clientService";
-import { EntityService } from "@/backend/services/entityService";
 import { ProductApiService } from "@/lib/productApiService";
 import { uploadFile, uploadProductFile } from "@/lib/storage";
 import { CreateProductDTO, ItemVinculado, ModeloFabricante as DTOModeloFabricante } from "@/backend/models/Product";
@@ -1946,49 +1943,12 @@ const CadastroNF_EAN_Modelo = () => {
       setRevendasLoading(true);
       setRevendasErro("");
       try {
-        const [clients, branches, fabricantes] = await Promise.all([
-          ClientService.list(),
-          BranchService.list(),
-          EntityService.list({ entity_type: "MANUFACTURER" }),
-        ]);
+        const payload = await ProductApiService.getReferences();
 
         if (!active) return;
 
-        const options = uniqueSorted([
-          ...clients.map((client) => {
-            const nome = norm(client.trade_name || client.legal_name || client.full_name);
-            if (!nome) return null;
-            return JSON.stringify({
-              id: norm(client.id) || `client:${nome}`,
-              nome,
-              tipo: upper(client.person_type) === "COMPANY" ? "JURIDICA" : "FISICA",
-              documento: norm(client.cnpj || client.cpf),
-              origem: "CLIENTE",
-            } satisfies RevendaClienteOption);
-          }),
-          ...branches.map((branch) => {
-            const nome = norm(branch.branch_name);
-            if (!nome) return null;
-            return JSON.stringify({
-              id: norm(branch.id) || `branch:${nome}`,
-              nome,
-              tipo: "FILIAL",
-              documento: norm(branch.cnpj || branch.branch_code),
-              origem: "FILIAL",
-            } satisfies RevendaClienteOption);
-          }),
-        ])
-          .map((item) => {
-            try {
-              return JSON.parse(item) as RevendaClienteOption;
-            } catch {
-              return null;
-            }
-          })
-          .filter((item): item is RevendaClienteOption => !!item);
-
-        setRevendasClientes(options);
-        setFabricantesEntidades(uniqueSorted(fabricantes.map((item) => item.name || item.legal_name)));
+        setRevendasClientes(Array.isArray(payload.revendasClientes) ? payload.revendasClientes : []);
+        setFabricantesEntidades(Array.isArray(payload.fabricantes) ? payload.fabricantes : []);
       } catch (error: any) {
         if (!active) return;
         console.error("Falha ao carregar dados reais de apoio:", error);
