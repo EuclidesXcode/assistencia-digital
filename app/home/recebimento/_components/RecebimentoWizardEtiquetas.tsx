@@ -628,7 +628,7 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
         etiquetasMissing: buildEtiquetasMissingFromDados(dados),
         pendencias: buildPendenciasFromDados(dados),
       });
-
+ 
       setRows((prev) => [...prev, buildRow(created, withNf, usuarioLogado)]);
       resetFlow();
       notify("Recebimento salvo.", "success");
