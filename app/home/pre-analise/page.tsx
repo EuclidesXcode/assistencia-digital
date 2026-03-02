@@ -38,6 +38,28 @@ function statusLabel(status: PreAnaliseProduto["status"]) {
   return "Pendente";
 }
 
+function formatDateTimeBR(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
 function getUserName() {
   if (typeof window === "undefined") return "SISTEMA";
   try {
@@ -157,6 +179,43 @@ function PreAnaliseContent() {
     }
   };
 
+  const renderFilaActions = (item: PreAnaliseProduto, first: boolean, fullWidth = false) => {
+    if (item.status === "pendente") {
+      return (
+        <button
+          type="button"
+          onClick={() => iniciar(item)}
+          disabled={!first || busyId === item.id}
+          className={`inline-flex items-center justify-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold ${fullWidth ? "w-full" : ""} ${first && busyId !== item.id ? "bg-slate-900 text-white hover:bg-slate-800" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+        >
+          <ClipboardCheck size={16} />
+          {busyId === item.id ? "PROCESSANDO" : "INICIAR"}
+        </button>
+      );
+    }
+
+    return (
+      <div className={`${fullWidth ? "flex w-full" : "inline-flex"} gap-2`}>
+        <button
+          type="button"
+          onClick={() => abrirModalFinalizacao(item, "reprovado")}
+          disabled={!first || busyId === item.id}
+          className={`inline-flex items-center justify-center px-3 h-9 rounded-xl text-[11px] font-semibold ${fullWidth ? "flex-1" : ""} ${first && busyId !== item.id ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+        >
+          REPROVAR
+        </button>
+        <button
+          type="button"
+          onClick={() => abrirModalFinalizacao(item, "aprovado")}
+          disabled={!first || busyId === item.id}
+          className={`inline-flex items-center justify-center px-3 h-9 rounded-xl text-[11px] font-semibold ${fullWidth ? "flex-1" : ""} ${first && busyId !== item.id ? "bg-slate-900 text-white hover:bg-slate-800" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+        >
+          APROVAR
+        </button>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -178,7 +237,7 @@ function PreAnaliseContent() {
               <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-amber-200 bg-amber-50 text-[11px] font-semibold text-amber-700"><AlertCircle size={16} />PENDENTES: {filteredFila.filter((item) => item.status === "pendente").length}</div>
               <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-sky-200 bg-sky-50 text-[11px] font-semibold text-sky-700"><Clock size={16} />EM ANALISE: {filteredFila.filter((item) => item.status === "em_analise").length}</div>
               <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-emerald-200 bg-emerald-50 text-[11px] font-semibold text-emerald-700"><History size={16} />HISTORICO: {filteredHistorico.length}</div>
-              <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-600"><Search size={16} />{q ? `FILTRO: ${q}` : "SEM FILTRO"}</div>
+              {q && <div className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-600"><Search size={16} />{`FILTRO: ${q}`}</div>}
             </div>
           </div>
 
@@ -192,45 +251,78 @@ function PreAnaliseContent() {
             <div className="flex items-start justify-between gap-3">
               <div><div className="inline-flex items-center gap-2 text-[12px] font-semibold text-slate-800"><AlertCircle size={16} className="text-amber-500" />Fila de Pre-Analise</div><p className="mt-1 text-[11px] text-slate-500">Cadastro alimentando a etapa com `produto_id` e snapshot dos itens.</p></div>
             </div>
-            <div className={panelClass}>
+            <div className="space-y-3 md:hidden">
+              {!filteredFila.length && (
+                <div className="rounded-2xl border border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
+                  Nenhum item pendente de pre-analise.
+                </div>
+              )}
+              {filteredFila.map((item, index) => {
+                const first = filteredFila[0]?.id === item.id;
+                return (
+                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mt-1 text-[12px] font-semibold text-slate-800 break-words">{item.modeloRef || "-"}</div>
+                        <div className="text-[10px] text-slate-500 break-all">{item.recebidoPor || "-"}</div>
+                      </div>
+                      <span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border shrink-0 ${statusClass(item.status)}`}>{statusLabel(item.status)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-[11px]">
+                      <div className="min-w-0">
+                        <div className="text-slate-400 uppercase tracking-wide">Codigo NF</div>
+                        <div className="font-semibold text-slate-800 break-all">{item.codigoNF || "-"}</div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-slate-400 uppercase tracking-wide">GTIN</div>
+                        <div className="inline-flex items-center gap-1 text-slate-600 font-mono break-all"><Barcode size={12} />{item.gtin || "-"}</div>
+                      </div>
+                      <div className="min-w-0 col-span-2">
+                        <div className="text-slate-400 uppercase tracking-wide">Resumo</div>
+                        <div className="text-slate-700">{resumoItens(item)}</div>
+                      </div>
+                    </div>
+                    {!first && (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] text-slate-500">
+                        Somente o primeiro item da fila pode ser processado.
+                      </div>
+                    )}
+                    {renderFilaActions(item, first, true)}
+                  </div>
+                );
+              })}
+            </div>
+            <div className={`${panelClass} hidden md:block`}>
               <table className="w-full border-collapse text-[11px] min-w-[1080px]">
                 <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
                   <tr>
-                    <th className="px-3 py-2 text-left">#</th>
-                    <th className="px-3 py-2 text-left">ID Produto</th>
-                    <th className="px-3 py-2 text-left">Codigo NF</th>
-                    <th className="px-3 py-2 text-left">Modelo</th>
-                    <th className="px-3 py-2 text-left">GTIN</th>
+                    <th className="px-3 py-2 text-left w-28">Codigo NF</th>
+                    <th className="px-3 py-2 text-left w-[320px]">Modelo</th>
+                    <th className="px-3 py-2 text-left w-36">GTIN</th>
                     <th className="px-3 py-2 text-left">Resumo</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-right">Acao</th>
+                    <th className="px-3 py-2 text-left w-40">Status</th>
+                    <th className="px-3 py-2 text-right w-40">Acao</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!filteredFila.length && (
-                    <tr><td colSpan={8} className="px-3 py-4 text-center text-[11px] text-slate-400">Nenhum item pendente de pre-analise.</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-4 text-center text-[11px] text-slate-400">Nenhum item pendente de pre-analise.</td></tr>
                   )}
                   {filteredFila.map((item, index) => {
                     const first = filteredFila[0]?.id === item.id;
                     return (
                       <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                        <td className="px-3 py-3">{index + 1}</td>
-                        <td className="px-3 py-3 font-mono text-slate-700">{item.produtoId}</td>
-                        <td className="px-3 py-3 font-semibold text-slate-800">{item.codigoNF || "-"}</td>
-                        <td className="px-3 py-3 text-slate-700"><div className="font-semibold">{item.modeloRef || "-"}</div><div className="text-[10px] text-slate-500">{item.recebidoPor || "-"}</div></td>
-                        <td className="px-3 py-3"><div className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-mono"><Barcode size={12} />{item.gtin || "-"}</div></td>
-                        <td className="px-3 py-3 text-slate-600">{resumoItens(item)}</td>
-                        <td className="px-3 py-3"><span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
-                        <td className="px-3 py-3 text-right">
-                          {item.status === "pendente" ? (
-                            <button type="button" onClick={() => iniciar(item)} disabled={!first || busyId === item.id} className={`inline-flex items-center justify-center gap-2 px-3 h-9 rounded-xl text-[11px] font-semibold ${first && busyId !== item.id ? "bg-slate-900 text-white hover:bg-slate-800" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}><ClipboardCheck size={16} />{busyId === item.id ? "PROCESSANDO" : "INICIAR"}</button>
-                          ) : (
-                            <div className="inline-flex gap-2">
-                              <button type="button" onClick={() => abrirModalFinalizacao(item, "reprovado")} disabled={!first || busyId === item.id} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl text-[11px] font-semibold ${first && busyId !== item.id ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}>REPROVAR</button>
-                              <button type="button" onClick={() => abrirModalFinalizacao(item, "aprovado")} disabled={!first || busyId === item.id} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl text-[11px] font-semibold ${first && busyId !== item.id ? "bg-slate-900 text-white hover:bg-slate-800" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}>APROVAR</button>
-                            </div>
-                          )}
+                        <td className="px-3 py-3 align-middle font-semibold text-slate-800 whitespace-nowrap">{item.codigoNF || "-"}</td>
+                        <td className="px-3 py-3 align-middle text-slate-700">
+                          <div className="font-semibold">{item.modeloRef || "-"}</div>
+                          <div className="text-[10px] text-slate-500">{item.recebidoPor || "-"}</div>
                         </td>
+                        <td className="px-3 py-3 align-middle">
+                          <div className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-mono whitespace-nowrap"><Barcode size={12} />{item.gtin || "-"}</div>
+                        </td>
+                        <td className="px-3 py-3 align-middle text-slate-600">{resumoItens(item)}</td>
+                        <td className="px-3 py-3 align-middle"><span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
+                        <td className="px-3 py-3 align-middle text-right">{renderFilaActions(item, first)}</td>
                       </tr>
                     );
                   })}
@@ -243,30 +335,54 @@ function PreAnaliseContent() {
             <div className="flex items-start justify-between gap-3">
               <div><div className="inline-flex items-center gap-2 text-[12px] font-semibold text-slate-800"><CheckCircle2 size={16} className="text-emerald-500" />Historico Recente</div><p className="mt-1 text-[11px] text-slate-500">Itens finalizados com persistencia de `status`, `analisado_por`, `data_analise` e `respostas`.</p></div>
             </div>
-            <div className={panelClass}>
+            <div className="space-y-3 md:hidden">
+              {!filteredHistorico.length && (
+                <div className="rounded-2xl border border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
+                  Nenhum historico disponivel.
+                </div>
+              )}
+              {filteredHistorico.map((item, index) => (
+                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="mt-1 text-[12px] font-semibold text-slate-800 break-words">{item.modeloRef || "-"}</div>
+                      <div className="text-[10px] text-slate-500">{formatDateTimeBR(item.updatedAt || item.data || "")}</div>
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border shrink-0 ${statusClass(item.status)}`}>{statusLabel(item.status)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-[11px]">
+                    <div className="min-w-0">
+                      <div className="text-slate-400 uppercase tracking-wide">Codigo NF</div>
+                      <div className="font-semibold text-slate-800 break-all">{item.codigoNF || "-"}</div>
+                    </div>
+                    <div className="min-w-0 col-span-2">
+                      <div className="text-slate-400 uppercase tracking-wide">Analisado por</div>
+                      <div className="text-slate-700 break-all">{item.analisadoPor || "-"}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className={`${panelClass} hidden md:block`}>
               <table className="w-full border-collapse text-[11px] min-w-[920px]">
                 <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
                   <tr>
-                    <th className="px-3 py-2 text-left">#</th>
-                    <th className="px-3 py-2 text-left">Atualizado</th>
-                    <th className="px-3 py-2 text-left">ID Produto</th>
-                    <th className="px-3 py-2 text-left">Codigo NF</th>
+                    <th className="px-3 py-2 text-left w-44">Atualizado</th>
+                    <th className="px-3 py-2 text-left w-28">Codigo NF</th>
                     <th className="px-3 py-2 text-left">Modelo</th>
-                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-left w-40">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!filteredHistorico.length && (
-                    <tr><td colSpan={6} className="px-3 py-4 text-center text-[11px] text-slate-400">Nenhum historico disponivel.</td></tr>
+                    <tr><td colSpan={4} className="px-3 py-4 text-center text-[11px] text-slate-400">Nenhum historico disponivel.</td></tr>
                   )}
                   {filteredHistorico.map((item, index) => (
                     <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                      <td className="px-3 py-3">{index + 1}</td>
-                      <td className="px-3 py-3 text-slate-700 whitespace-nowrap">{item.updatedAt || item.data || "-"}</td>
-                      <td className="px-3 py-3 font-mono text-slate-700">{item.produtoId}</td>
-                      <td className="px-3 py-3 font-semibold text-slate-800">{item.codigoNF || "-"}</td>
-                      <td className="px-3 py-3 text-slate-700">{item.modeloRef || "-"}</td>
-                      <td className="px-3 py-3"><span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
+                      <td className="px-3 py-3 align-middle text-slate-700 whitespace-nowrap">{formatDateTimeBR(item.updatedAt || item.data || "")}</td>
+                      <td className="px-3 py-3 align-middle font-semibold text-slate-800 whitespace-nowrap">{item.codigoNF || "-"}</td>
+                      <td className="px-3 py-3 align-middle text-slate-700">{item.modeloRef || "-"}</td>
+                      <td className="px-3 py-3 align-middle"><span className={`inline-flex items-center px-2.5 h-7 rounded-full text-[10px] font-semibold uppercase border ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
                     </tr>
                   ))}
                 </tbody>

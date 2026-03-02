@@ -1650,7 +1650,44 @@ const ModalPecas: React.FC<{
 
         {mensagem && <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{mensagem}</div>}
 
-        <div className="rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px]">
+        <div className="space-y-3 md:hidden">
+          {!lista.length && (
+            <div className="rounded-2xl border border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
+              {emptyText}
+            </div>
+          )}
+          {lista.map((x, i) => (
+            <div key={x.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">Registro #{i + 1}</div>
+                  <div className="mt-1 text-[12px] font-semibold text-slate-800 break-words">{x.descricao || "-"}</div>
+                </div>
+                <IconBtn title="Excluir" variant="danger" onClick={() => onRemover(x.id)}>
+                  <Trash2 size={16} />
+                </IconBtn>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-[11px]">
+                <div className="min-w-0">
+                  <div className="text-slate-400 uppercase tracking-wide">Data</div>
+                  <div className="text-slate-700">{x.createdAt || "-"}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-slate-400 uppercase tracking-wide">Incluido por</div>
+                  <div className="text-slate-700 break-all">{x.createdBy || "-"}</div>
+                </div>
+                {onChangeCodigo ? (
+                  <div className="min-w-0 col-span-2">
+                    <div className="text-slate-400 uppercase tracking-wide">Codigo peca</div>
+                    <div className="font-mono text-slate-800 break-all">{x.codigoPeca || "-"}</div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden md:block rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px]">
           <table className="w-full border-collapse text-xs min-w-[760px]">
             <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
               <tr>
@@ -3209,7 +3246,107 @@ const CadastroNF_EAN_Modelo = () => {
                 <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-2">{mensagemModelo}</div>
               )}
 
-              <div className="mt-3 rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[260px]">
+              <div className="mt-3 space-y-3 md:hidden">
+                {!modelosFabricante.length && (
+                  <div className="rounded-2xl border border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
+                    Nenhum Modelo Fabricante cadastrado.
+                  </div>
+                )}
+                {modelosFabricante.map((m, i) => {
+                  const sel = m.id === modeloSelecionadoId;
+                  const docs = modeloDocs[m.id] || createEmptyModeloDocs();
+                  return (
+                    <div
+                      key={m.id}
+                      className={`rounded-2xl border bg-white p-3 space-y-3 cursor-pointer ${sel ? "border-sky-500 ring-1 ring-sky-500" : "border-slate-200"}`}
+                      onClick={() => setModeloSelecionadoId(m.id)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] uppercase tracking-wide text-slate-400">Modelo #{i + 1}</div>
+                          <div className="mt-1 text-[12px] font-semibold text-slate-800 break-words">{m.nome}</div>
+                        </div>
+                        {sel && (
+                          <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 h-7 text-[10px] font-semibold text-sky-700 shrink-0">
+                            Selecionado
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-[11px]">
+                        <div className="min-w-0">
+                          <div className="text-slate-400 uppercase tracking-wide">Codigo do produto</div>
+                          <div className="font-mono text-slate-800 break-all">{m.codigoProduto || "-"}</div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-slate-400 uppercase tracking-wide">Linha</div>
+                          <div className="text-slate-800 break-all">{m.linha || "-"}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openArquivos({ kind: "modelo", modeloId: m.id, doc: "vistaExplodida" });
+                          }}
+                          className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 h-9 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <Layers size={14} />
+                          {docs.vistaExplodida?.length || 0}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openArquivos({ kind: "modelo", modeloId: m.id, doc: "boletimTecnico" });
+                          }}
+                          className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 h-9 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <FileSearch size={14} />
+                          {docs.boletimTecnico?.length || 0}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openArquivos({ kind: "modelo", modeloId: m.id, doc: "manualTecnico" });
+                          }}
+                          className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 h-9 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <BookText size={14} />
+                          {docs.manualTecnico?.length || 0}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            editarModelo(m.id);
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 h-9 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
+                        >
+                          <Pencil size={14} />
+                          Alterar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removerModelo(m.id);
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 h-9 text-[11px] font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          <Trash2 size={14} />
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 hidden md:block rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[260px]">
                 <table className="w-full border-collapse text-[11px] min-w-[860px]">
                   <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
                     <tr>
@@ -3367,7 +3504,65 @@ const CadastroNF_EAN_Modelo = () => {
                 </div>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px] bg-white">
+              <div className="mt-3 space-y-3 md:hidden">
+                {!itensFiltrados.length && (
+                  <div className="rounded-2xl border border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
+                    Nenhum item vinculado ainda.
+                  </div>
+                )}
+                {itensFiltrados.map((r, i) => {
+                  const n = (itemFotos[r.rowKey] || []).length;
+                  return (
+                    <div key={r.rowKey} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] uppercase tracking-wide text-slate-400">Item #{i + 1}</div>
+                          <div className="mt-1 text-[12px] font-semibold text-slate-800 break-words">{r.descricao || "-"}</div>
+                        </div>
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 h-7 text-[10px] font-semibold text-slate-700 shrink-0">
+                          {r.tipo}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-[11px]">
+                        <div className="min-w-0 col-span-2">
+                          <div className="text-slate-400 uppercase tracking-wide">Modelo</div>
+                          <div className="text-slate-700 break-words">{r.vinculo || "-"}</div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-slate-400 uppercase tracking-wide">Codigo peca</div>
+                          <div className="font-mono text-slate-800 break-all">{r.codigoPeca || "-"}</div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-slate-400 uppercase tracking-wide">Fotos</div>
+                          <div className="text-slate-700">{n}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openArquivos({ kind: "item", rowKey: r.rowKey, title: `Fotos — ${r.tipo} — ${r.codigoPeca || r.descricao}` })
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 h-9 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <ImageIcon size={14} />
+                          Fotos ({n})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => excluirItemVinculado(r)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 h-9 text-[11px] font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          <Trash2 size={14} />
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 hidden md:block rounded-2xl border border-slate-200 overflow-x-auto overflow-y-auto max-h-[320px] bg-white">
                 <table className="w-full border-collapse text-[11px] min-w-[760px]">
                   <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide sticky top-0">
                     <tr>
