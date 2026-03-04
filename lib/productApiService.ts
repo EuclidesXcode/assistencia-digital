@@ -19,6 +19,16 @@ type ProductReferencesResponse = {
   fabricantes: string[];
 };
 
+type CreateRevendaClienteResponse = {
+  option: {
+    id: string;
+    nome: string;
+    tipo: string;
+    documento: string;
+    origem: 'CLIENTE' | 'FILIAL';
+  };
+};
+
 type UpdateProductMasterDTO = {
   id?: string;
   originalEan?: string;
@@ -264,5 +274,30 @@ export class ProductApiService {
       revendasClientes: Array.isArray(data?.revendasClientes) ? data.revendasClientes : [],
       fabricantes: Array.isArray(data?.fabricantes) ? data.fabricantes : []
     };
+  }
+
+  static async createRevendaCliente(nome: string, documento?: string): Promise<CreateRevendaClienteResponse['option']> {
+    const response = await fetch('/api/products/references', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        nome: String(nome || '').trim(),
+        documento: String(documento || '').trim()
+      })
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao cadastrar revenda.');
+    }
+
+    const data = await response.json();
+    if (!data?.option?.nome) {
+      throw new Error('Resposta invalida ao cadastrar revenda.');
+    }
+
+    return data.option;
   }
 }

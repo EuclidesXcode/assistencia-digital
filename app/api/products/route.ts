@@ -107,6 +107,8 @@ function isLikelyArrayColumn(column: string) {
     column === 'codigo_nf' ||
     column === 'modelo_fabricante' ||
     column === 'fotos' ||
+    column === 'etiqueta_procel' ||
+    column === 'kit_acessorio' ||
     column === 'embalagem' ||
     column === 'acessorios' ||
     column === 'estetica' ||
@@ -147,7 +149,9 @@ function adaptPayloadForArrayLiteral(payload: Record<string, unknown>, error: an
     'estetica',
     'funcional',
     'funcionalidade',
-    'fotos'
+    'fotos',
+    'etiqueta_procel',
+    'kit_acessorio'
   ];
 
   for (const key of candidateKeys) {
@@ -364,6 +368,8 @@ export async function POST(req: NextRequest) {
       codigo_nf: firstCodigoNf,
       manual_url: body?.manualUrl || null,
       fotos: Array.isArray(body?.fotos) ? body!.fotos : [],
+      etiqueta_procel: Array.isArray(body?.etiquetaProcel) ? body!.etiquetaProcel : [],
+      kit_acessorio: Array.isArray(body?.kitAcessorio) ? body!.kitAcessorio : [],
       nfs_data: nfs,
       modelos_data: modelos,
       embalagem: Array.isArray(body?.embalagem) ? body!.embalagem : [],
@@ -500,7 +506,9 @@ export async function PUT(req: NextRequest) {
       'funcional',
       'funcionalidade',
       'fotos',
-      'manualUrl'
+      'manualUrl',
+      'etiquetaProcel',
+      'kitAcessorio'
     ].some((key) => Object.prototype.hasOwnProperty.call(body, key));
 
     if (hasFullProductPayload) {
@@ -530,6 +538,8 @@ export async function PUT(req: NextRequest) {
       payload.codigo_nf = firstCodigoNf;
       payload.manual_url = body?.manualUrl || null;
       payload.fotos = Array.isArray(body?.fotos) ? body.fotos : [];
+      payload.etiqueta_procel = Array.isArray(body?.etiquetaProcel) ? body.etiquetaProcel : [];
+      payload.kit_acessorio = Array.isArray(body?.kitAcessorio) ? body.kitAcessorio : [];
       payload.nfs_data = nfs;
       payload.modelos_data = modelos;
       payload.embalagem = Array.isArray(body?.embalagem) ? body.embalagem : [];

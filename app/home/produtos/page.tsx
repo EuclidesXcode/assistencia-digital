@@ -42,6 +42,27 @@ const agoraBR = () => new Date().toLocaleDateString("pt-BR");
 const uniqueSorted = (values: Array<string | null | undefined>) =>
   Array.from(new Set(values.map((value) => norm(value)).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
+const dedupeRevendaClienteOptions = (options: RevendaClienteOption[]) => {
+  const map = new Map<string, RevendaClienteOption>();
+
+  options.forEach((option) => {
+    const key = upper(option?.nome);
+    if (!key) return;
+
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, option);
+      return;
+    }
+
+    if (current.origem !== "FILIAL" && option.origem === "FILIAL") {
+      map.set(key, option);
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+};
+
 const detectarFabricanteDoModelo = (modelo: string, fabricantesConhecidos: string[]): string => {
   const u = upper(modelo);
   for (const fab of fabricantesConhecidos.map((item) => upper(item)).filter(Boolean)) {
@@ -83,6 +104,11 @@ interface RevendaClienteOption {
   tipo: string;
   documento: string;
   origem: "CLIENTE" | "FILIAL";
+}
+
+interface CreateRevendaClienteInput {
+  nome: string;
+  documento?: string;
 }
 
 interface Master {
@@ -141,6 +167,21 @@ const createEmptyModeloDocs = (): Record<ModeloDocKey, FileMeta[]> => ({
   boletimTecnico: [],
   manualTecnico: [],
 });
+
+const SUGESTOES_ACESSORIOS_PADRAO = [
+  "Controle remoto",
+  "Cabo de energia",
+  "Base/Pedestal",
+  "Manual",
+  "Parafusos",
+];
+
+const SUGESTOES_PECAS_FUNCIONAIS_PADRAO = [
+  "Placa principal",
+  "Fonte",
+  "PCI WI-FI",
+  "Display",
+];
 
 const toRemoteFileMeta = (
   value: any,
@@ -320,6 +361,8 @@ const mapApiProductToRegistro = (data: any, fallbackCreatedBy: string = DEFAULT_
     .filter((item) => !!item.descricao);
 
   produtoDocs.fotoProduto = toRemoteFiles(data?.fotos);
+  produtoDocs.etiquetaProcel = toRemoteFiles(data?.etiquetaProcel);
+  produtoDocs.kitAcessorio = toRemoteFiles(data?.kitAcessorio);
   produtoDocs.manualUsuario = toRemoteFiles(data?.manualUrl);
 
   return {
@@ -731,15 +774,26 @@ const ModalRevendasClientes: React.FC<{
   loading: boolean;
   error?: string;
   onSelect: (nome: string) => void;
-}> = ({ open, onClose, options, loading, error, onSelect }) => {
+  onCreateOption: (payload: CreateRevendaClienteInput) => Promise<RevendaClienteOption>;
+}> = ({ open, onClose, options, loading, error, onSelect, onCreateOption }) => {
   const [q, setQ] = useState("");
+  const [novoNome, setNovoNome] = useState("");
+  const [novoDocumento, setNovoDocumento] = useState("");
+  const [createMsg, setCreateMsg] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   const deleteTarget = null as Master | null;
   const busyDeleteKey = null as string | null;
   const setDeleteTarget = (_value: Master | null) => { };
   const excluir = async (_item: Master) => { };
 
   useEffect(() => {
-    if (!open) setQ("");
+    if (!open) {
+      setQ("");
+      setNovoNome("");
+      setNovoDocumento("");
+      setCreateMsg("");
+      setIsCreating(false);
+    }
   }, [open]);
 
   const lista = useMemo(() => {
@@ -750,6 +804,28 @@ const ModalRevendasClientes: React.FC<{
       return upper(hay).includes(qq);
     });
   }, [options, q]);
+
+  const criarRevenda = async () => {
+    const nome = norm(novoNome);
+    const documento = norm(novoDocumento);
+    if (!nome) {
+      setCreateMsg("Informe o nome da revenda.");
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      const created = await onCreateOption({ nome, documento });
+      setNovoNome("");
+      setNovoDocumento("");
+      setCreateMsg("");
+      onSelect(created.nome);
+    } catch (err: any) {
+      setCreateMsg(String(err?.message || "Falha ao cadastrar revenda."));
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <ModalShell open={open} title="Selecionar Revenda/Cliente" subtitle={`Carregados: ${options.length}`} onClose={onClose} maxW="max-w-4xl">
@@ -763,6 +839,48 @@ const ModalRevendasClientes: React.FC<{
             className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
           />
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+        <div className="text-[11px] font-semibold text-slate-700">Cadastrar nova revenda</div>
+        <div className="grid grid-cols-12 gap-2 items-end">
+          <div className="col-span-12 md:col-span-6 flex flex-col gap-1.5">
+            <label className="text-[11px] font-medium text-slate-600 tracking-wide">NOME DA REVENDA</label>
+            <input
+              value={novoNome}
+              onChange={(e) => {
+                setNovoNome(e.target.value);
+                setCreateMsg("");
+              }}
+              placeholder="Ex.: Magazine Luiza, Casas Bahia, revenda local..."
+              className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            />
+          </div>
+          <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
+            <label className="text-[11px] font-medium text-slate-600 tracking-wide">CPF/CNPJ</label>
+            <input
+              value={novoDocumento}
+              onChange={(e) => {
+                setNovoDocumento(e.target.value);
+                setCreateMsg("");
+              }}
+              placeholder="Opcional"
+              className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            />
+          </div>
+          <div className="col-span-12 md:col-span-3 flex md:justify-end">
+            <button
+              type="button"
+              onClick={() => void criarRevenda()}
+              disabled={isCreating}
+              className="h-9 w-full md:w-auto px-3 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Plus size={16} />
+              {isCreating ? "SALVANDO" : "CADASTRAR"}
+            </button>
+          </div>
+        </div>
+        {createMsg ? <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{createMsg}</div> : null}
       </div>
 
       <div className="rounded-2xl border border-slate-200 overflow-x-auto bg-white">
@@ -1310,11 +1428,12 @@ const ModalCodigosNF: React.FC<{
   mensagem: string;
   onClose: () => void;
   onChangeNF: (v: string) => void;
+  onChangeRevenda: (v: string) => void;
   onPesquisarRevenda: () => void;
   onAdd: () => void;
   onRemover: (id: number) => void;
   onEditar: (id: number) => void;
-}> = ({ open, master, codigosNF, nfAtual, revendaAtual, mensagem, onClose, onChangeNF, onPesquisarRevenda, onAdd, onRemover, onEditar }) => {
+}> = ({ open, master, codigosNF, nfAtual, revendaAtual, mensagem, onClose, onChangeNF, onChangeRevenda, onPesquisarRevenda, onAdd, onRemover, onEditar }) => {
   const [q, setQ] = useState("");
   const [fRevenda, setFRevenda] = useState<string>("TODOS");
   const deleteTarget = null as Master | null;
@@ -1365,7 +1484,7 @@ const ModalCodigosNF: React.FC<{
           <label className="text-[11px] font-medium text-slate-600 tracking-wide">REVENDA/CLIENTE</label>
           <input
             value={revendaAtual}
-            readOnly
+            onChange={(e) => onChangeRevenda(e.target.value)}
             className="h-9 w-full rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
           />
         </div>
@@ -1742,7 +1861,6 @@ const CadastroNF_EAN_Modelo = () => {
   const [mensagem, setMensagem] = useState("");
   const [mostrarModalSucesso, setMostrarModalSucesso] = useState(false);
   const [resumoSucesso, setResumoSucesso] = useState<Master | null>(null);
-  const [mostrarModalAvisoNovoCadastro, setMostrarModalAvisoNovoCadastro] = useState(false);
 
   const [mostrarAjuda, setMostrarAjuda] = useState(false);
 
@@ -1805,6 +1923,12 @@ const CadastroNF_EAN_Modelo = () => {
     if (modeloSelecionadoId && filtroModeloFabricanteId === "TODOS") setFiltroModeloFabricanteId(modeloSelecionadoId);
   }, [modeloSelecionadoId, filtroModeloFabricanteId]);
 
+  useEffect(() => {
+    if (!modeloSelecionadoId && modelosFabricante.length > 0) {
+      setModeloSelecionadoId(modelosFabricante[0].id);
+    }
+  }, [modeloSelecionadoId, modelosFabricante]);
+
   const [arquivosCtx, setArquivosCtx] = useState<ModalArquivosKey | null>(null);
   const usuarioAtual = norm(usuarioLogado) || DEFAULT_CREATED_BY;
 
@@ -1839,14 +1963,7 @@ const CadastroNF_EAN_Modelo = () => {
     [embalagens, registros]
   );
 
-  const sugestoesAcessorios = useMemo(
-    () =>
-      uniqueSorted([
-        ...acessorios.map((item) => item.descricao),
-        ...registros.flatMap((item) => (Array.isArray(item?.acessorios) ? item.acessorios.map((peca: PecaBase) => peca?.descricao) : [])),
-      ]),
-    [acessorios, registros]
-  );
+  const sugestoesAcessorios = useMemo(() => SUGESTOES_ACESSORIOS_PADRAO, []);
 
   const sugestoesEsteticas = useMemo(
     () =>
@@ -1857,16 +1974,7 @@ const CadastroNF_EAN_Modelo = () => {
     [esteticas, registros]
   );
 
-  const sugestoesFuncionais = useMemo(
-    () =>
-      uniqueSorted([
-        ...funcionaisPeca.map((item) => item.descricao),
-        ...registros.flatMap((item) =>
-          Array.isArray(item?.funcionaisPeca) ? item.funcionaisPeca.map((peca: PecaBase) => peca?.descricao) : []
-        ),
-      ]),
-    [funcionaisPeca, registros]
-  );
+  const sugestoesFuncionais = useMemo(() => SUGESTOES_PECAS_FUNCIONAIS_PADRAO, []);
 
   const sugestoesFuncionalidades = useMemo(
     () =>
@@ -2009,6 +2117,15 @@ const CadastroNF_EAN_Modelo = () => {
     };
   }, [usuarioAtual, usuarioInicializado]);
 
+  const criarRevendaCliente = async ({ nome, documento }: CreateRevendaClienteInput): Promise<RevendaClienteOption> => {
+    const created = await ProductApiService.createRevendaCliente(nome, documento);
+    setRevendasClientes((prev) => {
+      const next = [...prev.filter((item) => item.id !== created.id), created];
+      return dedupeRevendaClienteOptions(next);
+    });
+    return created;
+  };
+
   const lookupDescricao = (codigoPeca: string) => {
     const cod = upper(codigoPeca);
     if (!cod) return "";
@@ -2020,19 +2137,6 @@ const CadastroNF_EAN_Modelo = () => {
   };
 
   const masterPreenchido = useMemo(() => !!norm(master.ean) && !!norm(master.modeloReferencia), [master]);
-  const codigosNfResumo = useMemo(
-    () =>
-      codigosNF
-        .map((item) => {
-          const codigo = norm(item?.codigo);
-          const revenda = norm(item?.revenda);
-          if (!codigo && !revenda) return "";
-          return [codigo || "-", revenda || "-"].join(" - ");
-        })
-        .filter(Boolean),
-    [codigosNF]
-  );
-
   const modeloSelecionado = useMemo(
     () => (modeloSelecionadoId ? modelosFabricante.find((m) => m.id === modeloSelecionadoId) || null : null),
     [modeloSelecionadoId, modelosFabricante]
@@ -2199,14 +2303,18 @@ const CadastroNF_EAN_Modelo = () => {
 
   const abrirEstetica = () => {
     if (!norm(master.ean)) return setMensagem("Preencha EAN / GTIN.");
-    if (!modeloSelecionadoId) return setMensagem("Selecione um Modelo Fabricante.");
+    if (!modeloSelecionadoId && modelosFabricante.length === 0 && esteticas.length === 0) {
+      return setMensagem("Selecione um Modelo Fabricante.");
+    }
     setMensagem("");
     setMostrarPopupEstetica(true);
   };
 
   const abrirFuncionalPeca = () => {
     if (!norm(master.ean)) return setMensagem("Preencha EAN / GTIN.");
-    if (!modeloSelecionadoId) return setMensagem("Selecione um Modelo Fabricante.");
+    if (!modeloSelecionadoId && modelosFabricante.length === 0 && funcionaisPeca.length === 0) {
+      return setMensagem("Selecione um Modelo Fabricante.");
+    }
     setMensagem("");
     setMostrarPopupFuncionalPeca(true);
   };
@@ -2604,8 +2712,8 @@ const CadastroNF_EAN_Modelo = () => {
 
       const produtoDocsPersistidos: Record<ProdutoDocKey, FileMeta[]> = {
         fotoProduto: await Promise.all(produtoDocs.fotoProduto.map((item) => ensureUploadedFileMeta(item, "product-image"))),
-        etiquetaProcel: produtoDocs.etiquetaProcel,
-        kitAcessorio: produtoDocs.kitAcessorio,
+        etiquetaProcel: await Promise.all(produtoDocs.etiquetaProcel.map((item) => ensureUploadedFileMeta(item, "product-image"))),
+        kitAcessorio: await Promise.all(produtoDocs.kitAcessorio.map((item) => ensureUploadedFileMeta(item, "product-image"))),
         manualUsuario: await Promise.all(produtoDocs.manualUsuario.map((item) => ensureUploadedFileMeta(item, "product-manual"))),
       };
 
@@ -2703,6 +2811,8 @@ const CadastroNF_EAN_Modelo = () => {
         funcional: funcionaisPeca.map((item) => mapPecaModelo(item, "funcional")),
         funcionalidade: funcionalidades.map(mapFuncionalidade),
         fotos: produtoDocsPersistidos.fotoProduto.map((item) => item.url).filter((value): value is string => !!value),
+        etiquetaProcel: produtoDocsPersistidos.etiquetaProcel.map((item) => item.url).filter((value): value is string => !!value),
+        kitAcessorio: produtoDocsPersistidos.kitAcessorio.map((item) => item.url).filter((value): value is string => !!value),
         manualUrl: produtoDocsPersistidos.manualUsuario[0]?.url
       };
 
@@ -2746,6 +2856,8 @@ const CadastroNF_EAN_Modelo = () => {
             modelos: dto.modelos,
             nfs: dto.nfs,
             fotos: dto.fotos,
+            etiquetaProcel: dto.etiquetaProcel || [],
+            kitAcessorio: dto.kitAcessorio || [],
             manualUrl: dto.manualUrl || null,
           },
         },
@@ -2799,12 +2911,15 @@ const CadastroNF_EAN_Modelo = () => {
     } catch (err: any) {
       console.error(err);
       const rawMessage = String(err?.message || err || "");
+      /*
+      TODO: CASO PRECISE voltar a usar
       if (!allowSaveIntoCurrentRecord && /ean unico|produtos_ean_key/i.test(rawMessage)) {
         setMensagem("Novo cadastro carregado a partir de EAN existente. Revise os Códigos NF antes de salvar.");
         setMostrarModalAvisoNovoCadastro(true);
         return;
       }
 
+      */
       setMensagem("Erro ao salvar: " + rawMessage);
     }
   };
@@ -2870,6 +2985,8 @@ const CadastroNF_EAN_Modelo = () => {
       funcional: [],
       funcionalidade: [],
       fotos: [],
+      etiquetaProcel: [],
+      kitAcessorio: [],
       manualUrl: undefined,
     };
 
@@ -3650,7 +3767,14 @@ const CadastroNF_EAN_Modelo = () => {
               setRevendaNFAtual("");
               setMensagemNF("");
             }}
-            onChangeNF={setNfAtual}
+            onChangeNF={(value) => {
+              setNfAtual(value);
+              setMensagemNF("");
+            }}
+            onChangeRevenda={(value) => {
+              setRevendaNFAtual(value);
+              setMensagemNF("");
+            }}
             onPesquisarRevenda={() => setMostrarLookupRevenda(true)}
             onAdd={addCodigoNF}
             onRemover={removerCodigoNF}
@@ -3663,6 +3787,7 @@ const CadastroNF_EAN_Modelo = () => {
             options={revendasClientes}
             loading={revendasLoading}
             error={revendasErro}
+            onCreateOption={criarRevendaCliente}
             onSelect={(nome) => {
               setRevendaNFAtual(nome);
               setMostrarLookupRevenda(false);
@@ -3843,6 +3968,8 @@ const CadastroNF_EAN_Modelo = () => {
             </div>
           </ModalShell>
 
+          {/*
+          TODO: CASO PRECISE voltar a usar
           <ModalShell
             open={mostrarModalAvisoNovoCadastro}
             title="Revise a NF deste novo cadastro"
@@ -3896,6 +4023,7 @@ const CadastroNF_EAN_Modelo = () => {
               </div>
             </div>
           </ModalShell>
+          */}
 
           <ModalAjuda open={mostrarAjuda} onClose={() => setMostrarAjuda(false)} />
         </div>
