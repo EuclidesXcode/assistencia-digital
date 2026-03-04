@@ -1,4 +1,9 @@
 import { CreateProductDTO } from '@/backend/models/Product';
+import {
+  ProductReferenceSuggestionItem,
+  ProductSuggestionCatalog,
+  ProductSuggestionCategory
+} from '@/lib/productReferenceCatalog';
 
 type ProductSearchResponse = {
   data: any[];
@@ -17,16 +22,8 @@ type ProductReferencesResponse = {
     origem: 'CLIENTE' | 'FILIAL';
   }>;
   fabricantes: string[];
-};
-
-type CreateRevendaClienteResponse = {
-  option: {
-    id: string;
-    nome: string;
-    tipo: string;
-    documento: string;
-    origem: 'CLIENTE' | 'FILIAL';
-  };
+  suggestions: ProductSuggestionCatalog;
+  suggestionItems: ProductReferenceSuggestionItem[];
 };
 
 type UpdateProductMasterDTO = {
@@ -272,32 +269,142 @@ export class ProductApiService {
     const data = await response.json();
     return {
       revendasClientes: Array.isArray(data?.revendasClientes) ? data.revendasClientes : [],
-      fabricantes: Array.isArray(data?.fabricantes) ? data.fabricantes : []
+      fabricantes: Array.isArray(data?.fabricantes) ? data.fabricantes : [],
+      suggestions: data?.suggestions || {
+        linhas: [],
+        funcionalidades: [],
+        esteticas: [],
+        embalagens: [],
+        acessorios: [],
+        pecas_funcionais: []
+      },
+      suggestionItems: Array.isArray(data?.suggestionItems) ? data.suggestionItems : []
     };
   }
 
-  static async createRevendaCliente(nome: string, documento?: string): Promise<CreateRevendaClienteResponse['option']> {
-    const response = await fetch('/api/products/references', {
+  static async createReferenceSuggestion(
+    category: ProductSuggestionCategory,
+    value: string
+  ): Promise<{
+    id: string;
+    category: ProductSuggestionCategory;
+    value: string;
+    alreadyExisted: boolean;
+    suggestion: ProductReferenceSuggestionItem;
+  }> {
+    const response = await fetch('/api/products/reference-suggestions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        nome: String(nome || '').trim(),
-        documento: String(documento || '').trim()
+        category,
+        value: String(value || '').trim()
       })
     });
 
     if (!response.ok) {
       const message = await parseErrorMessage(response);
-      throw new Error(message || 'Falha ao cadastrar revenda.');
+      throw new Error(message || 'Falha ao cadastrar sugestao.');
     }
 
     const data = await response.json();
-    if (!data?.option?.nome) {
-      throw new Error('Resposta invalida ao cadastrar revenda.');
+    const suggestion = data?.suggestion;
+    if (!data?.category || !data?.value || !suggestion?.id) {
+      throw new Error('Resposta invalida ao cadastrar sugestao.');
     }
 
-    return data.option;
+    return {
+      id: String(suggestion.id),
+      category: data.category as ProductSuggestionCategory,
+      value: String(data.value),
+      alreadyExisted: Boolean(data.alreadyExisted),
+      suggestion: {
+        id: String(suggestion.id),
+        category: data.category as ProductSuggestionCategory,
+        value: String(suggestion.value || data.value)
+      }
+    };
+  }
+
+  static async listReferenceSuggestions(
+    category?: ProductSuggestionCategory
+  ): Promise<ProductReferenceSuggestionItem[]> {
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+
+    const response = await fetch(
+      `/api/products/reference-suggestions${params.size ? `?${params.toString()}` : ''}`,
+      {
+        method: 'GET',
+        cache: 'no-store'
+      }
+    );
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao listar sugestoes.');
+    }
+
+    const data = await response.json();
+    return Array.isArray(data?.data)
+      ? data.data
+          .map((item: any) => ({
+            id: String(item?.id || '').trim(),
+            category: String(item?.category || '').trim() as ProductSuggestionCategory,
+            value: String(item?.value || '').trim()
+          }))
+          .filter((item: ProductReferenceSuggestionItem) => !!item.id && !!item.category && !!item.value)
+      : [];
+  }
+
+  static async updateReferenceSuggestion(
+    id: string,
+    category: ProductSuggestionCategory,
+    value: string
+  ): Promise<ProductReferenceSuggestionItem> {
+    const response = await fetch('/api/products/reference-suggestions', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: String(id || '').trim(),
+        category,
+        value: String(value || '').trim()
+      })
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao alterar sugestao.');
+    }
+
+    const data = await response.json();
+    const suggestion = data?.suggestion;
+    if (!suggestion?.id || !suggestion?.category || !suggestion?.value) {
+      throw new Error('Resposta invalida ao alterar sugestao.');
+    }
+
+    return {
+      id: String(suggestion.id),
+      category: String(suggestion.category) as ProductSuggestionCategory,
+      value: String(suggestion.value)
+    };
+  }
+
+  static async deleteReferenceSuggestion(id: string): Promise<void> {
+    const params = new URLSearchParams({
+      id: String(id || '').trim()
+    });
+
+    const response = await fetch(`/api/products/reference-suggestions?${params.toString()}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const message = await parseErrorMessage(response);
+      throw new Error(message || 'Falha ao excluir sugestao.');
+    };
   }
 }

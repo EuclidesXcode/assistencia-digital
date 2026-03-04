@@ -25,10 +25,19 @@ import { ProductApiService } from "@/lib/productApiService";
 import { uploadFile, uploadProductFile } from "@/lib/storage";
 import { CreateProductDTO, ItemVinculado, ModeloFabricante as DTOModeloFabricante } from "@/backend/models/Product";
 import { processImageToBase64 } from "@/lib/image";
+import {
+  ProductReferenceSuggestionItem,
+  ProductSuggestionCatalog,
+  ProductSuggestionCategory,
+  buildFallbackSuggestionItemsFromCatalog,
+  buildProductSuggestionCatalogFromItems,
+  mergeProductSuggestionCatalog,
+} from "@/lib/productReferenceCatalog";
 
 
 const norm = (s: any) => String(s || "").trim();
 const upper = (s: any) => norm(s).toUpperCase();
+const normalizeLookup = (s: any) => upper(norm(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 const getRowIdentityKey = (value: { id?: any; ean?: any } | null | undefined) => {
   const id = norm(value?.id);
   if (id) return `id:${id}`;
@@ -41,6 +50,69 @@ const agoraBR = () => new Date().toLocaleDateString("pt-BR");
 
 const uniqueSorted = (values: Array<string | null | undefined>) =>
   Array.from(new Set(values.map((value) => norm(value)).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+const hasDiacritic = (value: string) => /[\u0300-\u036f]/.test(value.normalize("NFD"));
+
+const compareLabelPreference = (candidate: string, current: string) => {
+  const candidateHasDiacritic = hasDiacritic(candidate);
+  const currentHasDiacritic = hasDiacritic(current);
+  if (candidateHasDiacritic !== currentHasDiacritic) return candidateHasDiacritic ? 1 : -1;
+  if (candidate.length !== current.length) return candidate.length - current.length;
+  return 0;
+};
+
+const uniqueSortedLookup = (values: Array<string | null | undefined>) => {
+  const map = new Map<string, string>();
+
+  values.forEach((rawValue) => {
+    const value = norm(rawValue);
+    if (!value) return;
+    const key = normalizeLookup(value);
+    if (!key) return;
+
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, value);
+      return;
+    }
+
+    if (compareLabelPreference(value, current) > 0) {
+      map.set(key, value);
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+};
+
+const dedupeSuggestionRowsByLookup = <T extends { id: string; value: string }>(rows: T[]) => {
+  const map = new Map<string, T>();
+
+  rows.forEach((row) => {
+    const value = norm(row?.value);
+    const key = normalizeLookup(value);
+    if (!key) return;
+
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, { ...row, value });
+      return;
+    }
+
+    const rowEditable = !String(row.id || "").startsWith("fallback:");
+    const currentEditable = !String(current.id || "").startsWith("fallback:");
+
+    if (rowEditable && !currentEditable) {
+      map.set(key, { ...row, value });
+      return;
+    }
+
+    if (rowEditable === currentEditable && compareLabelPreference(value, norm(current.value)) > 0) {
+      map.set(key, { ...row, value });
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => a.value.localeCompare(b.value, "pt-BR", { sensitivity: "base" }));
+};
 
 const dedupeRevendaClienteOptions = (options: RevendaClienteOption[]) => {
   const map = new Map<string, RevendaClienteOption>();
@@ -55,7 +127,7 @@ const dedupeRevendaClienteOptions = (options: RevendaClienteOption[]) => {
       return;
     }
 
-    if (current.origem !== "FILIAL" && option.origem === "FILIAL") {
+    if (current.origem !== "CLIENTE" && option.origem === "CLIENTE") {
       map.set(key, option);
     }
   });
@@ -72,9 +144,10 @@ const detectarFabricanteDoModelo = (modelo: string, fabricantesConhecidos: strin
 };
 
 const detectarLinhaDoModeloFabricante = (modelo: string, linhasConhecidas: string[]): string => {
-  const u = upper(modelo);
-  for (const linha of linhasConhecidas.map((item) => upper(item)).filter(Boolean)) {
-    if (u.includes(linha)) return linha;
+  const u = normalizeLookup(modelo);
+  for (const linha of linhasConhecidas) {
+    const normalizedLine = normalizeLookup(linha);
+    if (normalizedLine && u.includes(normalizedLine)) return linha;
   }
   return "";
 };
@@ -167,21 +240,6 @@ const createEmptyModeloDocs = (): Record<ModeloDocKey, FileMeta[]> => ({
   boletimTecnico: [],
   manualTecnico: [],
 });
-
-const SUGESTOES_ACESSORIOS_PADRAO = [
-  "Controle remoto",
-  "Cabo de energia",
-  "Base/Pedestal",
-  "Manual",
-  "Parafusos",
-];
-
-const SUGESTOES_PECAS_FUNCIONAIS_PADRAO = [
-  "Placa principal",
-  "Fonte",
-  "PCI WI-FI",
-  "Display",
-];
 
 const toRemoteFileMeta = (
   value: any,
@@ -774,17 +832,16 @@ const ModalRevendasClientes: React.FC<{
   loading: boolean;
   error?: string;
   onSelect: (nome: string) => void;
-  onCreateOption: (payload: CreateRevendaClienteInput) => Promise<RevendaClienteOption>;
-}> = ({ open, onClose, options, loading, error, onSelect, onCreateOption }) => {
+  onGoToCadastroCliente: (payload: CreateRevendaClienteInput) => void;
+}> = ({ open, onClose, options, loading, error, onSelect, onGoToCadastroCliente }) => {
   const [q, setQ] = useState("");
   const [novoNome, setNovoNome] = useState("");
   const [novoDocumento, setNovoDocumento] = useState("");
   const [createMsg, setCreateMsg] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
   const deleteTarget = null as Master | null;
   const busyDeleteKey = null as string | null;
-  const setDeleteTarget = (_value: Master | null) => { };
-  const excluir = async (_item: Master) => { };
+  const setDeleteTarget = (_value: Master | null) => {};
+  const excluir = async (_item: Master) => {};
 
   useEffect(() => {
     if (!open) {
@@ -792,7 +849,6 @@ const ModalRevendasClientes: React.FC<{
       setNovoNome("");
       setNovoDocumento("");
       setCreateMsg("");
-      setIsCreating(false);
     }
   }, [open]);
 
@@ -805,26 +861,15 @@ const ModalRevendasClientes: React.FC<{
     });
   }, [options, q]);
 
-  const criarRevenda = async () => {
+  const irParaCadastroCliente = () => {
     const nome = norm(novoNome);
     const documento = norm(novoDocumento);
     if (!nome) {
-      setCreateMsg("Informe o nome da revenda.");
+      setCreateMsg("Informe o nome do cliente ou revenda.");
       return;
     }
 
-    try {
-      setIsCreating(true);
-      const created = await onCreateOption({ nome, documento });
-      setNovoNome("");
-      setNovoDocumento("");
-      setCreateMsg("");
-      onSelect(created.nome);
-    } catch (err: any) {
-      setCreateMsg(String(err?.message || "Falha ao cadastrar revenda."));
-    } finally {
-      setIsCreating(false);
-    }
+    onGoToCadastroCliente({ nome, documento });
   };
 
   return (
@@ -842,10 +887,10 @@ const ModalRevendasClientes: React.FC<{
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
-        <div className="text-[11px] font-semibold text-slate-700">Cadastrar nova revenda</div>
+        <div className="text-[11px] font-semibold text-slate-700">Cadastrar novo cliente</div>
         <div className="grid grid-cols-12 gap-2 items-end">
           <div className="col-span-12 md:col-span-6 flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-slate-600 tracking-wide">NOME DA REVENDA</label>
+            <label className="text-[11px] font-medium text-slate-600 tracking-wide">NOME / RAZAO SOCIAL</label>
             <input
               value={novoNome}
               onChange={(e) => {
@@ -871,14 +916,16 @@ const ModalRevendasClientes: React.FC<{
           <div className="col-span-12 md:col-span-3 flex md:justify-end">
             <button
               type="button"
-              onClick={() => void criarRevenda()}
-              disabled={isCreating}
-              className="h-9 w-full md:w-auto px-3 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2 disabled:opacity-50"
+              onClick={irParaCadastroCliente}
+              className="h-9 w-full md:w-auto px-3 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2"
             >
               <Plus size={16} />
-              {isCreating ? "SALVANDO" : "CADASTRAR"}
+              IR PARA CADASTRO
             </button>
           </div>
+        </div>
+        <div className="text-[11px] text-slate-500">
+          O novo cadastro sera feito na pagina de clientes, com documento e endereco completos.
         </div>
         {createMsg ? <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{createMsg}</div> : null}
       </div>
@@ -1691,6 +1738,11 @@ const ModalPecas: React.FC<{
   lista: PecaBase[];
   onRemover: (id: number) => void;
   sugestoes?: string[];
+  suggestionRows?: ProductReferenceSuggestionItem[];
+  suggestionCategory?: ProductSuggestionCategory;
+  onCreateSuggestion?: (category: ProductSuggestionCategory, value: string) => Promise<void>;
+  onUpdateSuggestion?: (id: string, category: ProductSuggestionCategory, value: string) => Promise<void>;
+  onDeleteSuggestion?: (id: string, category: ProductSuggestionCategory) => Promise<void>;
 }> = ({
   open,
   title,
@@ -1707,7 +1759,144 @@ const ModalPecas: React.FC<{
   lista,
   onRemover,
   sugestoes,
+  suggestionRows,
+  suggestionCategory,
+  onCreateSuggestion,
+  onUpdateSuggestion,
+  onDeleteSuggestion,
 }) => {
+    const [suggestionMsg, setSuggestionMsg] = useState("");
+    const [suggestionBusy, setSuggestionBusy] = useState(false);
+    const [suggestionDialog, setSuggestionDialog] = useState<null | { mode: "create" | "edit"; id?: string }>(null);
+    const [suggestionDraft, setSuggestionDraft] = useState("");
+    const [selectedSuggestionId, setSelectedSuggestionId] = useState("");
+    const [suggestionDeleteTarget, setSuggestionDeleteTarget] = useState<null | { id: string; value: string }>(null);
+
+    const suggestionEntries = useMemo(() => {
+      if (Array.isArray(suggestionRows) && suggestionRows.length > 0) {
+        return suggestionRows
+          .filter((item) => !!norm(item?.value))
+          .map((item) => ({
+            id: norm(item.id),
+            value: norm(item.value),
+            editable: !!norm(item.id) && !norm(item.id).startsWith("fallback:"),
+          }));
+      }
+
+      return (sugestoes || []).map((value, index) => ({
+        id: `fallback:${index}:${norm(value)}`,
+        value: norm(value),
+        editable: false,
+      }));
+    }, [sugestoes, suggestionRows]);
+
+    useEffect(() => {
+      if (!open) {
+        setSuggestionMsg("");
+        setSuggestionBusy(false);
+        setSuggestionDialog(null);
+        setSuggestionDraft("");
+        setSelectedSuggestionId("");
+        setSuggestionDeleteTarget(null);
+      }
+    }, [open]);
+
+    useEffect(() => {
+      if (!suggestionEntries.length) {
+        setSelectedSuggestionId("");
+        return;
+      }
+
+      setSelectedSuggestionId((prev) => {
+        if (prev && suggestionEntries.some((item) => item.id === prev)) return prev;
+        const fromDescricao = suggestionEntries.find(
+          (item) => normalizeLookup(item.value) === normalizeLookup(form.descricao)
+        );
+        return fromDescricao?.id || suggestionEntries[0].id;
+      });
+    }, [suggestionEntries, form.descricao]);
+
+    const selectedSuggestion = useMemo(
+      () => suggestionEntries.find((item) => item.id === selectedSuggestionId) || null,
+      [suggestionEntries, selectedSuggestionId]
+    );
+
+    const openCreateSuggestionDialog = () => {
+      setSuggestionDraft(norm(form.descricao));
+      setSuggestionDialog({ mode: "create" });
+    };
+
+    const openEditSuggestionDialog = (id: string, currentValue: string) => {
+      if (!id || id.startsWith("fallback:")) {
+        setSuggestionMsg("Essa sugestao nao pode ser alterada sem tabela no banco.");
+        return;
+      }
+      setSuggestionDraft(norm(currentValue));
+      setSuggestionDialog({ mode: "edit", id });
+    };
+
+    const closeSuggestionDialog = () => {
+      if (suggestionBusy) return;
+      setSuggestionDialog(null);
+    };
+
+    const handleSaveSuggestionDialog = async () => {
+      if (!suggestionDialog || !suggestionCategory) return;
+      const cleaned = norm(suggestionDraft);
+      if (!cleaned) {
+        setSuggestionMsg("Informe um valor valido para a sugestao.");
+        return;
+      }
+
+      try {
+        setSuggestionBusy(true);
+        if (suggestionDialog.mode === "create") {
+          if (!onCreateSuggestion) return;
+          await onCreateSuggestion(suggestionCategory, cleaned);
+          setSuggestionMsg("Sugestao cadastrada com sucesso.");
+        } else {
+          if (!onUpdateSuggestion) return;
+          const targetId = norm(suggestionDialog.id);
+          if (!targetId || targetId.startsWith("fallback:")) {
+            setSuggestionMsg("Essa sugestao nao pode ser alterada sem tabela no banco.");
+            return;
+          }
+          await onUpdateSuggestion(targetId, suggestionCategory, cleaned);
+          setSuggestionMsg("Sugestao alterada com sucesso.");
+        }
+        setSuggestionDialog(null);
+      } catch (error: any) {
+        const fallbackMessage = suggestionDialog.mode === "create" ? "Falha ao cadastrar sugestao." : "Falha ao alterar sugestao.";
+        setSuggestionMsg(String(error?.message || fallbackMessage));
+      } finally {
+        setSuggestionBusy(false);
+      }
+    };
+
+    const handleDeleteSuggestion = (id: string, value: string) => {
+      if (!onDeleteSuggestion || !suggestionCategory) return;
+      if (!id || id.startsWith("fallback:")) {
+        setSuggestionMsg("Essa sugestao nao pode ser excluida sem tabela no banco.");
+        return;
+      }
+
+      setSuggestionDeleteTarget({ id, value });
+    };
+
+    const confirmDeleteSuggestion = async () => {
+      if (!onDeleteSuggestion || !suggestionCategory || !suggestionDeleteTarget) return;
+      try {
+        setSuggestionBusy(true);
+        await onDeleteSuggestion(suggestionDeleteTarget.id, suggestionCategory);
+        setSuggestionMsg("Sugestao excluida com sucesso.");
+        setSuggestionDeleteTarget(null);
+      } catch (error: any) {
+        setSuggestionMsg(String(error?.message || "Falha ao excluir sugestao."));
+      } finally {
+        setSuggestionBusy(false);
+      }
+    };
+
     return (
       <ModalShell
         open={open}
@@ -1749,20 +1938,163 @@ const ModalPecas: React.FC<{
           </div>
         </div>
 
-        {!!sugestoes?.length && (
-          <div className="flex flex-wrap gap-2">
-            {sugestoes.map((s) => (
-              <button
-                type="button"
-                key={s}
-                onClick={() => onChangeDescricao(s)}
-                className="px-2 h-8 rounded-xl text-[11px] font-semibold border border-slate-200 bg-white hover:bg-slate-50"
-              >
-                {s}
-              </button>
-            ))}
+        {(suggestionEntries.length > 0 || !!onCreateSuggestion) && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 md:col-span-6 flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-600 tracking-wide">SUGESTOES</label>
+                <select
+                  value={selectedSuggestionId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setSelectedSuggestionId(nextId);
+                    const picked = suggestionEntries.find((item) => item.id === nextId);
+                    if (picked) {
+                      onChangeDescricao(picked.value);
+                      setSuggestionMsg("");
+                    }
+                  }}
+                  disabled={suggestionBusy || !suggestionEntries.length}
+                  className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                >
+                  {!suggestionEntries.length ? <option value="">Sem sugestoes cadastradas</option> : null}
+                  {suggestionEntries.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-12 md:col-span-6 flex flex-wrap gap-2 md:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedSuggestion) return;
+                    onChangeDescricao(selectedSuggestion.value);
+                    setSuggestionMsg("");
+                  }}
+                  disabled={!selectedSuggestion || suggestionBusy}
+                  className="px-3 h-8 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  USAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedSuggestion) return;
+                    openEditSuggestionDialog(selectedSuggestion.id, selectedSuggestion.value);
+                  }}
+                  disabled={!selectedSuggestion || !selectedSuggestion.editable || !onUpdateSuggestion || !suggestionCategory || suggestionBusy}
+                  className="px-3 h-8 rounded-xl text-[11px] font-semibold border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                >
+                  <Pencil size={12} />
+                  EDITAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedSuggestion) return;
+                    handleDeleteSuggestion(selectedSuggestion.id, selectedSuggestion.value);
+                  }}
+                  disabled={!selectedSuggestion || !selectedSuggestion.editable || !onDeleteSuggestion || !suggestionCategory || suggestionBusy}
+                  className="px-3 h-8 rounded-xl text-[11px] font-semibold border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                >
+                  <Trash2 size={12} />
+                  EXCLUIR
+                </button>
+                {onCreateSuggestion && suggestionCategory ? (
+                <button
+                  type="button"
+                  onClick={openCreateSuggestionDialog}
+                  disabled={suggestionBusy}
+                  className="px-3 h-8 rounded-xl text-[11px] font-semibold border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  CADASTRAR SUGESTAO
+                </button>
+                ) : null}
+              </div>
+            </div>
+
+            {suggestionMsg ? (
+              <div className="text-[12px] text-slate-700 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+                {suggestionMsg}
+              </div>
+            ) : null}
           </div>
         )}
+
+        {suggestionDeleteTarget ? (
+          <ModalShell
+            open={!!suggestionDeleteTarget}
+            title="Excluir sugestao"
+            subtitle={`Confirma excluir a sugestao "${suggestionDeleteTarget.value}"?`}
+            onClose={() => {
+              if (suggestionBusy) return;
+              setSuggestionDeleteTarget(null);
+            }}
+            maxW="max-w-md"
+          >
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSuggestionDeleteTarget(null)}
+                disabled={suggestionBusy}
+                className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                CANCELAR
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteSuggestion()}
+                disabled={suggestionBusy}
+                className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {suggestionBusy ? "EXCLUINDO..." : "EXCLUIR"}
+              </button>
+            </div>
+          </ModalShell>
+        ) : null}
+
+        {suggestionDialog ? (
+          <ModalShell
+            open={!!suggestionDialog}
+            title={suggestionDialog.mode === "create" ? "Cadastrar sugestao" : "Editar sugestao"}
+            subtitle={suggestionDialog.mode === "create" ? "Digite o valor da nova sugestao." : "Atualize o valor da sugestao selecionada."}
+            onClose={closeSuggestionDialog}
+            maxW="max-w-md"
+          >
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-600 tracking-wide">VALOR DA SUGESTAO</label>
+                <input
+                  value={suggestionDraft}
+                  onChange={(event) => setSuggestionDraft(event.target.value)}
+                  disabled={suggestionBusy}
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeSuggestionDialog}
+                  disabled={suggestionBusy}
+                  className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveSuggestionDialog()}
+                  disabled={suggestionBusy}
+                  className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
+                >
+                  {suggestionBusy ? "SALVANDO..." : suggestionDialog.mode === "create" ? "CADASTRAR" : "SALVAR"}
+                </button>
+              </div>
+            </div>
+          </ModalShell>
+        ) : null}
 
         {mensagem && <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{mensagem}</div>}
 
@@ -1849,12 +2181,16 @@ const CadastroNF_EAN_Modelo = () => {
   const [eansCad, setEansCad] = useState<Master[]>([]);
 
   const autoLoadRef = useRef("");
+  const returnedClientRef = useRef("");
   const [usuarioLogado, setUsuarioLogado] = useState(DEFAULT_CREATED_BY);
   const [usuarioInicializado, setUsuarioInicializado] = useState(false);
   const [revendasClientes, setRevendasClientes] = useState<RevendaClienteOption[]>([]);
   const [revendasLoading, setRevendasLoading] = useState(false);
   const [revendasErro, setRevendasErro] = useState("");
   const [fabricantesEntidades, setFabricantesEntidades] = useState<string[]>([]);
+  const [suggestionRows, setSuggestionRows] = useState<ProductReferenceSuggestionItem[]>(() =>
+    buildFallbackSuggestionItemsFromCatalog(mergeProductSuggestionCatalog())
+  );
 
   const [master, setMaster] = useState<Master>({ id: undefined, ean: "", modeloReferencia: "", fabricante: "" });
   const [allowSaveIntoCurrentRecord, setAllowSaveIntoCurrentRecord] = useState(false);
@@ -1879,6 +2215,11 @@ const CadastroNF_EAN_Modelo = () => {
   const [modeloAtual, setModeloAtual] = useState("");
   const [codigoProdutoAtual, setCodigoProdutoAtual] = useState("");
   const [linhaAtual, setLinhaAtual] = useState("");
+  const [linhaSuggestionBusy, setLinhaSuggestionBusy] = useState(false);
+  const [linhaSuggestionModal, setLinhaSuggestionModal] = useState<null | { mode: "create" | "edit"; id?: string }>(null);
+  const [linhaSuggestionDraft, setLinhaSuggestionDraft] = useState("");
+  const [selectedLinhaSuggestionId, setSelectedLinhaSuggestionId] = useState("");
+  const [mostrarConfirmacaoExclusaoLinha, setMostrarConfirmacaoExclusaoLinha] = useState(false);
   const [mensagemModelo, setMensagemModelo] = useState("");
   const [editModeloId, setEditModeloId] = useState<number | null>(null);
 
@@ -1943,48 +2284,67 @@ const CadastroNF_EAN_Modelo = () => {
     [fabricantesEntidades, registros, eansCad, master.fabricante]
   );
 
+  const suggestionCatalog = useMemo<ProductSuggestionCatalog>(
+    () => buildProductSuggestionCatalogFromItems(suggestionRows),
+    [suggestionRows]
+  );
+
+  const suggestionRowsByCategory = useMemo(
+    () => ({
+      linhas: suggestionRows.filter((item) => item.category === "linhas"),
+      funcionalidades: suggestionRows.filter((item) => item.category === "funcionalidades"),
+      esteticas: suggestionRows.filter((item) => item.category === "esteticas"),
+      embalagens: suggestionRows.filter((item) => item.category === "embalagens"),
+      acessorios: suggestionRows.filter((item) => item.category === "acessorios"),
+      pecas_funcionais: suggestionRows.filter((item) => item.category === "pecas_funcionais"),
+    }),
+    [suggestionRows]
+  );
+
+  const linhaSuggestionRows = useMemo(
+    () => dedupeSuggestionRowsByLookup(suggestionRowsByCategory.linhas),
+    [suggestionRowsByCategory.linhas]
+  );
+
+  useEffect(() => {
+    if (!linhaSuggestionRows.length) {
+      setSelectedLinhaSuggestionId("");
+      return;
+    }
+
+    setSelectedLinhaSuggestionId((prev) => {
+      if (prev && linhaSuggestionRows.some((item) => item.id === prev)) return prev;
+      const fromCurrentLinha = linhaSuggestionRows.find(
+        (item) => normalizeLookup(item.value) === normalizeLookup(linhaAtual)
+      );
+      return fromCurrentLinha?.id || linhaSuggestionRows[0].id;
+    });
+  }, [linhaSuggestionRows, linhaAtual]);
+
+  const selectedLinhaSuggestion = useMemo(
+    () => linhaSuggestionRows.find((item) => item.id === selectedLinhaSuggestionId) || null,
+    [linhaSuggestionRows, selectedLinhaSuggestionId]
+  );
+
   const linhasConhecidas = useMemo(
-    () =>
-      uniqueSorted([
-        ...modelosFabricante.map((item) => item?.linha),
-        ...registros.flatMap((item) =>
-          Array.isArray(item?.modelosFabricante) ? item.modelosFabricante.map((modelo: ModeloFabricante) => modelo?.linha) : []
-        ),
-      ]),
-    [modelosFabricante, registros]
+    () => uniqueSortedLookup([...linhaSuggestionRows.map((item) => item.value), ...modelosFabricante.map((item) => item?.linha)]),
+    [linhaSuggestionRows, modelosFabricante]
   );
 
-  const sugestoesEmbalagem = useMemo(
-    () =>
-      uniqueSorted([
-        ...embalagens.map((item) => item.descricao),
-        ...registros.flatMap((item) => (Array.isArray(item?.embalagens) ? item.embalagens.map((peca: PecaBase) => peca?.descricao) : [])),
-      ]),
-    [embalagens, registros]
+  const sugestoesEmbalagem = useMemo(() => suggestionCatalog.embalagens, [suggestionCatalog.embalagens]);
+
+  const sugestoesAcessorios = useMemo(() => suggestionCatalog.acessorios, [suggestionCatalog.acessorios]);
+
+  const sugestoesEsteticas = useMemo(() => suggestionCatalog.esteticas, [suggestionCatalog.esteticas]);
+
+  const sugestoesFuncionais = useMemo(
+    () => suggestionCatalog.pecas_funcionais,
+    [suggestionCatalog.pecas_funcionais]
   );
-
-  const sugestoesAcessorios = useMemo(() => SUGESTOES_ACESSORIOS_PADRAO, []);
-
-  const sugestoesEsteticas = useMemo(
-    () =>
-      uniqueSorted([
-        ...esteticas.map((item) => item.descricao),
-        ...registros.flatMap((item) => (Array.isArray(item?.esteticas) ? item.esteticas.map((peca: PecaBase) => peca?.descricao) : [])),
-      ]),
-    [esteticas, registros]
-  );
-
-  const sugestoesFuncionais = useMemo(() => SUGESTOES_PECAS_FUNCIONAIS_PADRAO, []);
 
   const sugestoesFuncionalidades = useMemo(
-    () =>
-      uniqueSorted([
-        ...funcionalidades.map((item) => item.descricao),
-        ...registros.flatMap((item) =>
-          Array.isArray(item?.funcionalidades) ? item.funcionalidades.map((peca: PecaBase) => peca?.descricao) : []
-        ),
-      ]),
-    [funcionalidades, registros]
+    () => suggestionCatalog.funcionalidades,
+    [suggestionCatalog.funcionalidades]
   );
 
   const catalogoPecasPorCodigo = useMemo(() => {
@@ -2057,10 +2417,15 @@ const CadastroNF_EAN_Modelo = () => {
 
         setRevendasClientes(Array.isArray(payload.revendasClientes) ? payload.revendasClientes : []);
         setFabricantesEntidades(Array.isArray(payload.fabricantes) ? payload.fabricantes : []);
+        setSuggestionRows(
+          Array.isArray(payload.suggestionItems) && payload.suggestionItems.length > 0
+            ? payload.suggestionItems
+            : buildFallbackSuggestionItemsFromCatalog(payload.suggestions || mergeProductSuggestionCatalog())
+        );
       } catch (error: any) {
         if (!active) return;
         console.error("Falha ao carregar dados reais de apoio:", error);
-        setRevendasErro("Falha ao carregar clientes, filiais e fabricantes.");
+        setRevendasErro("Falha ao carregar clientes, filiais, fabricantes e sugestoes.");
       } finally {
         if (active) setRevendasLoading(false);
       }
@@ -2070,6 +2435,19 @@ const CadastroNF_EAN_Modelo = () => {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const clientName = norm(new URLSearchParams(window.location.search).get("clientName"));
+    if (!clientName || returnedClientRef.current === clientName) return;
+
+    returnedClientRef.current = clientName;
+    setRevendaNFAtual(clientName);
+    setMensagemNF(`Cliente ${clientName} carregado. Informe ou confirme o Codigo NF.`);
+    setMostrarPopupNF(true);
+    setMostrarLookupRevenda(false);
   }, []);
 
   useEffect(() => {
@@ -2117,13 +2495,141 @@ const CadastroNF_EAN_Modelo = () => {
     };
   }, [usuarioAtual, usuarioInicializado]);
 
-  const criarRevendaCliente = async ({ nome, documento }: CreateRevendaClienteInput): Promise<RevendaClienteOption> => {
-    const created = await ProductApiService.createRevendaCliente(nome, documento);
-    setRevendasClientes((prev) => {
-      const next = [...prev.filter((item) => item.id !== created.id), created];
-      return dedupeRevendaClienteOptions(next);
+  const irParaCadastroCliente = ({ nome, documento }: CreateRevendaClienteInput) => {
+    const params = new URLSearchParams();
+    params.set("returnTo", "/home/produtos");
+    if (norm(nome)) params.set("prefillName", norm(nome));
+    if (norm(documento)) params.set("prefillDocument", norm(documento));
+    window.location.href = `/home/cadastro-clientes?${params.toString()}`;
+  };
+
+  const cadastrarSugestao = async (category: ProductSuggestionCategory, value: string) => {
+    const cleaned = norm(value);
+    if (!cleaned) {
+      throw new Error("Informe o valor da sugestao.");
+    }
+
+    const created = await ProductApiService.createReferenceSuggestion(category, cleaned);
+    setSuggestionRows((prev) => {
+      const withoutSameId = prev.filter((item) => item.id !== created.suggestion.id);
+      const withoutSameValue = withoutSameId.filter(
+        (item) =>
+          item.category !== created.suggestion.category ||
+          normalizeLookup(item.value) !== normalizeLookup(created.suggestion.value)
+      );
+      return [created.suggestion, ...withoutSameValue];
     });
-    return created;
+  };
+
+  const editarSugestao = async (
+    id: string,
+    category: ProductSuggestionCategory,
+    value: string
+  ) => {
+    const cleanedId = norm(id);
+    const cleanedValue = norm(value);
+    if (!cleanedId || cleanedId.startsWith("fallback:")) {
+      throw new Error("Sugestao sem ID de banco. Rode o SQL de sugestoes e recarregue a tela.");
+    }
+
+    if (!cleanedValue) {
+      throw new Error("Informe o valor da sugestao.");
+    }
+
+    const updated = await ProductApiService.updateReferenceSuggestion(cleanedId, category, cleanedValue);
+    setSuggestionRows((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item))
+    );
+  };
+
+  const excluirSugestao = async (id: string) => {
+    const cleanedId = norm(id);
+    if (!cleanedId || cleanedId.startsWith("fallback:")) {
+      throw new Error("Sugestao sem ID de banco. Rode o SQL de sugestoes e recarregue a tela.");
+    }
+
+    await ProductApiService.deleteReferenceSuggestion(cleanedId);
+    setSuggestionRows((prev) => prev.filter((item) => item.id !== cleanedId));
+  };
+
+  const abrirModalCadastrarLinha = () => {
+    setLinhaSuggestionDraft(norm(linhaAtual));
+    setLinhaSuggestionModal({ mode: "create" });
+  };
+
+  const abrirModalEditarLinha = (id: string, value: string) => {
+    const cleanedId = norm(id);
+    if (!cleanedId || cleanedId.startsWith("fallback:")) {
+      setMensagemModelo("Essa sugestao nao pode ser alterada sem tabela no banco.");
+      return;
+    }
+    setLinhaSuggestionDraft(norm(value));
+    setLinhaSuggestionModal({ mode: "edit", id: cleanedId });
+  };
+
+  const fecharModalLinha = () => {
+    if (linhaSuggestionBusy) return;
+    setLinhaSuggestionModal(null);
+  };
+
+  const salvarModalLinha = async () => {
+    if (!linhaSuggestionModal) return;
+    const cleanedValue = norm(linhaSuggestionDraft);
+    if (!cleanedValue) {
+      setMensagemModelo("Informe o valor da sugestao de linha.");
+      return;
+    }
+
+    try {
+      setLinhaSuggestionBusy(true);
+      if (linhaSuggestionModal.mode === "create") {
+        await cadastrarSugestao("linhas", cleanedValue);
+        setMensagemModelo("Sugestao de linha cadastrada.");
+      } else {
+        const cleanedId = norm(linhaSuggestionModal.id);
+        if (!cleanedId || cleanedId.startsWith("fallback:")) {
+          setMensagemModelo("Essa sugestao nao pode ser alterada sem tabela no banco.");
+          return;
+        }
+        await editarSugestao(cleanedId, "linhas", cleanedValue);
+        setMensagemModelo("Sugestao de linha alterada.");
+      }
+      setLinhaSuggestionModal(null);
+    } catch (error: any) {
+      const fallbackMessage = linhaSuggestionModal.mode === "create"
+        ? "Falha ao cadastrar sugestao de linha."
+        : "Falha ao alterar sugestao de linha.";
+      setMensagemModelo(String(error?.message || fallbackMessage));
+    } finally {
+      setLinhaSuggestionBusy(false);
+    }
+  };
+
+  const abrirConfirmacaoExclusaoLinha = () => {
+    if (!selectedLinhaSuggestion) return;
+    if (selectedLinhaSuggestion.id.startsWith("fallback:")) {
+      setMensagemModelo("Essa sugestao nao pode ser excluida sem tabela no banco.");
+      return;
+    }
+    setMostrarConfirmacaoExclusaoLinha(true);
+  };
+
+  const excluirLinhaSelecionada = async () => {
+    if (!selectedLinhaSuggestion) return;
+    if (selectedLinhaSuggestion.id.startsWith("fallback:")) {
+      setMensagemModelo("Essa sugestao nao pode ser excluida sem tabela no banco.");
+      return;
+    }
+    try {
+      setLinhaSuggestionBusy(true);
+      await excluirSugestao(selectedLinhaSuggestion.id);
+      setMensagemModelo("Sugestao de linha excluida.");
+      setMostrarConfirmacaoExclusaoLinha(false);
+    } catch (error: any) {
+      setMensagemModelo(String(error?.message || "Falha ao excluir sugestao de linha."));
+    } finally {
+      setLinhaSuggestionBusy(false);
+    }
   };
 
   const lookupDescricao = (codigoPeca: string) => {
@@ -3117,8 +3623,14 @@ const CadastroNF_EAN_Modelo = () => {
   ) => {
     const codigoPeca = upper(v);
     const desc = lookupDescricao(codigoPeca);
-    setForm((p) => ({ ...p, codigoPeca, descricao: desc || p.descricao }));
-    if (desc) setForm((p) => ({ ...p, descricao: desc }));
+    setForm((p) => {
+      const hasManualDescricao = !!norm(p.descricao);
+      return {
+        ...p,
+        codigoPeca,
+        descricao: !hasManualDescricao && desc ? desc : p.descricao,
+      };
+    });
     setMsg("");
   };
 
@@ -3315,20 +3827,168 @@ const CadastroNF_EAN_Modelo = () => {
                       setLinhaAtual(e.target.value);
                       setMensagemModelo("");
                     }}
+                    autoComplete="off"
                     className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
                   />
                 </div>
-                <div className="col-span-12 md:col-span-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={addModelo}
-                    className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center gap-2"
-                  >
-                    <Plus size={16} />
-                    INCLUIR
-                  </button>
+                <div className="col-span-12 md:col-span-2 flex md:justify-end">
+                  <div className="flex w-full md:justify-end">
+                    <button
+                      type="button"
+                      onClick={addModelo}
+                      className="w-full md:w-auto px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center gap-2"
+                    >
+                      <Plus size={16} />
+                      INCLUIR
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-[11px] font-semibold text-slate-800">Sugestoes de linha</div>
+                    <div className="text-[10px] text-slate-500">Clique em usar para preencher o campo LINHA, ou gerencie as sugestoes.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={abrirModalCadastrarLinha}
+                    disabled={linhaSuggestionBusy}
+                    className="w-full md:w-auto px-3 h-8 rounded-xl text-[11px] font-semibold border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                  >
+                    <Plus size={14} />
+                    INCLUIR NOVA LINHA
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-12 md:col-span-6 flex flex-col gap-1.5">
+                    <label className="text-[11px] font-medium text-slate-600 tracking-wide">SUGESTOES DE LINHA</label>
+                    <select
+                      value={selectedLinhaSuggestionId}
+                      onChange={(event) => setSelectedLinhaSuggestionId(event.target.value)}
+                      disabled={linhaSuggestionBusy || !linhaSuggestionRows.length}
+                      className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    >
+                      {!linhaSuggestionRows.length ? <option value="">Sem sugestoes cadastradas</option> : null}
+                      {linhaSuggestionRows.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-12 md:col-span-6 flex flex-wrap gap-2 md:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedLinhaSuggestion) return;
+                        setLinhaAtual(selectedLinhaSuggestion.value);
+                        setMensagemModelo("");
+                      }}
+                      disabled={!selectedLinhaSuggestion || linhaSuggestionBusy}
+                      className="px-2.5 h-8 rounded-lg text-[10px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      USAR
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedLinhaSuggestion) return;
+                        abrirModalEditarLinha(selectedLinhaSuggestion.id, selectedLinhaSuggestion.value);
+                      }}
+                      disabled={!selectedLinhaSuggestion || selectedLinhaSuggestion.id.startsWith("fallback:") || linhaSuggestionBusy}
+                      className="px-2.5 h-8 rounded-lg text-[10px] font-semibold border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 inline-flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Pencil size={12} />
+                      EDITAR
+                    </button>
+                    <button
+                      type="button"
+                      onClick={abrirConfirmacaoExclusaoLinha}
+                      disabled={!selectedLinhaSuggestion || selectedLinhaSuggestion.id.startsWith("fallback:") || linhaSuggestionBusy}
+                      className="px-2.5 h-8 rounded-lg text-[10px] font-semibold border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 inline-flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={12} />
+                      EXCLUIR
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {linhaSuggestionModal ? (
+                <ModalShell
+                  open={!!linhaSuggestionModal}
+                  title={linhaSuggestionModal.mode === "create" ? "Cadastrar sugestao de linha" : "Editar sugestao de linha"}
+                  subtitle={linhaSuggestionModal.mode === "create" ? "Digite a nova linha para reutilizar nos cadastros." : "Atualize o valor da linha selecionada."}
+                  onClose={fecharModalLinha}
+                  maxW="max-w-md"
+                >
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-medium text-slate-600 tracking-wide">LINHA</label>
+                      <input
+                        value={linhaSuggestionDraft}
+                        onChange={(event) => setLinhaSuggestionDraft(event.target.value)}
+                        disabled={linhaSuggestionBusy}
+                        className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={fecharModalLinha}
+                        disabled={linhaSuggestionBusy}
+                        className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        CANCELAR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void salvarModalLinha()}
+                        disabled={linhaSuggestionBusy}
+                        className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
+                      >
+                        {linhaSuggestionBusy ? "SALVANDO..." : linhaSuggestionModal.mode === "create" ? "CADASTRAR" : "SALVAR"}
+                      </button>
+                    </div>
+                  </div>
+                </ModalShell>
+              ) : null}
+
+              {mostrarConfirmacaoExclusaoLinha ? (
+                <ModalShell
+                  open={mostrarConfirmacaoExclusaoLinha}
+                  title="Excluir sugestao de linha"
+                  subtitle={`Confirma excluir a sugestao "${selectedLinhaSuggestion?.value || "-"}"?`}
+                  onClose={() => {
+                    if (linhaSuggestionBusy) return;
+                    setMostrarConfirmacaoExclusaoLinha(false);
+                  }}
+                  maxW="max-w-md"
+                >
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMostrarConfirmacaoExclusaoLinha(false)}
+                      disabled={linhaSuggestionBusy}
+                      className="px-3 h-9 rounded-xl text-[11px] font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      CANCELAR
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void excluirLinhaSelecionada()}
+                      disabled={linhaSuggestionBusy}
+                      className="px-3 h-9 rounded-xl text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {linhaSuggestionBusy ? "EXCLUINDO..." : "EXCLUIR"}
+                    </button>
+                  </div>
+                </ModalShell>
+              ) : null}
 
               {mensagemModelo && (
                 <div className="text-[12px] text-slate-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-2">{mensagemModelo}</div>
@@ -3787,7 +4447,7 @@ const CadastroNF_EAN_Modelo = () => {
             options={revendasClientes}
             loading={revendasLoading}
             error={revendasErro}
-            onCreateOption={criarRevendaCliente}
+            onGoToCadastroCliente={irParaCadastroCliente}
             onSelect={(nome) => {
               setRevendaNFAtual(nome);
               setMostrarLookupRevenda(false);
@@ -3816,6 +4476,11 @@ const CadastroNF_EAN_Modelo = () => {
             lista={embalagens}
             onRemover={(id) => setEmbalagens((p) => p.filter((x) => x.id !== id))}
             sugestoes={sugestoesEmbalagem}
+            suggestionRows={suggestionRowsByCategory.embalagens}
+            suggestionCategory="embalagens"
+            onCreateSuggestion={cadastrarSugestao}
+            onUpdateSuggestion={editarSugestao}
+            onDeleteSuggestion={(id) => excluirSugestao(id)}
           />
 
           <ModalPecas
@@ -3839,6 +4504,11 @@ const CadastroNF_EAN_Modelo = () => {
             lista={acessorios}
             onRemover={(id) => setAcessorios((p) => p.filter((x) => x.id !== id))}
             sugestoes={sugestoesAcessorios}
+            suggestionRows={suggestionRowsByCategory.acessorios}
+            suggestionCategory="acessorios"
+            onCreateSuggestion={cadastrarSugestao}
+            onUpdateSuggestion={editarSugestao}
+            onDeleteSuggestion={(id) => excluirSugestao(id)}
           />
 
           <ModalPecas
@@ -3865,6 +4535,11 @@ const CadastroNF_EAN_Modelo = () => {
             lista={esteticas.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
             onRemover={(id) => setEsteticas((p) => p.filter((x) => x.id !== id))}
             sugestoes={sugestoesEsteticas}
+            suggestionRows={suggestionRowsByCategory.esteticas}
+            suggestionCategory="esteticas"
+            onCreateSuggestion={cadastrarSugestao}
+            onUpdateSuggestion={editarSugestao}
+            onDeleteSuggestion={(id) => excluirSugestao(id)}
           />
 
           <ModalPecas
@@ -3894,6 +4569,11 @@ const CadastroNF_EAN_Modelo = () => {
             lista={funcionaisPeca.filter((x) => (x.modeloId || 0) === (modeloSelecionadoId || 0))}
             onRemover={(id) => setFuncionaisPeca((p) => p.filter((x) => x.id !== id))}
             sugestoes={sugestoesFuncionais}
+            suggestionRows={suggestionRowsByCategory.pecas_funcionais}
+            suggestionCategory="pecas_funcionais"
+            onCreateSuggestion={cadastrarSugestao}
+            onUpdateSuggestion={editarSugestao}
+            onDeleteSuggestion={(id) => excluirSugestao(id)}
           />
 
           <ModalPecas
@@ -3916,6 +4596,11 @@ const CadastroNF_EAN_Modelo = () => {
             lista={funcionalidades}
             onRemover={(id) => setFuncionalidades((p) => p.filter((x) => x.id !== id))}
             sugestoes={sugestoesFuncionalidades}
+            suggestionRows={suggestionRowsByCategory.funcionalidades}
+            suggestionCategory="funcionalidades"
+            onCreateSuggestion={cadastrarSugestao}
+            onUpdateSuggestion={editarSugestao}
+            onDeleteSuggestion={(id) => excluirSugestao(id)}
           />
 
           <ModalArquivos

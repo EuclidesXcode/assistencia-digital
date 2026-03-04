@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProductApiService } from "@/lib/productApiService";
+import { RecebimentoReferenceApiService } from "@/lib/recebimentoReferenceApiService";
 import { RecebimentoService } from "@/backend/services/recebimentoService";
 import {
   EtiquetasMissing,
@@ -87,6 +88,17 @@ type ProductLookup = {
   marca: string;
 } | null;
 
+type NfReference = {
+  id: string;
+  codigoNf: string;
+  modeloReferencia: string;
+  ean: string;
+  marca: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 const LABELS: { key: LabelKey; title: string; hint: string }[] = [
   { key: "CODIGO_UNICO", title: "Etiqueta Codigo Unico", hint: "Centralize o codigo unico e evite reflexos." },
   { key: "VISTORIA_REVENDA", title: "Etiqueta Vistoria Revenda", hint: "Mostre filial, UF, data e carimbo." },
@@ -111,12 +123,6 @@ const STEP_TITLES = [
   "Etiqueta SAT",
   "Recebimento do Produto",
 ];
-
-const CAD_NF = new Map<string, { modeloReferencia: string }>([
-  ["3551512", { modeloReferencia: 'TV 32"PHILCO LED PH32E53SG HD/DTV/USB/NET' }],
-  ["1234567", { modeloReferencia: "TV 50 HISENSE 50A6K UHD SMART WIFI BT HDMI" }],
-  ["9876543", { modeloReferencia: "TV 40 BRITANIA BTV40G7FSA" }],
-]);
 
 function createInitialDados(): Record<LabelKey, LabelData> {
   return {
@@ -324,7 +330,10 @@ function buildRow(registro: RecebimentoRegistro, withNf: boolean, usuarioFallbac
   };
 }
 
-async function fetchProductLookup(codigoNf: string): Promise<ProductLookup> {
+async function fetchProductLookup(
+  codigoNf: string,
+  fallbackMap?: Map<string, { modeloReferencia: string; ean?: string; marca?: string }>
+): Promise<ProductLookup> {
   const normalized = sanitize(codigoNf, "CODIGO_NF");
   if (!normalized) return null;
 
@@ -338,8 +347,10 @@ async function fetchProductLookup(codigoNf: string): Promise<ProductLookup> {
     console.error("Erro ao consultar produto por Codigo NF:", error);
   }
 
-  const fallback = CAD_NF.get(normalized);
-  return fallback ? { modeloReferencia: fallback.modeloReferencia, ean: "", marca: "" } : null;
+  const fallback = fallbackMap?.get(normalized);
+  return fallback
+    ? { modeloReferencia: fallback.modeloReferencia, ean: fallback.ean || "", marca: fallback.marca || "" }
+    : null;
 }
 
 export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
@@ -363,6 +374,16 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
   const [busyAction, setBusyAction] = useState(false);
   const [nfLookup, setNfLookup] = useState<ProductLookup>(null);
   const [nfLookupBusy, setNfLookupBusy] = useState(false);
+  const [nfReferences, setNfReferences] = useState<NfReference[]>([]);
+  const [nfReferencesLoading, setNfReferencesLoading] = useState(false);
+  const [showNfReferenceForm, setShowNfReferenceForm] = useState(false);
+  const [nfReferenceBusy, setNfReferenceBusy] = useState(false);
+  const [nfReferenceForm, setNfReferenceForm] = useState({
+    codigoNf: "",
+    modeloReferencia: "",
+    ean: "",
+    marca: "",
+  });
   const [usuarioInicializado, setUsuarioInicializado] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>(null);
 
@@ -397,6 +418,31 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
     const timer = window.setTimeout(() => setToast(null), 2400);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    let active = true;
+    if (!withNf) return () => {
+      active = false;
+    };
+
+    const loadNfReferences = async () => {
+      setNfReferencesLoading(true);
+      try {
+        const references = await RecebimentoReferenceApiService.listNfReferencias();
+        if (!active) return;
+        setNfReferences(Array.isArray(references) ? references : []);
+      } catch (error) {
+        console.error("Erro ao carregar referencias de NF do recebimento:", error);
+      } finally {
+        if (active) setNfReferencesLoading(false);
+      }
+    };
+
+    void loadNfReferences();
+    return () => {
+      active = false;
+    };
+  }, [withNf]);
 
   useEffect(() => {
     let active = true;
@@ -452,6 +498,17 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
     };
   }, [requestedLoteParam, tipoRecebimento, usuarioInicializado, withNf]);
 
+  const nfReferenceMap = useMemo(
+    () =>
+      new Map(
+        nfReferences.map((item) => [
+          item.codigoNf,
+          { modeloReferencia: item.modeloReferencia, ean: item.ean, marca: item.marca },
+        ])
+      ),
+    [nfReferences]
+  );
+
   useEffect(() => {
     let active = true;
     const normalized = sanitize(form.codigoNf, "CODIGO_NF");
@@ -465,7 +522,7 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
     }
 
     setNfLookupBusy(true);
-    fetchProductLookup(normalized)
+    fetchProductLookup(normalized, nfReferenceMap)
       .then((result) => {
         if (active) setNfLookup(result);
       })
@@ -480,7 +537,7 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
     return () => {
       active = false;
     };
-  }, [form.codigoNf, withNf]);
+  }, [form.codigoNf, withNf, nfReferenceMap]);
 
   const ordered = useMemo(() => [...rows].sort((a, b) => a.numero - b.numero), [rows]);
   const bloqueado = loteStatus === "FINALIZADO";
@@ -492,9 +549,11 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
   const nfOk = !nfVal || RX.CODIGO_NF.test(nfVal);
   const nsOk = !nsVal || RX.NS.test(nsVal);
   const fallbackLookup = useMemo(() => {
-    const fallback = CAD_NF.get(nfVal);
-    return fallback ? { modeloReferencia: fallback.modeloReferencia, ean: "", marca: "" } : null;
-  }, [nfVal]);
+    const fallback = nfReferenceMap.get(nfVal);
+    return fallback
+      ? { modeloReferencia: fallback.modeloReferencia, ean: fallback.ean || "", marca: fallback.marca || "" }
+      : null;
+  }, [nfReferenceMap, nfVal]);
   const currentLookup = nfLookup || fallbackLookup;
   const curLabel = step >= 1 && step <= 3 ? LABELS[step - 1] : null;
   const curDados = curLabel ? dados[curLabel.key] : null;
@@ -584,6 +643,72 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
     });
   };
 
+  const abrirCadastroReferenciaNf = () => {
+    const codigo = nfVal;
+    const base = nfReferenceMap.get(codigo);
+    setNfReferenceForm({
+      codigoNf: codigo,
+      modeloReferencia: currentLookup?.modeloReferencia || base?.modeloReferencia || "",
+      ean: currentLookup?.ean || base?.ean || "",
+      marca: currentLookup?.marca || base?.marca || "",
+    });
+    setShowNfReferenceForm(true);
+  };
+
+  const salvarReferenciaNf = async () => {
+    if (nfReferenceBusy) return;
+
+    const codigo = sanitize(nfReferenceForm.codigoNf, "CODIGO_NF");
+    const modeloReferencia = trimText(nfReferenceForm.modeloReferencia);
+    const ean = trimText(nfReferenceForm.ean);
+    const marca = trimText(nfReferenceForm.marca);
+
+    if (!codigo || !RX.CODIGO_NF.test(codigo)) {
+      notify("Informe um Codigo NF valido para cadastrar referencia.", "danger");
+      return;
+    }
+
+    if (!modeloReferencia) {
+      notify("Informe o Modelo Referencia para cadastrar a referencia.", "danger");
+      return;
+    }
+
+    setNfReferenceBusy(true);
+    try {
+      const saved = await RecebimentoReferenceApiService.saveNfReferencia({
+        codigoNf: codigo,
+        modeloReferencia,
+        ean,
+        marca,
+        createdBy: usuarioLogado,
+      });
+
+      setNfReferences((prev) => {
+        const next = [saved, ...prev.filter((item) => item.codigoNf !== saved.codigoNf)];
+        return next;
+      });
+
+      setForm((prev) => ({
+        ...prev,
+        codigoNf: codigo,
+      }));
+
+      setNfLookup({
+        modeloReferencia: saved.modeloReferencia,
+        ean: saved.ean || "",
+        marca: saved.marca || "",
+      });
+
+      setShowNfReferenceForm(false);
+      notify("Referencia de NF salva no banco.", "success");
+    } catch (error: any) {
+      console.error("Erro ao salvar referencia de NF:", error);
+      notify(error?.message || "Nao foi possivel salvar a referencia de NF.", "danger");
+    } finally {
+      setNfReferenceBusy(false);
+    }
+  };
+
   const salvarFinalizar = async () => {
     if (bloqueado) return notify(`O lote ${loteId} esta finalizado. Inicie um novo lote.`, "warn");
     if (actionDisabled) return;
@@ -606,7 +731,7 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
 
     setBusyAction(true);
     try {
-      const produto = withNf ? await fetchProductLookup(nfVal) : null;
+      const produto = withNf ? await fetchProductLookup(nfVal, nfReferenceMap) : null;
       const created = await RecebimentoService.createRecebimento({
         tipoRecebimento,
         loteNumero: loteId,
@@ -677,7 +802,7 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
 
     setBusyAction(true);
     try {
-      const produto = withNf ? await fetchProductLookup(codigoNf) : null;
+      const produto = withNf ? await fetchProductLookup(codigoNf, nfReferenceMap) : null;
       const updated = await RecebimentoService.updateRecebimento(edit.id, {
         codigoUnico,
         codigoNF: withNf ? codigoNf : "",
@@ -889,13 +1014,113 @@ export default function RecebimentoWizardEtiquetas({ withNf }: Props) {
               </div>
 
               {withNf ? (
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium">Codigo NF<span className="text-red-600"> *</span></label>
-                  <input className={`rounded-lg border px-3 py-2 ${form.codigoNf && !nfOk ? "border-red-500" : "border-slate-300"}`} placeholder="Digite o Codigo NF" value={form.codigoNf} onChange={(event) => setForm({ ...form, codigoNf: sanitize(event.target.value, "CODIGO_NF") })} />
-                  {form.codigoNf && !nfOk ? <div className="text-xs text-red-600">Somente numeros.</div> : null}
-                  {nfLookupBusy && nfVal ? <div className="text-xs text-slate-500">Buscando produto...</div> : null}
-                  {nfVal && nfOk && !nfLookupBusy ? (currentLookup?.modeloReferencia ? <div className="mt-1 text-xs text-green-700">Modelo referencia: <b>{currentLookup.modeloReferencia}</b></div> : <div className="mt-1 text-xs text-amber-700">Modelo referencia nao encontrado. O recebimento sera salvo mesmo assim.</div>) : null}
-                </div>
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium">Codigo NF<span className="text-red-600"> *</span></label>
+                    <input className={`rounded-lg border px-3 py-2 ${form.codigoNf && !nfOk ? "border-red-500" : "border-slate-300"}`} placeholder="Digite o Codigo NF" value={form.codigoNf} onChange={(event) => setForm({ ...form, codigoNf: sanitize(event.target.value, "CODIGO_NF") })} />
+                    {form.codigoNf && !nfOk ? <div className="text-xs text-red-600">Somente numeros.</div> : null}
+                    {nfLookupBusy && nfVal ? <div className="text-xs text-slate-500">Buscando produto...</div> : null}
+                    {nfVal && nfOk && !nfLookupBusy ? (currentLookup?.modeloReferencia ? <div className="mt-1 text-xs text-green-700">Modelo referencia: <b>{currentLookup.modeloReferencia}</b></div> : <div className="mt-1 text-xs text-amber-700">Modelo referencia nao encontrado. O recebimento sera salvo mesmo assim.</div>) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={abrirCadastroReferenciaNf}
+                        disabled={actionDisabled || nfReferenceBusy}
+                      >
+                        Cadastrar referencia NF
+                      </button>
+                      {nfReferencesLoading ? <span className="text-xs text-slate-500">Carregando referencias...</span> : null}
+                      {!nfReferencesLoading ? <span className="text-xs text-slate-500">Referencias cadastradas: {nfReferences.length}</span> : null}
+                    </div>
+                  </div>
+
+                  {showNfReferenceForm ? (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 md:col-span-3">
+                      <div className="mb-2 text-sm font-semibold text-indigo-900">Cadastrar referencia de NF</div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Codigo NF *</label>
+                          <input
+                            className={`rounded-lg border px-3 py-2 ${nfReferenceForm.codigoNf && !RX.CODIGO_NF.test(sanitize(nfReferenceForm.codigoNf, "CODIGO_NF")) ? "border-red-500" : "border-slate-300"}`}
+                            value={nfReferenceForm.codigoNf}
+                            onChange={(event) =>
+                              setNfReferenceForm((prev) => ({
+                                ...prev,
+                                codigoNf: sanitize(event.target.value, "CODIGO_NF"),
+                              }))
+                            }
+                            placeholder="Somente numeros"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1 md:col-span-2">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Modelo referencia *</label>
+                          <input
+                            className="rounded-lg border border-slate-300 px-3 py-2"
+                            value={nfReferenceForm.modeloReferencia}
+                            onChange={(event) =>
+                              setNfReferenceForm((prev) => ({
+                                ...prev,
+                                modeloReferencia: event.target.value,
+                              }))
+                            }
+                            placeholder="Ex.: TV 40 PHILCO FULL HD"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">EAN</label>
+                          <input
+                            className="rounded-lg border border-slate-300 px-3 py-2"
+                            value={nfReferenceForm.ean}
+                            onChange={(event) =>
+                              setNfReferenceForm((prev) => ({
+                                ...prev,
+                                ean: event.target.value,
+                              }))
+                            }
+                            placeholder="Opcional"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1 md:col-span-2">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Marca / Fabricante</label>
+                          <input
+                            className="rounded-lg border border-slate-300 px-3 py-2"
+                            value={nfReferenceForm.marca}
+                            onChange={(event) =>
+                              setNfReferenceForm((prev) => ({
+                                ...prev,
+                                marca: event.target.value,
+                              }))
+                            }
+                            placeholder="Opcional"
+                          />
+                        </div>
+
+                        <div className="flex items-end justify-end gap-2 md:col-span-2">
+                          <button
+                            type="button"
+                            className="rounded-xl border px-4 py-2 text-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => setShowNfReferenceForm(false)}
+                            disabled={nfReferenceBusy}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-xl border bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={salvarReferenciaNf}
+                            disabled={nfReferenceBusy}
+                          >
+                            {nfReferenceBusy ? "Salvando..." : "Salvar referencia"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
               ) : null}
 
               <div className="flex flex-col gap-1">

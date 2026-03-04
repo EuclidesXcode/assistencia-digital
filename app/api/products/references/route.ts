@@ -4,6 +4,16 @@ import {
   supabaseAdmin,
   supabaseAdminConfigError
 } from '@/lib/supabaseAdmin';
+import {
+  DEFAULT_PRODUCT_SUGGESTIONS,
+  ProductReferenceSuggestionItem,
+  ProductSuggestionCatalog,
+  ProductSuggestionCategory,
+  buildFallbackSuggestionItemsFromCatalog,
+  buildProductSuggestionCatalogFromItems,
+  createEmptyProductSuggestionCatalog,
+  normalizeProductSuggestionCategory
+} from '@/lib/productReferenceCatalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,17 +25,8 @@ type RevendaClienteOption = {
   origem: 'CLIENTE' | 'FILIAL';
 };
 
-type CreateRevendaPayload = {
-  nome?: string;
-  documento?: string;
-};
-
 function norm(value: unknown) {
   return String(value || '').trim();
-}
-
-function digitsOnly(value: unknown) {
-  return norm(value).replace(/\D/g, '');
 }
 
 function upper(value: unknown) {
@@ -36,6 +37,10 @@ function uniqueSorted(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => norm(value)).filter(Boolean))).sort((a, b) =>
     a.localeCompare(b)
   );
+}
+
+function normalizeCompare(value: unknown) {
+  return upper(norm(value).normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
 }
 
 function jsonNoStore(body: unknown, init?: ResponseInit) {
@@ -74,73 +79,6 @@ function isRealBranch(branch: any) {
   return Boolean(branch?.is_headquarters || branch?.company_id || branch?.client_id);
 }
 
-function buildBranchDocumentPayload(documento: string) {
-  const digits = digitsOnly(documento);
-  if (!digits) {
-    return {
-      cnpj: null,
-      branch_code: null
-    };
-  }
-
-  if (digits.length === 14) {
-    return {
-      cnpj: documento,
-      branch_code: null
-    };
-  }
-
-  return {
-    cnpj: null,
-    branch_code: documento
-  };
-}
-
-async function resolveDefaultCompanyId() {
-  const { data: headquarters, error: headquartersError } = await supabaseAdmin
-    .from('branches')
-    .select('company_id')
-    .eq('is_headquarters', true)
-    .not('company_id', 'is', null)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (headquartersError) {
-    throw new Error(headquartersError.message);
-  }
-
-  if (headquarters?.company_id) {
-    const { data: companyByHq, error: companyByHqError } = await supabaseAdmin
-      .from('companies')
-      .select('id')
-      .eq('id', headquarters.company_id)
-      .limit(1)
-      .maybeSingle();
-
-    if (companyByHqError) {
-      throw new Error(companyByHqError.message);
-    }
-
-    if (companyByHq?.id) {
-      return String(companyByHq.id);
-    }
-  }
-
-  const { data: firstCompany, error: firstCompanyError } = await supabaseAdmin
-    .from('companies')
-    .select('id')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (firstCompanyError) {
-    throw new Error(firstCompanyError.message);
-  }
-
-  return norm(firstCompany?.id) || null;
-}
-
 function dedupeRevendasClientes(options: RevendaClienteOption[]) {
   const map = new Map<string, RevendaClienteOption>();
 
@@ -154,7 +92,7 @@ function dedupeRevendasClientes(options: RevendaClienteOption[]) {
       return;
     }
 
-    if (current.origem !== 'FILIAL' && option.origem === 'FILIAL') {
+    if (current.origem !== 'CLIENTE' && option.origem === 'CLIENTE') {
       map.set(key, option);
     }
   });
@@ -179,13 +117,122 @@ function getSafeErrorMessage(error: unknown) {
   return trimmed.length > 300 ? `${trimmed.slice(0, 300)}...` : trimmed;
 }
 
+function isMissingSuggestionTableError(error: any) {
+  const message = String(error?.message || '').toLowerCase();
+  const detail = String(error?.detail || error?.details || '').toLowerCase();
+  const source = `${message} ${detail}`;
+  return error?.code === '42P01' || source.includes('product_reference_suggestions');
+}
+
+function mapSuggestionRow(row: any): ProductReferenceSuggestionItem | null {
+  const id = norm(row?.id);
+  const category = normalizeProductSuggestionCategory(row?.category);
+  const value = norm(row?.value);
+
+  if (!id || !category || !value) return null;
+  return {
+    id,
+    category,
+    value
+  };
+}
+
+function buildDefaultSeedRows() {
+  const rows: Array<{ category: ProductSuggestionCategory; value: string }> = [];
+
+  (Object.keys(DEFAULT_PRODUCT_SUGGESTIONS) as ProductSuggestionCategory[]).forEach((category) => {
+    DEFAULT_PRODUCT_SUGGESTIONS[category].forEach((value) => {
+      const cleaned = norm(value);
+      if (!cleaned) return;
+      const duplicate = rows.some(
+        (item) =>
+          item.category === category &&
+          normalizeCompare(item.value) === normalizeCompare(cleaned)
+      );
+      if (duplicate) return;
+      rows.push({ category, value: cleaned });
+    });
+  });
+
+  return rows;
+}
+
+type LoadedSuggestionData = {
+  catalog: ProductSuggestionCatalog;
+  items: ProductReferenceSuggestionItem[];
+};
+
+async function loadSuggestionCatalog() {
+  const { data, error } = await supabaseAdmin
+    .from('product_reference_suggestions')
+    .select('id, category, value')
+    .order('category', { ascending: true })
+    .order('value', { ascending: true });
+
+  if (error) {
+    if (isMissingSuggestionTableError(error)) {
+      return {
+        catalog: buildProductSuggestionCatalogFromItems(
+          buildFallbackSuggestionItemsFromCatalog(DEFAULT_PRODUCT_SUGGESTIONS)
+        ),
+        items: buildFallbackSuggestionItemsFromCatalog(DEFAULT_PRODUCT_SUGGESTIONS)
+      } as LoadedSuggestionData;
+    }
+
+    throw new Error(error.message);
+  }
+
+  let rows = Array.isArray(data) ? data : [];
+
+  if (rows.length === 0) {
+    const seedRows = buildDefaultSeedRows();
+    if (seedRows.length > 0) {
+      const { error: seedError } = await supabaseAdmin
+        .from('product_reference_suggestions')
+        .insert(seedRows);
+
+      if (seedError && seedError.code !== '23505') {
+        throw new Error(seedError.message);
+      }
+
+      const retry = await supabaseAdmin
+        .from('product_reference_suggestions')
+        .select('id, category, value')
+        .order('category', { ascending: true })
+        .order('value', { ascending: true });
+
+      if (retry.error) {
+        throw new Error(retry.error.message);
+      }
+
+      rows = Array.isArray(retry.data) ? retry.data : [];
+    }
+  }
+
+  const items = rows
+    .map((row) => mapSuggestionRow(row))
+    .filter((item): item is ProductReferenceSuggestionItem => !!item);
+
+  if (items.length === 0) {
+    return {
+      catalog: createEmptyProductSuggestionCatalog(),
+      items: []
+    } as LoadedSuggestionData;
+  }
+
+  return {
+    catalog: buildProductSuggestionCatalogFromItems(items),
+    items
+  } as LoadedSuggestionData;
+}
+
 export async function GET() {
   if (!hasSupabaseAdminConfig) {
     return getMissingConfigResponse();
   }
 
   try {
-    const [clientsResult, branchesResult, fabricantesResult] = await Promise.all([
+    const [clientsResult, branchesResult, fabricantesResult, suggestionData] = await Promise.all([
       supabaseAdmin
         .from('clients')
         .select('id, person_type, trade_name, legal_name, full_name, cnpj, cpf'),
@@ -195,7 +242,8 @@ export async function GET() {
       supabaseAdmin
         .from('entities')
         .select('id, name, legal_name')
-        .eq('entity_type', 'MANUFACTURER')
+        .eq('entity_type', 'MANUFACTURER'),
+      loadSuggestionCatalog()
     ]);
 
     if (clientsResult.error) {
@@ -226,7 +274,9 @@ export async function GET() {
 
     return jsonNoStore({
       revendasClientes,
-      fabricantes
+      fabricantes,
+      suggestions: suggestionData.catalog,
+      suggestionItems: suggestionData.items
     });
   } catch (error) {
     console.error('Products references GET error:', error);
@@ -237,92 +287,12 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
-  if (!hasSupabaseAdminConfig) {
-    return getMissingConfigResponse();
-  }
-
-  try {
-    const body = (await request.json()) as CreateRevendaPayload;
-    const nome = norm(body?.nome);
-    const documento = norm(body?.documento);
-    const documentPayload = buildBranchDocumentPayload(documento);
-
-    if (!nome) {
-      return jsonNoStore({ error: 'Nome da revenda obrigatorio.' }, { status: 400 });
-    }
-
-    const { data: existingBranch, error: existingBranchError } = await supabaseAdmin
-      .from('branches')
-      .select('id, branch_name, cnpj, branch_code, company_id, client_id, is_headquarters')
-      .ilike('branch_name', nome)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingBranchError) {
-      return jsonNoStore({ error: existingBranchError.message }, { status: 500 });
-    }
-
-    const existingOption = isRealBranch(existingBranch) ? toBranchOption(existingBranch) : null;
-    if (existingOption) {
-      if (existingBranch?.id && documento && !norm(existingBranch?.cnpj || existingBranch?.branch_code)) {
-        const { data: updated, error: updateError } = await supabaseAdmin
-          .from('branches')
-          .update(documentPayload.cnpj ? { cnpj: documentPayload.cnpj } : { branch_code: documento })
-          .eq('id', existingBranch.id)
-          .select('id, branch_name, cnpj, branch_code, company_id, client_id, is_headquarters')
-          .single();
-
-        if (updateError) {
-          return jsonNoStore({ error: updateError.message }, { status: 500 });
-        }
-
-        const updatedOption = toBranchOption(updated);
-        if (updatedOption) {
-          return jsonNoStore({ option: updatedOption, alreadyExisted: true, updatedDocument: true });
-        }
-      }
-
-      return jsonNoStore({ option: existingOption, alreadyExisted: true });
-    }
-
-    const companyId = await resolveDefaultCompanyId();
-    if (!companyId) {
-      return jsonNoStore(
-        { error: 'Nao foi possivel resolver a empresa principal para vincular a revenda. Cadastre pela tela de empresas/filiais.' },
-        { status: 400 }
-      );
-    }
-
-    const { data: created, error: insertError } = await supabaseAdmin
-      .from('branches')
-      .insert([
-        {
-          company_id: companyId,
-          client_id: null,
-          branch_name: nome,
-          is_headquarters: false,
-          ...documentPayload
-        }
-      ])
-      .select('id, branch_name, cnpj, branch_code, company_id, client_id, is_headquarters')
-      .single();
-
-    if (insertError) {
-      return jsonNoStore({ error: insertError.message }, { status: 500 });
-    }
-
-    const option = toBranchOption(created);
-    if (!option) {
-      return jsonNoStore({ error: 'Falha ao montar revenda criada.' }, { status: 500 });
-    }
-
-    return jsonNoStore({ option, alreadyExisted: false }, { status: 201 });
-  } catch (error) {
-    console.error('Products references POST error:', error);
-    return jsonNoStore(
-      { error: `Erro ao cadastrar revenda: ${getSafeErrorMessage(error)}` },
-      { status: 500 }
-    );
-  }
+export async function POST() {
+  return jsonNoStore(
+    {
+      error:
+        'Use a pagina /home/cadastro-clientes para cadastrar novos clientes a partir do lookup de Revenda/Cliente.'
+    },
+    { status: 405 }
+  );
 }
